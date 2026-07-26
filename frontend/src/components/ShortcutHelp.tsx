@@ -1,4 +1,4 @@
-import { SHORTCUTS } from "../shortcuts";
+import { GESTURES, SHORTCUTS } from "../shortcuts";
 
 /** The `?` overlay listing every keyboard shortcut. */
 export function ShortcutHelp({ onClose }: { onClose: () => void }) {
@@ -17,6 +17,19 @@ export function ShortcutHelp({ onClose }: { onClose: () => void }) {
                   <kbd>{s.keys}</kbd>
                 </td>
                 <td>{s.action}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <div className="shortcut-help__title">Mouse</div>
+        <table className="shortcut-help__table">
+          <tbody>
+            {GESTURES.map((g) => (
+              <tr key={g.keys}>
+                <td>
+                  <kbd>{g.keys}</kbd>
+                </td>
+                <td>{g.action}</td>
               </tr>
             ))}
           </tbody>

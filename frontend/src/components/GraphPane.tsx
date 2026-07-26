@@ -4,6 +4,7 @@ import ReactFlow, {
   Controls,
   MiniMap,
   Panel,
+  SelectionMode,
   useEdgesState,
   useNodesState,
   type Edge,
@@ -40,10 +41,28 @@ const EDGE_STYLES: { value: EdgeStyle; label: string }[] = [
 const EDGE_STYLE_STORAGE_KEY = "pystructurizr.edgeStyle";
 const HOVER_EMPHASIS_STORAGE_KEY = "pystructurizr.hoverEmphasis";
 const SNAP_TO_GRID_STORAGE_KEY = "pystructurizr.snapToGrid";
+const INTERACTION_STORAGE_KEY = "pystructurizr.interaction";
 
 // Drag snapping step. Matches the Background dot spacing so the dots read
 // as the grid being snapped to rather than as unrelated decoration.
 const SNAP_GRID: [number, number] = [16, 16];
+
+/**
+ * What a left-drag on empty canvas does. Modal rather than a modifier so
+ * neither gesture is hidden: in `pan` the diagram behaves as it always
+ * has (drag pans, scroll zooms) and Shift+drag still selects; in `select`
+ * a drag draws a selection box and panning moves to two-finger scroll and
+ * the middle/right button.
+ */
+type Interaction = "pan" | "select";
+
+const INTERACTIONS: { value: Interaction; label: string }[] = [
+  { value: "pan", label: "Pan" },
+  { value: "select", label: "Select" },
+];
+
+// Mouse buttons that pan while in select mode: middle and right.
+const PAN_BUTTONS = [1, 2];
 
 function storedEdgeStyle(): EdgeStyle {
   const raw = window.localStorage.getItem(EDGE_STYLE_STORAGE_KEY);
@@ -59,6 +78,13 @@ function storedHoverEmphasis(): boolean {
 /** Off unless explicitly enabled: free positioning stays the default. */
 function storedSnapToGrid(): boolean {
   return window.localStorage.getItem(SNAP_TO_GRID_STORAGE_KEY) === "on";
+}
+
+/** Pan unless explicitly switched: a viewer pans on drag by convention. */
+function storedInteraction(): Interaction {
+  return window.localStorage.getItem(INTERACTION_STORAGE_KEY) === "select"
+    ? "select"
+    : "pan";
 }
 
 interface GraphPaneProps {
@@ -216,6 +242,8 @@ export function GraphPane({ view, views, workspace, onNavigate }: GraphPaneProps
   const [hoverEmphasis, setHoverEmphasis] = useState<boolean>(storedHoverEmphasis);
   const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
   const [snapToGrid, setSnapToGrid] = useState<boolean>(storedSnapToGrid);
+  const [interaction, setInteraction] =
+    useState<Interaction>(storedInteraction);
   const [layoutState, setLayoutState] = useState<"idle" | "saved" | "failed">(
     "idle",
   );
@@ -285,6 +313,20 @@ export function GraphPane({ view, views, workspace, onNavigate }: GraphPaneProps
     setSnapToGrid((enabled) => {
       const next = !enabled;
       window.localStorage.setItem(SNAP_TO_GRID_STORAGE_KEY, next ? "on" : "off");
+      return next;
+    });
+  }, []);
+
+  const handleInteraction = useCallback((mode: Interaction) => {
+    setInteraction(mode);
+    window.localStorage.setItem(INTERACTION_STORAGE_KEY, mode);
+  }, []);
+
+  /** `v` flips between the two modes without leaving the diagram. */
+  const handleInteractionToggle = useCallback(() => {
+    setInteraction((mode) => {
+      const next = mode === "pan" ? "select" : "pan";
+      window.localStorage.setItem(INTERACTION_STORAGE_KEY, next);
       return next;
     });
   }, []);
@@ -620,6 +662,21 @@ export function GraphPane({ view, views, workspace, onNavigate }: GraphPaneProps
         onEdgeMouseLeave={() => setHoveredEdgeId(null)}
         snapToGrid={snapToGrid}
         snapGrid={SNAP_GRID}
+        selectionOnDrag={interaction === "select"}
+        // Full (reactflow's default) rather than Partial: a node must be
+        // wholly inside the box. Partial would catch any node the box
+        // merely touches, which means every boundary containing the
+        // gesture — dragging a box around two containers inside a
+        // container would take the container too. Boundaries are still
+        // selectable by clicking their border or label, or by enclosing
+        // them completely.
+        selectionMode={SelectionMode.Full}
+        panOnDrag={interaction === "select" ? PAN_BUTTONS : true}
+        panOnScroll={interaction === "select"}
+        // Views are derived from the model, so removing a node from the
+        // canvas means nothing — without this, Backspace silently deletes
+        // the selection until the next reload.
+        deleteKeyCode={null}
         fitView
         minZoom={0.1}
         proOptions={{ hideAttribution: true }}
@@ -646,6 +703,25 @@ export function GraphPane({ view, views, workspace, onNavigate }: GraphPaneProps
           </Panel>
         ) : null}
         <Panel position="top-right" className="edge-style">
+          <span className="edge-style__title">Mouse</span>
+          {INTERACTIONS.map((mode) => (
+            <button
+              key={mode.value}
+              className={
+                "edge-style__option" +
+                (mode.value === interaction ? " edge-style__option--active" : "")
+              }
+              title={
+                mode.value === "pan"
+                  ? "Drag pans the diagram; Shift+drag selects"
+                  : "Drag draws a selection box; scroll or middle-drag pans"
+              }
+              onClick={() => handleInteraction(mode.value)}
+            >
+              {mode.label}
+            </button>
+          ))}
+          <span className="edge-style__divider" />
           <span className="edge-style__title">Edges</span>
           {EDGE_STYLES.map((style) => (
             <button
@@ -756,6 +832,7 @@ export function GraphPane({ view, views, workspace, onNavigate }: GraphPaneProps
           viewKey={view.key}
           onHoverToggle={handleHoverToggle}
           onSnapToggle={handleSnapToggle}
+          onInteractionToggle={handleInteractionToggle}
         />
         <Background gap={16} />
         <Controls />

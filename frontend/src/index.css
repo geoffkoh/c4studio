@@ -1289,3 +1289,23 @@ button {
   background: var(--accent-soft);
   color: var(--accent);
 }
+
+/* ---- Multi-selection ---- */
+/* reactflow only ships `.selected` styling for its own built-in node types,
+   so custom element/boundary nodes would give no feedback at all when
+   caught by a selection box. */
+.react-flow__node.selected .node {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.react-flow__node.selected .boundary {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+/* The marquee itself: reactflow's dotted blue, warmed to the app accent. */
+.react-flow__selection {
+  background: rgba(25, 118, 210, 0.08);
+  border: 1px dotted rgba(25, 118, 210, 0.8);
+}
