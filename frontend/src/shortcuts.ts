@@ -11,6 +11,16 @@ export function isTypingTarget(target: EventTarget | null): boolean {
   );
 }
 
+/** Mouse gestures shown by the `?` help overlay alongside the keys. */
+export const GESTURES: readonly { keys: string; action: string }[] = [
+  { keys: "Drag", action: "Pan, or select in a box — whichever mode is on" },
+  { keys: "Shift + drag", action: "Select in a box (either mode)" },
+  { keys: "⌘ + click", action: "Add / remove one node from the selection" },
+  { keys: "Middle / right drag", action: "Pan the diagram" },
+  { keys: "Scroll", action: "Zoom in pan mode, pan in select mode" },
+  { keys: "Pinch", action: "Zoom" },
+];
+
 /** The shortcut list shown by the `?` help overlay. */
 export const SHORTCUTS: readonly { keys: string; action: string }[] = [
   { keys: "j / k", action: "Next / previous view" },
@@ -20,6 +30,7 @@ export const SHORTCUTS: readonly { keys: string; action: string }[] = [
   { keys: "s", action: "Export diagram as SVG" },
   { keys: "h", action: "Toggle hover emphasis" },
   { keys: "g", action: "Toggle snap to grid" },
+  { keys: "v", action: "Switch pan / select mode" },
   { keys: "?", action: "Show / hide this help" },
   { keys: "Esc", action: "Close this help" },
 ];

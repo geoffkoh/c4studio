@@ -10,12 +10,14 @@ interface KeyboardShortcutsProps {
   onHoverToggle: () => void;
   /** Toggles snap-to-grid dragging (the toolbar's Snap button). */
   onSnapToggle: () => void;
+  /** Flips between pan and select mode (the toolbar's Mouse buttons). */
+  onInteractionToggle: () => void;
 }
 
 /**
  * Graph-scoped keyboard shortcuts: `f` fits the diagram to the window,
  * `p`/`s` export PNG/SVG, `h` toggles hover emphasis, `g` toggles snap
- * to grid. Renders nothing;
+ * to grid, `v` flips between pan and select mode. Renders nothing;
  * must sit inside the ReactFlow component for `useReactFlow`. App-level
  * shortcuts (view navigation, help overlay) live in App.tsx.
  */
@@ -23,6 +25,7 @@ export function KeyboardShortcuts({
   viewKey,
   onHoverToggle,
   onSnapToggle,
+  onInteractionToggle,
 }: KeyboardShortcutsProps) {
   const { fitView, getNodes } = useReactFlow();
 
@@ -46,6 +49,9 @@ export function KeyboardShortcuts({
         case "g":
           onSnapToggle();
           break;
+        case "v":
+          onInteractionToggle();
+          break;
         default:
           return;
       }
@@ -53,7 +59,14 @@ export function KeyboardShortcuts({
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [fitView, getNodes, viewKey, onHoverToggle, onSnapToggle]);
+  }, [
+    fitView,
+    getNodes,
+    viewKey,
+    onHoverToggle,
+    onSnapToggle,
+    onInteractionToggle,
+  ]);
 
   return null;
 }
