@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactFlow, {
   Background,
   Controls,
-  MarkerType,
   MiniMap,
   Panel,
   useEdgesState,
@@ -15,6 +14,7 @@ import ReactFlow, {
 import "reactflow/dist/style.css";
 
 import { ApiError, deleteLayout, getViewGraph, saveLayout } from "../api";
+import { EDGE_PAINT } from "../edgePaint";
 import { layoutGraph, normalizeStoredPositions } from "../layout";
 import { buildTrail, crumbLabel, drillTarget } from "../navigation";
 import type { GraphData, ViewInfo, Workspace } from "../types";
@@ -136,7 +136,7 @@ function toFlow(
       target: e.target,
       type: "floating",
       data: { label: e.label || undefined, order: e.order, curveOffset },
-      markerEnd: { type: MarkerType.ArrowClosed },
+      ...EDGE_PAINT,
     };
   });
 

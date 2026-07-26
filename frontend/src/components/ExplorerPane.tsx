@@ -8,7 +8,6 @@ import {
 import ReactFlow, {
   Background,
   Controls,
-  MarkerType,
   MiniMap,
   Panel,
   useEdgesState,
@@ -22,6 +21,7 @@ import ReactFlow, {
 import "reactflow/dist/style.css";
 
 import { ApiError, getModelGraph } from "../api";
+import { EDGE_PAINT } from "../edgePaint";
 import { layoutGraph } from "../layout";
 import { crumbLabel } from "../navigation";
 import { isTypingTarget } from "../shortcuts";
@@ -110,7 +110,7 @@ function toFlow(data: ModelGraphData): { nodes: Node[]; edges: Edge[] } {
       target: e.target,
       type: "floating",
       data: { label: e.label || undefined, curveOffset },
-      markerEnd: { type: MarkerType.ArrowClosed },
+      ...EDGE_PAINT,
     };
   });
 
