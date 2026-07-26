@@ -148,6 +148,44 @@ this right — `_lift_to()` walks each endpoint to its nearest visible
 ancestor. The C4 semantics are implemented twice and only one copy is
 correct; rendering Mermaid from the graph model removes the second copy.
 
+### Layout engine: elkjs, considered and deferred
+
+Layout is dagre (`frontend/src/layout.ts`). dagre has no notion of
+compound graphs, so nested C4 boundaries are handled by running it
+recursively: each boundary lays out its children, sizes itself to their
+bounding box plus label space, then joins its parent's layout as a single
+large node, with edges crossing a boundary lifted to the level being laid
+out. That recursion is the bulk of the module.
+
+**elkjs** (Eclipse Layout Kernel) is the obvious alternative, and two
+things make it more attractive here than usual:
+
+- It does **compound/nested layout natively**, which is most of what that
+  recursion exists to work around — and nesting to arbitrary depth is core
+  to C4, not an edge case.
+- It computes **orthogonal edge routes with bend points**, the same shape
+  of data PP-76 added persistence for. That turns "route this edge around
+  the obstacle" into something the tool can do rather than something the
+  user drags by hand.
+
+Deferred, for three reasons:
+
+- **New npm dependency, and a heavy one.** `elk.bundled.js` is over 1 MB
+  against a bundle of roughly 490 KB. Lazy loading or a worker mitigates
+  it, but that is more machinery, and new dependencies are ask-first.
+- **ELK's API is asynchronous.** `layoutGraph()` is called synchronously
+  from `toFlow`, itself called synchronously from the fetch handler.
+  Going async ripples through `GraphPane`, the expand/collapse tween and
+  the stored-position path — a refactor, not a swap.
+- **It unblocks nothing in Phase 5.** Headless rendering needs a layout
+  engine that runs in Node; dagre already does.
+
+**Revisit during the `diagram-core` extraction**, when layout moves into a
+package anyway and the engine sits behind a boundary that can be swapped.
+Doing it before then means paying the async refactor twice. Nobody has
+complained about layout *quality* so far — the friction has been in
+interaction — so this is an enabler for auto-routing rather than a fix.
+
 ### Rejected options — do not re-litigate
 
 - **Forge Remote to a hosted FastAPI service.** Reuses all the Python, but
