@@ -52,6 +52,10 @@ class AppState:
             to refetch.
         load_error: Parse error from the last failed live reload, if any.
         source_cache: Cached /api/source payload; cleared on (re)load.
+        waypoints: Relationship bend points from the layout sidecar, as
+            ``{view_key: {edge_id: [[x, y], ...]}}``. Held here rather than
+            on the workspace because deployment and dynamic views synthesise
+            edges that have no RelationshipView to hang vertices on.
     """
 
     root: Path
@@ -63,6 +67,7 @@ class AppState:
     generation: int = 0
     load_error: str = ""
     source_cache: dict[str, Any] | None = None
+    waypoints: dict[str, dict[str, list[list[int]]]] = field(default_factory=dict)
 
 
 class LoadRequest(BaseModel):
@@ -77,6 +82,9 @@ class LayoutRequest(BaseModel):
     positions: dict[str, tuple[int, int]]
     # Boundary node dimensions, persisted alongside positions.
     sizes: dict[str, tuple[int, int]] = {}
+    # Relationship bend points, keyed by edge id. An edge present with an
+    # empty list has had its waypoints cleared.
+    waypoints: dict[str, list[tuple[int, int]]] = {}
 
 
 def _get_state(request: Request) -> AppState:
@@ -223,8 +231,8 @@ def _layout_sidecar(source: Path) -> Path:
     return source.with_name(f"{source.stem}.layout.json")
 
 
-def _read_layout_sidecar(source: Path) -> dict[str, dict[str, list[int]]]:
-    """Read the sidecar's ``{view_key: {element_id: [x, y]}}`` mapping."""
+def _read_sidecar_data(source: Path) -> dict[str, Any]:
+    """Read and parse the whole sidecar document, or ``{}`` if unusable."""
     sidecar = _layout_sidecar(source)
     if not sidecar.is_file():
         return {}
@@ -232,14 +240,83 @@ def _read_layout_sidecar(source: Path) -> dict[str, dict[str, list[int]]]:
         data = json.loads(sidecar.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
-    views = data.get("views")
+    return data if isinstance(data, dict) else {}
+
+
+def _read_layout_sidecar(source: Path) -> dict[str, dict[str, list[int]]]:
+    """Read the sidecar's ``{view_key: {element_id: [x, y]}}`` mapping."""
+    views = _read_sidecar_data(source).get("views")
     return views if isinstance(views, dict) else {}
+
+
+def _read_layout_waypoints(source: Path) -> dict[str, dict[str, list[list[int]]]]:
+    """Read the sidecar's ``{view_key: {edge_id: [[x, y], ...]}}`` mapping.
+
+    Kept in a separate top-level ``edges`` section rather than folded into
+    ``views``, whose entries are element-id keyed: sidecars written before
+    waypoints existed simply have no ``edges`` key and still load.
+    """
+    edges = _read_sidecar_data(source).get("edges")
+    if not isinstance(edges, dict):
+        return {}
+    cleaned: dict[str, dict[str, list[list[int]]]] = {}
+    for key, by_edge in edges.items():
+        if not isinstance(by_edge, dict):
+            continue
+        points = {
+            edge_id: [[int(p[0]), int(p[1])] for p in pts]
+            for edge_id, pts in by_edge.items()
+            if isinstance(pts, list)
+            and all(isinstance(p, list) and len(p) == 2 for p in pts)
+        }
+        if points:
+            cleaned[key] = points
+    return cleaned
+
+
+def _write_layout_sidecar(
+    source: Path,
+    views: dict[str, dict[str, list[int]]],
+    waypoints: dict[str, dict[str, list[list[int]]]],
+) -> Path:
+    """Write both sidecar sections, removing the file when nothing is left."""
+    sidecar = _layout_sidecar(source)
+    document: dict[str, Any] = {"version": 1, "views": views}
+    if waypoints:
+        document["edges"] = waypoints
+    if not views and not waypoints:
+        sidecar.unlink(missing_ok=True)
+        return sidecar
+    sidecar.write_text(
+        json.dumps(document, indent=2, sort_keys=True), encoding="utf-8"
+    )
+    return sidecar
+
+
+def _attach_waypoints(
+    data: dict[str, Any], waypoints: dict[str, list[list[int]]]
+) -> None:
+    """Add saved bend points onto matching edges of a graph payload.
+
+    Edges whose id no longer appears in the view are simply skipped: the
+    stale entry stays in the sidecar until that view's layout is saved
+    again, and never reaches the client.
+    """
+    if not waypoints:
+        return
+    for edge in data.get("edges", []):
+        points = waypoints.get(edge.get("id", ""))
+        if points:
+            edge["waypoints"] = [[int(x), int(y)] for x, y in points]
 
 
 def _apply_saved_layout(state: AppState) -> None:
     """Apply sidecar positions onto the loaded workspace's views."""
     if state.workspace is None or state.current_path is None:
         return
+    # Waypoints stay on the state: they are keyed by edge id, and synthesised
+    # deployment/dynamic edges have no RelationshipView to hold them.
+    state.waypoints = _read_layout_waypoints(state.current_path)
     saved = _read_layout_sidecar(state.current_path)
     if not saved:
         return
@@ -443,6 +520,7 @@ def create_app(
             return state.diagrams[cache_key]
         view = _find_view(workspace, key)
         data = graph.react_flow_graph(workspace, view, expand_ids or None)
+        _attach_waypoints(data, state.waypoints.get(key, {}))
         state.diagrams[cache_key] = data
         return data
 
@@ -468,7 +546,6 @@ def create_app(
         apply_sizes(view, dict(body.sizes))
         _invalidate_view_cache(state, key)
 
-        sidecar = _layout_sidecar(state.current_path)
         saved = _read_layout_sidecar(state.current_path)
         entries: dict[str, list[int]] = {
             eid: [int(x), int(y)] for eid, (x, y) in body.positions.items()
@@ -477,10 +554,22 @@ def create_app(
             if eid in entries:
                 entries[eid] += [int(width), int(height)]
         saved[key] = entries
-        sidecar.write_text(
-            json.dumps({"version": 1, "views": saved}, indent=2, sort_keys=True),
-            encoding="utf-8",
-        )
+
+        # An edge sent with an empty list has had its bend points cleared,
+        # so drop it rather than persisting an empty entry.
+        bends = {
+            edge_id: [[int(x), int(y)] for x, y in points]
+            for edge_id, points in body.waypoints.items()
+            if points
+        }
+        all_waypoints = _read_layout_waypoints(state.current_path)
+        if bends:
+            all_waypoints[key] = bends
+        else:
+            all_waypoints.pop(key, None)
+        state.waypoints = all_waypoints
+
+        sidecar = _write_layout_sidecar(state.current_path, saved, all_waypoints)
         return {"saved": str(sidecar)}
 
     @app.delete("/api/views/{key}/layout")
@@ -499,19 +588,14 @@ def create_app(
         ]
         _invalidate_view_cache(state, key)
 
-        sidecar = _layout_sidecar(state.current_path)
         saved = _read_layout_sidecar(state.current_path)
-        if key in saved:
-            del saved[key]
-            if saved:
-                sidecar.write_text(
-                    json.dumps(
-                        {"version": 1, "views": saved}, indent=2, sort_keys=True
-                    ),
-                    encoding="utf-8",
-                )
-            else:
-                sidecar.unlink(missing_ok=True)
+        all_waypoints = _read_layout_waypoints(state.current_path)
+        # Reset means back to auto-layout, which includes straight edges.
+        if key in saved or key in all_waypoints:
+            saved.pop(key, None)
+            all_waypoints.pop(key, None)
+            state.waypoints = all_waypoints
+            _write_layout_sidecar(state.current_path, saved, all_waypoints)
         return {"reset": key}
 
     _mount_static(app, static_dir)

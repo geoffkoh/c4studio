@@ -70,6 +70,8 @@ export interface GEdge {
   label: string;
   /** 1-based step number; only present on dynamic-view edges. */
   order?: number;
+  /** Manual bend points in flow coordinates, from the layout sidecar. */
+  waypoints?: [number, number][];
 }
 
 /** Response body from GET /api/views/{key}/graph. */

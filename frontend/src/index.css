@@ -1309,3 +1309,51 @@ button {
   background: rgba(25, 118, 210, 0.08);
   border: 1px dotted rgba(25, 118, 210, 0.8);
 }
+
+/* ---- Relationship bend points ---- */
+.edge-waypoint {
+  fill: #ffffff;
+  stroke: var(--accent);
+  stroke-width: 2;
+  cursor: grab;
+}
+
+.edge-waypoint:active {
+  cursor: grabbing;
+}
+
+/* ---- Relationship context menu ---- */
+.edge-menu {
+  position: fixed;
+  z-index: 1200;
+  min-width: 190px;
+  padding: 4px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.16);
+  display: flex;
+  flex-direction: column;
+}
+
+.edge-menu__item {
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+}
+
+.edge-menu__item:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.edge-menu__item--destructive:hover {
+  background: #fdecea;
+  color: #c62828;
+}

@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import {
   BaseEdge,
   EdgeLabelRenderer,
@@ -21,6 +21,24 @@ export interface FloatingEdgeData {
   hoverState?: "hovered";
   /** Lets the label participate in hover tracking. */
   onHoverChange?: (edgeId: string | null) => void;
+  /**
+   * Manual bend points in flow coordinates. When present the edge is
+   * routed as straight segments through them and `pathStyle`/`curveOffset`
+   * are ignored: the bends are an explicit instruction, so an automatic
+   * curve fighting them would be worse than useless.
+   */
+  waypoints?: [number, number][];
+  /** Drag feedback for a bend point; index identifies which. */
+  onWaypointDrag?: (edgeId: string, index: number, x: number, y: number) => void;
+  /** Fired once a bend-point drag finishes, so the layout can be saved. */
+  onWaypointDragEnd?: () => void;
+  /** Right-click on a bend point; opens the menu at screen coordinates. */
+  onWaypointMenu?: (
+    edgeId: string,
+    index: number,
+    clientX: number,
+    clientY: number,
+  ) => void;
   /**
    * Perpendicular offset (px) separating edges that share a node pair
    * (bidirectional flows, parallel relationships): the edge bows through
@@ -75,6 +93,86 @@ function sideOf(node: Node, point: Point): Position {
   return Position.Bottom;
 }
 
+interface WaypointHandleProps {
+  edgeId: string;
+  index: number;
+  x: number;
+  y: number;
+  onDrag: (edgeId: string, index: number, x: number, y: number) => void;
+  onDragEnd?: () => void;
+  onMenu?: (
+    edgeId: string,
+    index: number,
+    clientX: number,
+    clientY: number,
+  ) => void;
+}
+
+/**
+ * A draggable bend point, drawn in the edge's own SVG group rather than in
+ * the edge-label portal: the edges layer is where pointer hit-testing
+ * already works for this app (it is how the line itself receives clicks),
+ * and the label layer is pointer-transparent with its own stacking.
+ *
+ * Pointer capture keeps the gesture alive when the pointer leaves the
+ * small circle, and screen deltas are divided by the viewport zoom so
+ * dragging tracks the cursor at any scale. Right-click is handled here
+ * rather than left to bubble, so "remove" is always reachable.
+ */
+function WaypointHandle({
+  edgeId,
+  index,
+  x,
+  y,
+  onDrag,
+  onDragEnd,
+  onMenu,
+}: WaypointHandleProps) {
+  const zoom = useStore((store) => store.transform[2]);
+  const origin = useRef<{ px: number; py: number; x: number; y: number } | null>(
+    null,
+  );
+
+  return (
+    <circle
+      className="edge-waypoint nodrag nopan"
+      cx={x}
+      cy={y}
+      r={5}
+      pointerEvents="all"
+      onPointerDown={(event) => {
+        if (event.button !== 0) return;
+        event.stopPropagation();
+        origin.current = { px: event.clientX, py: event.clientY, x, y };
+        event.currentTarget.setPointerCapture(event.pointerId);
+      }}
+      onPointerMove={(event) => {
+        const start = origin.current;
+        if (!start) return;
+        event.stopPropagation();
+        const scale = zoom || 1;
+        onDrag(
+          edgeId,
+          index,
+          Math.round(start.x + (event.clientX - start.px) / scale),
+          Math.round(start.y + (event.clientY - start.py) / scale),
+        );
+      }}
+      onPointerUp={(event) => {
+        if (!origin.current) return;
+        origin.current = null;
+        event.currentTarget.releasePointerCapture(event.pointerId);
+        onDragEnd?.();
+      }}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onMenu?.(edgeId, index, event.clientX, event.clientY);
+      }}
+    />
+  );
+}
+
 /**
  * An edge that ignores fixed handles and anchors to node centres: the line
  * is aimed centre-to-centre and clipped to each node's border, so arrows
@@ -103,7 +201,8 @@ export function FloatingEdge({
 
   const sourceCenter = center(sourceNode);
   const targetCenter = center(targetNode);
-  const curveOffset = data?.curveOffset ?? 0;
+  const bends = data?.waypoints ?? [];
+  const curveOffset = bends.length > 0 ? 0 : (data?.curveOffset ?? 0);
 
   // With an offset, everything aims at a control point perpendicular to
   // the centre line's midpoint instead of the other node's centre.
@@ -133,7 +232,35 @@ export function FloatingEdge({
   let path: string;
   let labelX: number;
   let labelY: number;
-  if (control && (pathStyle === "default" || pathStyle === "straight")) {
+  if (bends.length > 0) {
+    // Straight segments through every bend, clipped to the node borders
+    // at each end so arrowheads still land on the boundary.
+    const first = { x: bends[0][0], y: bends[0][1] };
+    const last = { x: bends[bends.length - 1][0], y: bends[bends.length - 1][1] };
+    const from = borderIntersection(sourceNode, first);
+    const to = borderIntersection(targetNode, last);
+    const points = [from, ...bends.map(([x, y]) => ({ x, y })), to];
+    path = points
+      .map((p, i) => `${i === 0 ? "M" : "L"} ${p.x},${p.y}`)
+      .join(" ");
+    // Label at the centre of the longest segment: always strictly between
+    // two points, so it never sits on a bend handle and covers it, and the
+    // longest run is where there is most room for the text.
+    let longest = 0;
+    let longestLength = -1;
+    for (let i = 0; i < points.length - 1; i += 1) {
+      const length = Math.hypot(
+        points[i + 1].x - points[i].x,
+        points[i + 1].y - points[i].y,
+      );
+      if (length > longestLength) {
+        longestLength = length;
+        longest = i;
+      }
+    }
+    labelX = (points[longest].x + points[longest + 1].x) / 2;
+    labelY = (points[longest].y + points[longest + 1].y) / 2;
+  } else if (control && (pathStyle === "default" || pathStyle === "straight")) {
     // Quadratic bezier through the offset control point; the label sits
     // on the curve's apex, Q(0.5) = 0.25·S + 0.5·C + 0.25·T.
     path = `M ${sourcePoint.x},${sourcePoint.y} Q ${control.x},${control.y} ${targetPoint.x},${targetPoint.y}`;
@@ -176,6 +303,20 @@ export function FloatingEdge({
   return (
     <>
       <BaseEdge id={id} path={path} markerEnd={markerEnd} style={edgeStyle} />
+      {data?.onWaypointDrag
+        ? bends.map(([x, y], index) => (
+            <WaypointHandle
+              key={index}
+              edgeId={id}
+              index={index}
+              x={x}
+              y={y}
+              onDrag={data.onWaypointDrag!}
+              onDragEnd={data.onWaypointDragEnd}
+              onMenu={data.onWaypointMenu}
+            />
+          ))
+        : null}
       {data?.label ? (
         <EdgeLabelRenderer>
           <div
