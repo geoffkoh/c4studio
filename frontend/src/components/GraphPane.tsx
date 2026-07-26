@@ -39,6 +39,11 @@ const EDGE_STYLES: { value: EdgeStyle; label: string }[] = [
 
 const EDGE_STYLE_STORAGE_KEY = "pystructurizr.edgeStyle";
 const HOVER_EMPHASIS_STORAGE_KEY = "pystructurizr.hoverEmphasis";
+const SNAP_TO_GRID_STORAGE_KEY = "pystructurizr.snapToGrid";
+
+// Drag snapping step. Matches the Background dot spacing so the dots read
+// as the grid being snapped to rather than as unrelated decoration.
+const SNAP_GRID: [number, number] = [16, 16];
 
 function storedEdgeStyle(): EdgeStyle {
   const raw = window.localStorage.getItem(EDGE_STYLE_STORAGE_KEY);
@@ -49,6 +54,11 @@ function storedEdgeStyle(): EdgeStyle {
 
 function storedHoverEmphasis(): boolean {
   return window.localStorage.getItem(HOVER_EMPHASIS_STORAGE_KEY) !== "off";
+}
+
+/** Off unless explicitly enabled: free positioning stays the default. */
+function storedSnapToGrid(): boolean {
+  return window.localStorage.getItem(SNAP_TO_GRID_STORAGE_KEY) === "on";
 }
 
 interface GraphPaneProps {
@@ -205,6 +215,7 @@ export function GraphPane({ view, views, workspace, onNavigate }: GraphPaneProps
   // Hover emphasis: highlight the hovered relationship, dim the rest.
   const [hoverEmphasis, setHoverEmphasis] = useState<boolean>(storedHoverEmphasis);
   const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
+  const [snapToGrid, setSnapToGrid] = useState<boolean>(storedSnapToGrid);
   const [layoutState, setLayoutState] = useState<"idle" | "saved" | "failed">(
     "idle",
   );
@@ -266,6 +277,14 @@ export function GraphPane({ view, views, workspace, onNavigate }: GraphPaneProps
         next ? "on" : "off",
       );
       if (!next) setHoveredEdgeId(null);
+      return next;
+    });
+  }, []);
+
+  const handleSnapToggle = useCallback(() => {
+    setSnapToGrid((enabled) => {
+      const next = !enabled;
+      window.localStorage.setItem(SNAP_TO_GRID_STORAGE_KEY, next ? "on" : "off");
       return next;
     });
   }, []);
@@ -599,6 +618,8 @@ export function GraphPane({ view, views, workspace, onNavigate }: GraphPaneProps
         onNodeDragStop={saveCurrentLayout}
         onEdgeMouseEnter={(_, edge) => setHoveredEdgeId(edge.id)}
         onEdgeMouseLeave={() => setHoveredEdgeId(null)}
+        snapToGrid={snapToGrid}
+        snapGrid={SNAP_GRID}
         fitView
         minZoom={0.1}
         proOptions={{ hideAttribution: true }}
@@ -657,6 +678,16 @@ export function GraphPane({ view, views, workspace, onNavigate }: GraphPaneProps
             onClick={handleHoverToggle}
           >
             Hover
+          </button>
+          <button
+            className={
+              "edge-style__option" +
+              (snapToGrid ? " edge-style__option--active" : "")
+            }
+            title={`Snap dragged nodes to a ${SNAP_GRID[0]}px grid`}
+            onClick={handleSnapToggle}
+          >
+            Snap
           </button>
           {layoutState !== "idle" ? (
             <span
@@ -721,7 +752,11 @@ export function GraphPane({ view, views, workspace, onNavigate }: GraphPaneProps
             </button>
           </Panel>
         ) : null}
-        <KeyboardShortcuts viewKey={view.key} onHoverToggle={handleHoverToggle} />
+        <KeyboardShortcuts
+          viewKey={view.key}
+          onHoverToggle={handleHoverToggle}
+          onSnapToggle={handleSnapToggle}
+        />
         <Background gap={16} />
         <Controls />
         <MiniMap
