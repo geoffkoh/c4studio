@@ -5,6 +5,10 @@ Welcome to the pystructurizr documentation. This directory contains guides and r
 ## Guides
 
 - **[Data Models](./data-models.md)** - Comprehensive reference for all Structurizr data models, including static structure elements, relationships, views, deployment infrastructure, and styling configuration.
+- **[Feature Parity](./structurizr-parity.md)** - Where pystructurizr stands against the Java Structurizr UI, feature by feature. The closest thing to a status page; kept current as work lands.
+- **[Roadmap](./roadmap.md)** - The staged forward plan (query layer, headless rendering, differentiators) and the delivery conventions.
+- **[Migration Guide](./MIGRATION.md)** - Breaking changes from the Structurizr Java compatibility work and how to adapt.
+- **[Compatibility Roadmap](./COMPATIBILITY_ROADMAP.md)** - Historical record of that compatibility work, now complete.
 
 ## Quick Start
 

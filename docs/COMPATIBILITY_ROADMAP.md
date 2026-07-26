@@ -1,6 +1,16 @@
 # Structurizr Java Compatibility Roadmap
 
-**Current Status:** 78% Compatible (189/249 fields implemented)  
+> **Historical — this roadmap is complete.** All four phases landed as
+> PP-31 → PP-35; the "78% compatible / 22–30 hours remaining" figures below
+> describe the state *before* that work and are kept as a record of what was
+> planned and why. The resulting breaking changes are documented in
+> [MIGRATION.md](./MIGRATION.md).
+>
+> For where the project stands **now**, read
+> [structurizr-parity.md](./structurizr-parity.md) (feature parity against the
+> Java Structurizr UI) and [roadmap.md](./roadmap.md) (the forward plan).
+
+**Status at the time of writing:** 78% Compatible (189/249 fields implemented)  
 **Target:** 100% Compatible  
 **Total Effort:** 22-30 hours across 4 phases
 
