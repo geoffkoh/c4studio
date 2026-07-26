@@ -8,17 +8,21 @@ interface KeyboardShortcutsProps {
   viewKey: string;
   /** Toggles the hover-emphasis feature (the toolbar's Hover button). */
   onHoverToggle: () => void;
+  /** Toggles snap-to-grid dragging (the toolbar's Snap button). */
+  onSnapToggle: () => void;
 }
 
 /**
  * Graph-scoped keyboard shortcuts: `f` fits the diagram to the window,
- * `p`/`s` export PNG/SVG, `h` toggles hover emphasis. Renders nothing;
+ * `p`/`s` export PNG/SVG, `h` toggles hover emphasis, `g` toggles snap
+ * to grid. Renders nothing;
  * must sit inside the ReactFlow component for `useReactFlow`. App-level
  * shortcuts (view navigation, help overlay) live in App.tsx.
  */
 export function KeyboardShortcuts({
   viewKey,
   onHoverToggle,
+  onSnapToggle,
 }: KeyboardShortcutsProps) {
   const { fitView, getNodes } = useReactFlow();
 
@@ -39,6 +43,9 @@ export function KeyboardShortcuts({
         case "h":
           onHoverToggle();
           break;
+        case "g":
+          onSnapToggle();
+          break;
         default:
           return;
       }
@@ -46,7 +53,7 @@ export function KeyboardShortcuts({
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [fitView, getNodes, viewKey, onHoverToggle]);
+  }, [fitView, getNodes, viewKey, onHoverToggle, onSnapToggle]);
 
   return null;
 }
