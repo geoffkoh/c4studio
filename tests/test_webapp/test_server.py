@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 from pathlib import Path
@@ -333,3 +334,97 @@ def test_built_static_dir_serves_index(root: Path, tmp_path: Path) -> None:
     response = client.get("/")
     assert response.status_code == 200
     assert "<title>spa</title>" in response.text
+
+
+def test_edge_ids_are_numbered_per_pair(client: TestClient) -> None:
+    """Ids must not shift when an unrelated edge appears in the view.
+
+    Saved waypoints are keyed by edge id, and most DSL relationships carry
+    no explicit id, so the fallback id has to be stable across edits that
+    leave a given endpoint pair alone.
+    """
+    _load(client)
+    ids = {e["id"] for e in client.get("/api/views/SystemContext/graph").json()["edges"]}
+    assert ids == {
+        "customer__bank__0",
+        "bank__email__0",
+        "bank__mainframe__0",
+        "email__customer__0",
+    }
+
+
+def test_layout_persists_edge_waypoints(client: TestClient, root: Path) -> None:
+    _load(client)
+    points = [[120, 240], [180, 260]]
+    response = client.post(
+        "/api/views/SystemContext/layout",
+        json={
+            "positions": {"customer": [10, 20]},
+            "waypoints": {"customer__bank__0": points},
+        },
+    )
+    assert response.status_code == 200
+
+    sidecar = json.loads((root / "example.layout.json").read_text(encoding="utf-8"))
+    assert sidecar["edges"]["SystemContext"]["customer__bank__0"] == points
+
+    # Served to the current session...
+    graph = client.get("/api/views/SystemContext/graph").json()
+    by_id = {e["id"]: e for e in graph["edges"]}
+    assert by_id["customer__bank__0"]["waypoints"] == points
+    assert "waypoints" not in by_id["bank__email__0"]
+
+    # ...and to a fresh one loading the same source.
+    fresh = TestClient(create_app(root=root))
+    fresh.post("/api/load", json={"path": "example.dsl"})
+    graph = fresh.get("/api/views/SystemContext/graph").json()
+    by_id = {e["id"]: e for e in graph["edges"]}
+    assert by_id["customer__bank__0"]["waypoints"] == points
+
+
+def test_clearing_waypoints_drops_them_from_the_sidecar(
+    client: TestClient, root: Path
+) -> None:
+    _load(client)
+    client.post(
+        "/api/views/SystemContext/layout",
+        json={
+            "positions": {"customer": [10, 20]},
+            "waypoints": {"customer__bank__0": [[1, 2]]},
+        },
+    )
+    client.post(
+        "/api/views/SystemContext/layout",
+        json={"positions": {"customer": [10, 20]}, "waypoints": {}},
+    )
+    sidecar = json.loads((root / "example.layout.json").read_text(encoding="utf-8"))
+    assert "edges" not in sidecar
+    graph = client.get("/api/views/SystemContext/graph").json()
+    assert all("waypoints" not in e for e in graph["edges"])
+
+
+def test_delete_layout_clears_waypoints(client: TestClient, root: Path) -> None:
+    _load(client)
+    client.post(
+        "/api/views/SystemContext/layout",
+        json={"positions": {}, "waypoints": {"customer__bank__0": [[5, 6]]}},
+    )
+    assert client.delete("/api/views/SystemContext/layout").status_code == 200
+    # Reset means auto-layout, which includes straight edges.
+    assert not (root / "example.layout.json").exists()
+    graph = client.get("/api/views/SystemContext/graph").json()
+    assert all("waypoints" not in e for e in graph["edges"])
+
+
+def test_legacy_sidecar_without_edges_section_still_loads(root: Path) -> None:
+    """Sidecars written before waypoints existed must keep working."""
+    (root / "example.layout.json").write_text(
+        json.dumps({"version": 1, "views": {"SystemContext": {"customer": [7, 8]}}}),
+        encoding="utf-8",
+    )
+    client = TestClient(create_app(root=root))
+    client.post("/api/load", json={"path": "example.dsl"})
+    graph = client.get("/api/views/SystemContext/graph").json()
+    positions = {n["id"]: n.get("position") for n in graph["nodes"]}
+    assert positions["customer"] == {"x": 7, "y": 8}
+    assert all("waypoints" not in e for e in graph["edges"])

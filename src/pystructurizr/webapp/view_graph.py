@@ -298,6 +298,7 @@ def _edges(
     edges: list[GraphEdge] = []
     seen_pairs: set[tuple[str, str]] = set()
     seen_direct: set[tuple[str, str, str]] = set()
+    pair_counts: dict[tuple[str, str], int] = {}
     for rel in workspace.relationships:
         # Implied (linked) relationships duplicate what endpoint lifting
         # already infers; rendering both would double the edge.
@@ -321,13 +322,26 @@ def _edges(
         seen_pairs.add((src, dst))
         edges.append(
             {
-                "id": rel.id or f"{src}__{dst}__{len(edges)}",
+                "id": rel.id or _pair_edge_id(src, dst, pair_counts),
                 "source": src,
                 "target": dst,
                 "data": {"label": rel.description, "technology": rel.technology},
             }
         )
     return edges
+
+
+def _pair_edge_id(src: str, dst: str, counts: dict[tuple[str, str], int]) -> str:
+    """Stable id for an edge that has no relationship id of its own.
+
+    Numbered per endpoint pair rather than by position in the edge list, so
+    an unrelated relationship appearing elsewhere in the view does not
+    renumber this edge. Persisted layout (waypoints) is keyed by edge id,
+    so the id has to survive edits that do not touch this pair.
+    """
+    index = counts.get((src, dst), 0)
+    counts[(src, dst)] = index + 1
+    return f"{src}__{dst}__{index}"
 
 
 def _stored_positions(view: View) -> dict[str, tuple[int, int]]:
@@ -535,13 +549,15 @@ def _deployment_data(workspace: Workspace, view: View) -> GraphData:
     edges: list[GraphEdge] = []
     seen: set[tuple[str, str]] = set()
 
+    pair_counts: dict[tuple[str, str], int] = {}
+
     def add_edge(src: str, dst: str, rel: Relationship) -> None:
         if src == dst or (src, dst) in seen:
             return
         seen.add((src, dst))
         edges.append(
             {
-                "id": f"{src}__{dst}__{len(edges)}",
+                "id": _pair_edge_id(src, dst, pair_counts),
                 "source": src,
                 "target": dst,
                 "data": {"label": rel.description, "technology": rel.technology},

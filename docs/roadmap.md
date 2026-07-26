@@ -57,9 +57,16 @@ governance and overlay features are UI/reporting work, not model work.
 | **In-browser DSL editor** — diagnostics + element-id autocomplete | Med | L | Live reload + external editor already tight; needs an editor component dep (ask first). |
 | **Scaffolding** — `pystructurizr init` org templates; deterministic diff-friendly layout sidecars | Med | S-M | Onboarding ergonomics. |
 
-**Parked as low value:** manual edge vertices (auto-layout + curve
-separation already solve edge readability; hand-placed vertices rot on
-every model change).
+**Previously parked, now shipped:** manual edge vertices (PP-76). The
+original reasoning — auto-layout plus curve separation already solve edge
+readability, and hand-placed vertices rot on every model change — missed
+that the metamodel already carries `Vertex` and `RelationshipView.vertices`,
+so this is Structurizr fidelity rather than decoration. The rot concern was
+addressed by keying bend points to edge ids that are numbered per endpoint
+pair instead of by position in the view's edge list, so an unrelated
+relationship elsewhere in the view no longer renumbers them. Bend points
+live in the layout sidecar as per-user UI state, and Reset layout clears
+them along with node positions.
 
 **Open chore:** PP-50 — vite/esbuild upgrade for the frontend's npm audit
 advisories.

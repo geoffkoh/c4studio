@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+} from "react";
 import ReactFlow, {
   Background,
   Controls,
@@ -11,6 +18,7 @@ import ReactFlow, {
   type EdgeTypes,
   type Node,
   type NodeTypes,
+  type ReactFlowInstance,
 } from "reactflow";
 import "reactflow/dist/style.css";
 
@@ -19,11 +27,17 @@ import { EDGE_PAINT } from "../edgePaint";
 import { layoutGraph, normalizeStoredPositions } from "../layout";
 import { buildTrail, crumbLabel, drillTarget } from "../navigation";
 import type { GraphData, ViewInfo, Workspace } from "../types";
+import { insertionIndex } from "../waypoints";
 import { BoundaryNode } from "./BoundaryNode";
 import { ElementNode, type ElementNodeData } from "./ElementNode";
+import {
+  EdgeContextMenu,
+  type EdgeMenuState,
+  type MenuAction,
+} from "./EdgeContextMenu";
 import { ExportButtons } from "./ExportButtons";
 import { KeyboardShortcuts } from "./KeyboardShortcuts";
-import { FloatingEdge } from "./FloatingEdge";
+import { FloatingEdge, type FloatingEdgeData } from "./FloatingEdge";
 
 const NODE_TYPES: NodeTypes = { element: ElementNode, boundary: BoundaryNode };
 const EDGE_TYPES: EdgeTypes = { floating: FloatingEdge };
@@ -61,8 +75,9 @@ const INTERACTIONS: { value: Interaction; label: string }[] = [
   { value: "select", label: "Select" },
 ];
 
-// Mouse buttons that pan while in select mode: middle and right.
-const PAN_BUTTONS = [1, 2];
+// Mouse buttons that pan while in select mode. Middle only: the right
+// button opens the relationship context menu.
+const PAN_BUTTONS = [1];
 
 function storedEdgeStyle(): EdgeStyle {
   const raw = window.localStorage.getItem(EDGE_STYLE_STORAGE_KEY);
@@ -171,7 +186,12 @@ function toFlow(
       source: e.source,
       target: e.target,
       type: "floating",
-      data: { label: e.label || undefined, order: e.order, curveOffset },
+      data: {
+        label: e.label || undefined,
+        order: e.order,
+        curveOffset,
+        waypoints: e.waypoints,
+      },
       ...EDGE_PAINT,
     };
   });
@@ -244,6 +264,7 @@ export function GraphPane({ view, views, workspace, onNavigate }: GraphPaneProps
   const [snapToGrid, setSnapToGrid] = useState<boolean>(storedSnapToGrid);
   const [interaction, setInteraction] =
     useState<Interaction>(storedInteraction);
+  const [edgeMenu, setEdgeMenu] = useState<EdgeMenuState | null>(null);
   const [layoutState, setLayoutState] = useState<"idle" | "saved" | "failed">(
     "idle",
   );
@@ -349,6 +370,9 @@ export function GraphPane({ view, views, workspace, onNavigate }: GraphPaneProps
   // (captured in node data) reading fresh state.
   const nodesRef = useRef<Node[]>(nodes);
   nodesRef.current = nodes;
+  const edgesRef = useRef<Edge[]>(edges);
+  edgesRef.current = edges;
+  const rfRef = useRef<ReactFlowInstance | null>(null);
   const animationRef = useRef(0);
   // Which view the nodes currently on screen belong to; same-view updates
   // (expand/collapse, live reload) animate, view switches jump.
@@ -438,7 +462,21 @@ export function GraphPane({ view, views, workspace, onNavigate }: GraphPaneProps
     [setNodes],
   );
 
-  const saveCurrentLayout = useCallback(() => {
+  /** Current bend points for every edge that has any, keyed by edge id. */
+  const collectWaypoints = useCallback(
+    (source: Edge[]): Record<string, [number, number][]> => {
+      const out: Record<string, [number, number][]> = {};
+      for (const edge of source) {
+        const points = (edge.data as FloatingEdgeData | undefined)?.waypoints;
+        if (points && points.length > 0) out[edge.id] = points;
+      }
+      return out;
+    },
+    [],
+  );
+
+  const saveCurrentLayout = useCallback(
+    (edgeOverride?: Edge[]) => {
     if (!view) return;
     const current = nodesRef.current;
     const sizes: Record<string, [number, number]> = {};
@@ -450,13 +488,160 @@ export function GraphPane({ view, views, workspace, onNavigate }: GraphPaneProps
         sizes[node.id] = [Math.round(width), Math.round(height)];
       }
     }
-    saveLayout(view.key, absolutePositions(current), sizes)
+    saveLayout(
+      view.key,
+      absolutePositions(current),
+      sizes,
+      collectWaypoints(edgeOverride ?? edgesRef.current),
+    )
       .then(() => {
         setLayoutState("saved");
         window.setTimeout(() => setLayoutState("idle"), 1500);
       })
       .catch(() => setLayoutState("failed"));
-  }, [view]);
+    },
+    [view, collectWaypoints],
+  );
+
+  /** Replace one edge's bend points, then persist the whole layout. */
+  const updateWaypoints = useCallback(
+    (edgeId: string, next: [number, number][]) => {
+      const updated = edgesRef.current.map((edge) =>
+        edge.id === edgeId
+          ? { ...edge, data: { ...edge.data, waypoints: next } }
+          : edge,
+      );
+      edgesRef.current = updated;
+      setEdges(updated);
+      saveCurrentLayout(updated);
+    },
+    [setEdges, saveCurrentLayout],
+  );
+
+  const handleWaypointDrag = useCallback(
+    (edgeId: string, index: number, x: number, y: number) => {
+      setEdges((current) =>
+        current.map((edge) => {
+          if (edge.id !== edgeId) return edge;
+          const points = [
+            ...(((edge.data as FloatingEdgeData).waypoints ?? []) as [
+              number,
+              number,
+            ][]),
+          ];
+          points[index] = [x, y];
+          return { ...edge, data: { ...edge.data, waypoints: points } };
+        }),
+      );
+    },
+    [setEdges],
+  );
+
+  /** Right-click on a relationship, or on one of its bend points. */
+  const handleEdgeContextMenu = useCallback(
+    (event: ReactMouseEvent, edge: Edge) => {
+      event.preventDefault();
+      const target = event.target as HTMLElement;
+      const handle = target.closest<HTMLElement>(".edge-waypoint");
+      const flow = rfRef.current?.screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
+      }) ?? { x: 0, y: 0 };
+      setEdgeMenu({
+        x: event.clientX,
+        y: event.clientY,
+        edgeId: edge.id,
+        waypointIndex: handle
+          ? Number(handle.dataset.waypointIndex)
+          : undefined,
+        flowX: Math.round(flow.x),
+        flowY: Math.round(flow.y),
+      });
+    },
+    [],
+  );
+
+  /**
+   * Menu entries for the open menu. A new bend point is inserted at the
+   * segment nearest the click rather than appended, so bends stay in the
+   * order the line visits them.
+   */
+  const edgeMenuActions = useMemo((): MenuAction[] => {
+    if (!edgeMenu) return [];
+    const edge = edgesRef.current.find((e) => e.id === edgeMenu.edgeId);
+    const points = ((edge?.data as FloatingEdgeData | undefined)?.waypoints ??
+      []) as [number, number][];
+    const actions: MenuAction[] = [];
+
+    if (edgeMenu.waypointIndex === undefined) {
+      actions.push({
+        label: "Add bend point here",
+        onSelect: () => {
+          const next: [number, number][] = [...points];
+          // Endpoints are needed to tell "before the bend" from "after"
+          // it, so the insertion is measured against the real segments.
+          const absolute = absolutePositions(nodesRef.current);
+          const byId = new Map(nodesRef.current.map((n) => [n.id, n]));
+          const centreOf = (id: string): [number, number] => {
+            const at = absolute[id] ?? [0, 0];
+            const node = byId.get(id);
+            return [
+              at[0] + (node?.width ?? 0) / 2,
+              at[1] + (node?.height ?? 0) / 2,
+            ];
+          };
+          next.splice(
+            insertionIndex(
+              centreOf(edge?.source ?? ""),
+              centreOf(edge?.target ?? ""),
+              points,
+              edgeMenu.flowX,
+              edgeMenu.flowY,
+            ),
+            0,
+            [edgeMenu.flowX, edgeMenu.flowY],
+          );
+          updateWaypoints(edgeMenu.edgeId, next);
+        },
+      });
+    } else {
+      actions.push({
+        label: "Remove bend point",
+        destructive: true,
+        onSelect: () =>
+          updateWaypoints(
+            edgeMenu.edgeId,
+            points.filter((_, i) => i !== edgeMenu.waypointIndex),
+          ),
+      });
+    }
+    if (points.length > 0) {
+      actions.push({
+        label: "Straighten relationship",
+        destructive: true,
+        onSelect: () => updateWaypoints(edgeMenu.edgeId, []),
+      });
+    }
+    return actions;
+  }, [edgeMenu, updateWaypoints]);
+
+  const handleWaypointMenu = useCallback(
+    (edgeId: string, index: number, clientX: number, clientY: number) => {
+      setEdgeMenu({
+        x: clientX,
+        y: clientY,
+        edgeId,
+        waypointIndex: index,
+        flowX: 0,
+        flowY: 0,
+      });
+    },
+    [],
+  );
+
+  const handleWaypointDragEnd = useCallback(() => {
+    saveCurrentLayout(edgesRef.current);
+  }, [saveCurrentLayout]);
 
   const handleResetLayout = useCallback(() => {
     if (!view) return;
@@ -492,10 +677,23 @@ export function GraphPane({ view, views, workspace, onNavigate }: GraphPaneProps
           animState,
           hoverState: hovered ? ("hovered" as const) : undefined,
           onHoverChange: hoverEmphasis ? setHoveredEdgeId : undefined,
+          onWaypointDrag: handleWaypointDrag,
+          onWaypointDragEnd: handleWaypointDragEnd,
+          onWaypointMenu: handleWaypointMenu,
         },
       };
     });
-  }, [edges, edgeStyle, isDynamic, animStep, hoverEmphasis, hoveredEdgeId]);
+  }, [
+    edges,
+    edgeStyle,
+    isDynamic,
+    animStep,
+    hoverEmphasis,
+    hoveredEdgeId,
+    handleWaypointDrag,
+    handleWaypointDragEnd,
+    handleWaypointMenu,
+  ]);
 
   // A node joins the animation at its earliest step; before that it dims.
   const firstStepByNode = useMemo(() => {
@@ -657,7 +855,11 @@ export function GraphPane({ view, views, workspace, onNavigate }: GraphPaneProps
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onNodeDoubleClick={handleNodeDoubleClick}
-        onNodeDragStop={saveCurrentLayout}
+        onNodeDragStop={() => saveCurrentLayout()}
+        onInit={(instance) => {
+          rfRef.current = instance;
+        }}
+        onEdgeContextMenu={handleEdgeContextMenu}
         onEdgeMouseEnter={(_, edge) => setHoveredEdgeId(edge.id)}
         onEdgeMouseLeave={() => setHoveredEdgeId(null)}
         snapToGrid={snapToGrid}
@@ -834,6 +1036,13 @@ export function GraphPane({ view, views, workspace, onNavigate }: GraphPaneProps
           onSnapToggle={handleSnapToggle}
           onInteractionToggle={handleInteractionToggle}
         />
+        {edgeMenu && edgeMenuActions.length > 0 ? (
+          <EdgeContextMenu
+            state={edgeMenu}
+            actions={edgeMenuActions}
+            onClose={() => setEdgeMenu(null)}
+          />
+        ) : null}
         <Background gap={16} />
         <Controls />
         <MiniMap
