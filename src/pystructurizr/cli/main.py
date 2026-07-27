@@ -145,7 +145,8 @@ def check(input_file: Path, as_json: bool, strict: bool) -> None:
             workspace = parse_dsl_file(input_file)
         diagnostics = list(workspace.diagnostics)
     except ParseError as error:
-        diagnostics = [error.as_diagnostic()]
+        # Every problem found, not just the one that stopped parsing.
+        diagnostics = list(error.diagnostics)
 
     if as_json:
         click.echo(json_module.dumps([d.to_dict() for d in diagnostics], indent=2))

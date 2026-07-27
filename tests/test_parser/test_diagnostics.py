@@ -177,3 +177,73 @@ def test_warning_underlines_the_skipped_construct() -> None:
     [diagnostic] = workspace.diagnostics
     # "mystery" starts at column 9 and is seven characters long.
     assert (diagnostic.line, diagnostic.column, diagnostic.end_column) == (3, 9, 16)
+
+
+def test_every_error_is_reported_not_just_the_first() -> None:
+    """Recovery is the point: one bad statement must not hide the next."""
+    with pytest.raises(ParseError) as excinfo:
+        parse_dsl(
+            'workspace "T" {\n'
+            "    model {\n"
+            '        s = softwareSystem "S"\n'
+            "    }\n"
+            "    views systemContext\n"
+            "    views component\n"
+            "}\n"
+        )
+
+    lines = [d.line for d in excinfo.value.diagnostics]
+    assert lines == [5, 6]
+
+
+def test_recovery_does_not_swallow_the_following_statement() -> None:
+    """The statement after a failure must still be parsed.
+
+    Recovery skips the remainder of the *failed* statement. Anchoring it to
+    the current position instead would consume the next statement whole,
+    silently hiding whatever is wrong with it.
+    """
+    with pytest.raises(ParseError) as excinfo:
+        parse_dsl(
+            'workspace "T" {\n'
+            "    views systemContext\n"
+            "    views component\n"
+            "}\n"
+        )
+
+    assert len(excinfo.value.diagnostics) == 2
+
+
+def test_warnings_accompany_errors_in_the_aggregate() -> None:
+    with pytest.raises(ParseError) as excinfo:
+        parse_dsl(
+            'workspace "T" {\n'
+            "    model {\n"
+            "        mystery {\n"
+            '            "a" "b"\n'
+            "        }\n"
+            "    }\n"
+            "    views systemContext\n"
+            "}\n"
+        )
+
+    severities = {d.severity for d in excinfo.value.diagnostics}
+    assert severities == {Severity.ERROR, Severity.WARNING}
+
+
+def test_a_single_error_still_reports_itself() -> None:
+    """Errors raised before recovery can engage carry just themselves."""
+    with pytest.raises(ParseError) as excinfo:
+        parse_dsl('workspace "T"\n    model {\n    }\n')
+
+    assert len(excinfo.value.diagnostics) == 1
+
+
+def test_duplicate_problems_are_reported_once() -> None:
+    source = 'workspace "T" {\n' + "    views systemContext\n" * 3 + "}\n"
+
+    with pytest.raises(ParseError) as excinfo:
+        parse_dsl(source)
+
+    positions = [(d.line, d.message) for d in excinfo.value.diagnostics]
+    assert len(positions) == len(set(positions))

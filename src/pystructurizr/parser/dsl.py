@@ -12,6 +12,7 @@ import re
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
+from collections.abc import Callable
 from typing import Any
 
 from pystructurizr.parser.docs import load_decisions, load_sections, markdown_files
@@ -217,14 +218,27 @@ class ParseError(Exception):
         end_column: int | None = None,
         path: Path | None = None,
         code: str = "parse-error",
+        diagnostics: list[Diagnostic] | None = None,
     ) -> None:
         super().__init__(message)
+        self._diagnostics = diagnostics
         self.message = message
         self.line = line
         self.column = column
         self.end_column = end_column
         self.path = path
         self.code = code
+
+    @property
+    def diagnostics(self) -> list[Diagnostic]:
+        """Every problem found, in source order.
+
+        Parsing recovers from a bad statement and keeps going, so a file
+        with several mistakes reports all of them at once instead of one
+        per run. Errors raised before recovery is possible — a circular
+        ``!include``, a missing include target — carry just themselves.
+        """
+        return self._diagnostics or [self.as_diagnostic()]
 
     def as_diagnostic(self) -> Diagnostic:
         """Return this error as a :class:`Diagnostic`."""
@@ -250,6 +264,7 @@ class _Parser:
         self._tokens = tokens
         self._source_map = source_map or SourceMap()
         self._diagnostics: list[Diagnostic] = []
+        self._errors: list[Diagnostic] = []
         self._pos = 0
         # maps DSL identifier → element id used in Workspace
         self._id_map: dict[str, str] = {}
@@ -278,11 +293,16 @@ class _Parser:
         return "/".join(g for g in self._group_stack if g)
 
     def _peek(self) -> Token:
+        # Clamped to the trailing EOF token: recovery can be entered with the
+        # position already past the end, and every loop terminates on EOF.
+        if self._pos >= len(self._tokens):
+            return self._tokens[-1]
         return self._tokens[self._pos]
 
     def _advance(self) -> Token:
-        tok = self._tokens[self._pos]
-        self._pos += 1
+        tok = self._peek()
+        if self._pos < len(self._tokens):
+            self._pos += 1
         return tok
 
     def _expect(self, type_: str) -> Token:
@@ -327,6 +347,20 @@ class _Parser:
             ws.views.configuration.default_view = self._default_view_key
         ws.parse_warnings = self._warnings
         ws.diagnostics = self._diagnostics
+        if self._errors:
+            # Recovery let parsing continue past each bad statement so every
+            # problem could be found; the contract that a broken file raises
+            # is kept, with all of them attached.
+            first = self._errors[0]
+            raise ParseError(
+                first.message,
+                line=first.line,
+                column=first.column,
+                end_column=first.end_column,
+                path=first.path,
+                code=first.code,
+                diagnostics=[*self._errors, *self._diagnostics],
+            )
         return ws
 
     def _parse_workspace(self) -> Workspace:
@@ -339,38 +373,45 @@ class _Parser:
         self._ws = ws
 
         while not self._match(RBRACE, EOF):
-            if self._match(BANG):
-                self._parse_directive("workspace")
-                continue
-            kw = self._peek_value().lower()
-            if kw == "model":
-                self._parse_model(ws)
-            elif kw == "views":
-                self._parse_views(ws)
-            elif kw == "configuration":
+            before = self._pos
+            self._guard(lambda: self._parse_workspace_item(ws))
+            if self._pos == before:
                 self._advance()
-                self._parse_workspace_configuration(ws)
-            elif kw == "name":
-                self._advance()
-                value = self._optional_string()
-                if value:
-                    ws.name = value
-            elif kw == "description":
-                self._advance()
-                value = self._optional_string()
-                if value:
-                    ws.description = value
-            elif kw == "properties":
-                self._advance()
-                # structurizr-java stores workspace properties on the views
-                # configuration.
-                ws.views.configuration.properties.update(self._parse_properties_block())
-            else:
-                self._skip_unknown("workspace")
 
         if self._match(RBRACE):
             self._advance()
         return ws
+
+    def _parse_workspace_item(self, ws: Workspace) -> None:
+        """Parse one statement of the workspace block."""
+        if self._match(BANG):
+            self._parse_directive("workspace")
+            return
+        kw = self._peek_value().lower()
+        if kw == "model":
+            self._parse_model(ws)
+        elif kw == "views":
+            self._parse_views(ws)
+        elif kw == "configuration":
+            self._advance()
+            self._parse_workspace_configuration(ws)
+        elif kw == "name":
+            self._advance()
+            value = self._optional_string()
+            if value:
+                ws.name = value
+        elif kw == "description":
+            self._advance()
+            value = self._optional_string()
+            if value:
+                ws.description = value
+        elif kw == "properties":
+            self._advance()
+            # structurizr-java stores workspace properties on the views
+            # configuration.
+            ws.views.configuration.properties.update(self._parse_properties_block())
+        else:
+            self._skip_unknown("workspace")
 
     def _parse_workspace_configuration(self, ws: Workspace) -> None:
         """Parse ``configuration { scope, visibility, users { ... } }``."""
@@ -603,6 +644,76 @@ class _Parser:
             self._pos = start
             self._parse_relationship_body(rel)
 
+    # A file broken enough to produce this many problems is not being
+    # helped by more of them, and an editor should not render hundreds.
+    _MAX_ERRORS = 50
+
+    def _record_error(self, error: ParseError) -> None:
+        """Store a recovered error, resolved to its originating file."""
+        path, line = error.path, error.line
+        if path is None and line is not None:
+            path, line = self._source_map.resolve(line)
+        diagnostic = Diagnostic(
+            message=error.message,
+            severity=Severity.ERROR,
+            path=path,
+            line=line,
+            column=error.column,
+            end_column=error.end_column,
+            code=error.code,
+        )
+        # Recovery can re-report the same spot from a different rule; the
+        # user only needs to be told once.
+        key = (diagnostic.path, diagnostic.line, diagnostic.column, diagnostic.message)
+        if any(
+            (d.path, d.line, d.column, d.message) == key for d in self._errors
+        ):
+            return
+        if len(self._errors) < self._MAX_ERRORS:
+            self._errors.append(diagnostic)
+
+    def _recover(self, failed_line: int) -> None:
+        """Skip the rest of a failed statement, no more than that.
+
+        The DSL is line-oriented, so the remainder of the statement is what
+        shares its starting line; the next token on a later line resumes
+        parsing. Anchoring to the *failed* statement's line matters: by the
+        time the error surfaces the position is often already on the next
+        statement, and skipping from there would swallow a statement that
+        was never given a chance — hiding the very errors this exists to
+        find. Blocks opened while skipping are consumed whole so their
+        contents are not reparsed as statements of the enclosing scope.
+        """
+        depth = 0
+        while not self._match(EOF):
+            tok = self._peek()
+            if depth == 0:
+                if tok.type == RBRACE:
+                    return  # let the enclosing loop close its block
+                if tok.line != failed_line:
+                    return  # next statement
+            self._advance()
+            if tok.type == LBRACE:
+                depth += 1
+            elif tok.type == RBRACE:
+                depth -= 1
+                if depth <= 0:
+                    return
+
+    def _guard(self, parse: Callable[[], None]) -> None:
+        """Run one statement, recovering from a parse error within it."""
+        start_line = self._peek().line
+        start_pos = self._pos
+        try:
+            parse()
+        except ParseError as error:
+            self._record_error(error)
+            self._recover(start_line)
+            # Guarantee progress, or the enclosing loop spins on the token
+            # that failed.
+            if self._pos == start_pos:
+                self._advance()
+
     def _warn(
         self,
         message: str,
@@ -638,7 +749,7 @@ class _Parser:
         self._advance()  # consume 'model'
         self._expect(LBRACE)
         while not self._match(RBRACE, EOF):
-            self._parse_model_item(ws, parent_id=None)
+            self._guard(lambda: self._parse_model_item(ws, parent_id=None))
         self._expect(RBRACE)
 
     def _parse_model_item(self, ws: Workspace, parent_id: str | None) -> None:
@@ -951,34 +1062,46 @@ class _Parser:
         saved_groups = self._group_stack
         self._group_stack = []
         while not self._match(RBRACE, EOF):
-            tok = self._peek()
-            if tok.type == BANG:
-                self._parse_directive("element")
-                continue
-            if tok.type == ARROW or (tok.type == IDENT and self._lookahead_is_arrow()):
-                self._parse_relationship(this_id=element.id)
-                continue
-            if tok.type == IDENT and self._lookahead_is_equals():
-                alias = self._advance().value
-                self._expect(EQUALS)
-                if self._peek().value.lower() in children:
-                    self._parse_element(ws, alias=alias, parent_id=element.id)
-                else:
-                    self._advance()
-                continue
-            if tok.type == IDENT:
-                kw = tok.value.lower()
-                if kw in children:
-                    self._parse_element(ws, alias=None, parent_id=element.id)
-                    continue
-                if kw == "group":
-                    self._parse_group(ws, element.id)
-                    continue
-                if self._parse_common_element_keyword(element, kw):
-                    continue
-            self._skip_unknown(kind)
+            before = self._pos
+            self._guard(
+                lambda: self._parse_element_body_item(ws, element, kind, children)
+            )
+            # A guard that recovered without consuming anything would spin.
+            if self._pos == before:
+                self._advance()
         self._expect(RBRACE)
         self._group_stack = saved_groups
+
+    def _parse_element_body_item(
+        self, ws: Workspace, element: Any, kind: str, children: tuple[str, ...]
+    ) -> None:
+        """Parse one statement of an element body."""
+        tok = self._peek()
+        if tok.type == BANG:
+            self._parse_directive("element")
+            return
+        if tok.type == ARROW or (tok.type == IDENT and self._lookahead_is_arrow()):
+            self._parse_relationship(this_id=element.id)
+            return
+        if tok.type == IDENT and self._lookahead_is_equals():
+            alias = self._advance().value
+            self._expect(EQUALS)
+            if self._peek().value.lower() in children:
+                self._parse_element(ws, alias=alias, parent_id=element.id)
+            else:
+                self._advance()
+            return
+        if tok.type == IDENT:
+            kw = tok.value.lower()
+            if kw in children:
+                self._parse_element(ws, alias=None, parent_id=element.id)
+                return
+            if kw == "group":
+                self._parse_group(ws, element.id)
+                return
+            if self._parse_common_element_keyword(element, kw):
+                return
+        self._skip_unknown(kind)
 
     def _parse_common_element_keyword(self, element: Any, kw: str) -> bool:
         """Handle a metadata keyword valid on any element; True if handled."""
