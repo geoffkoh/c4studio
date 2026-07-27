@@ -123,3 +123,57 @@ def test_problem_inside_an_include_names_the_fragment(tmp_path: Path) -> None:
     assert diagnostic.line == 2
     # The model still parses around the unknown block.
     assert [p.name for p in workspace.people] == ["User"]
+
+
+def test_tokeniser_records_columns() -> None:
+    from pystructurizr.parser.dsl import _tokenize
+
+    tokens = _tokenize('workspace "T" {\n    model {\n')
+    by_value = {t.value: t for t in tokens}
+
+    assert (by_value["workspace"].line, by_value["workspace"].column) == (1, 1)
+    assert by_value["workspace"].end_column == 10
+    assert (by_value["model"].line, by_value["model"].column) == (2, 5)
+    assert by_value["model"].end_column == 10
+
+
+def test_columns_survive_multi_line_tokens() -> None:
+    """A token spanning lines must reset the column origin, not just the line.
+
+    Block comments are the common case; without advancing the line origin
+    for every token, everything after one is reported at a column offset by
+    the comment's length.
+    """
+    from pystructurizr.parser.dsl import _tokenize
+
+    tokens = _tokenize("a\n/* spanning\n   comment */ b\nc")
+    by_value = {t.value: t for t in tokens}
+
+    assert (by_value["b"].line, by_value["b"].column) == (3, 15)
+    assert (by_value["c"].line, by_value["c"].column) == (4, 1)
+
+
+def test_error_underlines_the_offending_token() -> None:
+    with pytest.raises(ParseError) as excinfo:
+        parse_dsl('workspace "T" {\n    model {\n        u = person "U"\n')
+
+    error = excinfo.value
+    assert error.column is not None
+    assert error.end_column is not None
+    assert error.end_column >= error.column
+
+
+def test_warning_underlines_the_skipped_construct() -> None:
+    workspace = parse_dsl(
+        'workspace "T" {\n'
+        "    model {\n"
+        "        mystery {\n"
+        '            "a" "b"\n'
+        "        }\n"
+        "    }\n"
+        "}\n"
+    )
+
+    [diagnostic] = workspace.diagnostics
+    # "mystery" starts at column 9 and is seven characters long.
+    assert (diagnostic.line, diagnostic.column, diagnostic.end_column) == (3, 9, 16)

@@ -89,9 +89,18 @@ EOF = _TT("EOF")
 
 @dataclass
 class Token:
+    """A lexical token and where it sits in the source.
+
+    ``line``/``column`` are 1-based and point at the token's first
+    character; ``end_column`` is exclusive, so a diagnostic can underline
+    exactly the offending text rather than the whole line.
+    """
+
     type: str
     value: str
     line: int
+    column: int = 1
+    end_column: int = 1
 
 
 _TOKEN_RE = re.compile(
@@ -120,15 +129,24 @@ _TOKEN_RE = re.compile(
 def _tokenize(text: str) -> list[Token]:
     tokens: list[Token] = []
     line = 1
+    # Offset of the first character of `line`, so columns are a subtraction.
+    line_start = 0
     for m in _TOKEN_RE.finditer(text):
         kind = m.lastgroup
         value = m.group()
-        if kind in ("COMMENT", "BLOCK_COMMENT", "NEWLINE", "SKIP"):
-            if "\n" in value:
-                line += value.count("\n")
-            continue
-        tokens.append(Token(kind, value, line))  # type: ignore[arg-type]
-    tokens.append(Token(EOF, "", line))
+        if kind not in ("COMMENT", "BLOCK_COMMENT", "NEWLINE", "SKIP"):
+            column = m.start() - line_start + 1
+            tokens.append(
+                Token(kind, value, line, column, column + len(value))  # type: ignore[arg-type]
+            )
+        # Any token may span lines — a block comment, or a string with an
+        # escaped newline — so the position is advanced for all of them, not
+        # just the ones that are skipped.
+        if "\n" in value:
+            line += value.count("\n")
+            line_start = m.start() + value.rindex("\n") + 1
+    column = len(text) - line_start + 1
+    tokens.append(Token(EOF, "", line, column, column))
     return tokens
 
 
@@ -196,6 +214,7 @@ class ParseError(Exception):
         *,
         line: int | None = None,
         column: int | None = None,
+        end_column: int | None = None,
         path: Path | None = None,
         code: str = "parse-error",
     ) -> None:
@@ -203,6 +222,7 @@ class ParseError(Exception):
         self.message = message
         self.line = line
         self.column = column
+        self.end_column = end_column
         self.path = path
         self.code = code
 
@@ -214,6 +234,7 @@ class ParseError(Exception):
             path=self.path,
             line=self.line,
             column=self.column,
+            end_column=self.end_column,
             code=self.code,
         )
 
@@ -270,6 +291,8 @@ class _Parser:
             raise ParseError(
                 f"expected {type_}, got {tok.type!r} ({tok.value!r})",
                 line=tok.line,
+                column=tok.column,
+                end_column=tok.end_column,
                 code="unexpected-token",
             )
         return tok
@@ -467,6 +490,8 @@ class _Parser:
             raise ParseError(
                 f"expected keyword {kw!r}, got {tok.value!r}",
                 line=tok.line,
+                column=tok.column,
+                end_column=tok.end_column,
                 code="unexpected-keyword",
             )
 
@@ -578,7 +603,14 @@ class _Parser:
             self._pos = start
             self._parse_relationship_body(rel)
 
-    def _warn(self, message: str, line: int | None = None, code: str = "") -> None:
+    def _warn(
+        self,
+        message: str,
+        line: int | None = None,
+        code: str = "",
+        column: int | None = None,
+        end_column: int | None = None,
+    ) -> None:
         """Record a skipped or ignored construct.
 
         ``line`` is a line of the flattened source and is resolved back to
@@ -594,6 +626,8 @@ class _Parser:
                 severity=Severity.WARNING,
                 path=path,
                 line=origin_line,
+                column=column,
+                end_column=end_column,
                 code=code,
             )
         )
@@ -1642,12 +1676,16 @@ class _Parser:
             self._warn(
                 f"skipped unsupported block {tok.value!r} in {scope}",
                 line=tok.line,
+                column=tok.column,
+                end_column=tok.end_column,
                 code="unsupported-block",
             )
             return
         self._warn(
             f"skipped unexpected {tok.value!r} in {scope}",
             line=tok.line,
+            column=tok.column,
+            end_column=tok.end_column,
             code="unexpected-token",
         )
 
