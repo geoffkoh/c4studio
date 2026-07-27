@@ -69,6 +69,9 @@ def test_json_output_is_machine_readable(tmp_path: Path) -> None:
     assert record["severity"] == "warning"
     assert record["code"] == "unsupported-block"
     assert record["line"] == 3
+    # "mystery" starts at column 9; the span underlines the word itself.
+    assert record["column"] == 9
+    assert record["endColumn"] == 16
     assert Path(record["path"]).name == "warn.dsl"
     assert "Line 3" not in record["message"]
 
