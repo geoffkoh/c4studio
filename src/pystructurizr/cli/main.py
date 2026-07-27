@@ -6,6 +6,7 @@ from pathlib import Path
 
 import click
 
+from pystructurizr.diagnostics import Diagnostic, Severity
 from pystructurizr.generators.mermaid import MermaidGenerator
 from pystructurizr.models import Workspace
 from pystructurizr.webapp.loader import WorkspaceLoadError, load_workspace
@@ -109,6 +110,54 @@ def export(input_file: Path, output: Path | None) -> None:
             output.parent.mkdir(parents=True, exist_ok=True)
         export_json_file(workspace, output)
         click.echo(f"Written: {output}")
+
+
+@cli.command("check")
+@click.argument("input_file", type=click.Path(exists=True, path_type=Path))
+@click.option(
+    "--json",
+    "as_json",
+    is_flag=True,
+    help="Emit diagnostics as JSON, for editors and other tools.",
+)
+@click.option(
+    "--strict",
+    is_flag=True,
+    help="Exit non-zero on warnings as well as errors.",
+)
+def check(input_file: Path, as_json: bool, strict: bool) -> None:
+    """Report problems in INPUT_FILE without generating anything.
+
+    Exits 1 when the file has errors (or, with --strict, warnings), so it
+    can gate a CI job. Warnings cover DSL the parser understood but did not
+    implement — those constructs are skipped, and this is where that
+    becomes visible.
+    """
+    import json as json_module
+
+    from pystructurizr.parser.dsl import ParseError, parse_dsl_file
+
+    diagnostics: list[Diagnostic] = []
+    try:
+        if input_file.suffix.lower() == ".json":
+            workspace = _load_workspace(input_file)
+        else:
+            workspace = parse_dsl_file(input_file)
+        diagnostics = list(workspace.diagnostics)
+    except ParseError as error:
+        diagnostics = [error.as_diagnostic()]
+
+    if as_json:
+        click.echo(json_module.dumps([d.to_dict() for d in diagnostics], indent=2))
+    else:
+        for diagnostic in diagnostics:
+            click.echo(f"{diagnostic.severity.value}: {diagnostic}", err=True)
+        if not diagnostics:
+            click.echo(f"{input_file}: no problems found")
+
+    errors = [d for d in diagnostics if d.severity is Severity.ERROR]
+    if errors or (strict and diagnostics):
+        raise SystemExit(1)
 
 
 @cli.command("list-views")

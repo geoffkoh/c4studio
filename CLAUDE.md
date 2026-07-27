@@ -37,7 +37,7 @@ features that assume a hosted multi-user deployment.
 | `src/pystructurizr/parser/` | `dsl.py` (DSL parser), `json_parser.py`, `expressions.py` (include/exclude engine), `implied.py`, `docs.py`, `locations.py` (source spans for go-to-definition). |
 | `src/pystructurizr/generators/` | `mermaid.py`, `json_export.py` (Structurizr JSON round-trip). |
 | `src/pystructurizr/webapp/` | `server.py` (FastAPI), `loader.py` (load + live reload), `view_graph.py` / `graph.py` (view and full-model graph builders), `static/` (built SPA). |
-| `src/pystructurizr/cli/main.py` | click CLI: `generate`, `export`, `list-views`, `webapp`. |
+| `src/pystructurizr/cli/main.py` | click CLI: `generate`, `export`, `check`, `list-views`, `webapp`. |
 | `editors/vscode/` | VS Code extension (TypeScript, esbuild, packaged as `.vsix`). |
 | `samples/` | Sample workspaces used for live verification. |
 
@@ -84,10 +84,12 @@ Plain `npm ...` will fail with "command not found". This applies to
   rule and the reason several roadmap items are shaped the way they are (e.g.
   headless rendering must reuse existing layout code rather than pull in a
   renderer).
-- **Unsupported DSL features fail soft.** `!script`, `!plugin`, `!components`
-  and unknown `!directives` are never executed — they are skipped and recorded
-  as an `UnsupportedFeatureWarning` in `Workspace.parse_warnings`, which the CLI
-  prints to stderr. Keep that contract.
+- **Unsupported DSL features fail soft.** `!script`, `!plugin`, `!components`,
+  unknown `!directives` and unrecognised blocks are never executed — they are
+  skipped whole and recorded as structured `Diagnostic`s in
+  `Workspace.diagnostics` (and as strings in `Workspace.parse_warnings`, kept
+  for existing callers), which the CLI prints to stderr. Keep that contract: a
+  skipped construct must never consume its enclosing scope.
 - **Layout sidecars** (`*.layout.json`) are per-user UI state, gitignored, and
   written next to the source file. Never commit one.
 

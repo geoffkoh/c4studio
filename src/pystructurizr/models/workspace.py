@@ -17,6 +17,7 @@ from pystructurizr.models.elements import (
     SoftwareSystem,
 )
 from pystructurizr.models.views import Configuration, ViewSet
+from pystructurizr.diagnostics import Diagnostic
 
 
 # ---------------------------------------------------------------------------
@@ -125,6 +126,9 @@ class Workspace:
     # Non-fatal warnings collected while parsing (e.g. unsupported DSL
     # features that were skipped); never serialised to workspace JSON.
     parse_warnings: list[str] = field(default_factory=list)
+    #: Structured form of the problems found while parsing. ``parse_warnings``
+    #: is retained as the human-readable strings for existing callers.
+    diagnostics: list[Diagnostic] = field(default_factory=list)
     workspace_configuration: WorkspaceConfiguration = field(
         default_factory=WorkspaceConfiguration
     )
