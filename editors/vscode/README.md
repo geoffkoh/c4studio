@@ -13,6 +13,14 @@ Structurizr DSL support in VS Code, powered by
   (`frontend/src/highlight.ts`).
 - **Language basics**: comment toggling, brace/quote auto-close,
   indentation on `{`.
+- **Problem reporting**: parse errors and skipped constructs appear as
+  squiggles and in the Problems panel. A syntax grammar cannot validate
+  anything, so these come from the parser itself via
+  `pystructurizr check --json` — the same backend the preview uses, so
+  there is one implementation of the language's rules. Problems inside an
+  `!include`-ed fragment are reported against the fragment, not the file
+  that included it. Files are checked when opened and when saved; disable
+  with `pystructurizr.diagnostics.enabled`.
 - **Interactive C4 diagram preview**: the "Pystructurizr: Open Diagram
   Preview" command (also a button in the editor title bar of DSL files)
   opens the full pystructurizr React Flow app beside your editor — view
