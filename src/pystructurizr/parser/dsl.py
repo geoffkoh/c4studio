@@ -20,7 +20,9 @@ from pystructurizr.parser.expressions import (
     is_expression_term,
     parse_terms,
 )
+from pystructurizr.diagnostics import Diagnostic, Severity
 from pystructurizr.parser.implied import apply_implied_relationships
+from pystructurizr.parser.sourcemap import SourceMap
 from pystructurizr.models import (
     Animation,
     AutomaticLayout,
@@ -180,7 +182,40 @@ _CHILD_KEYWORDS: dict[str, tuple[str, ...]] = {
 
 
 class ParseError(Exception):
-    pass
+    """A problem that stopped parsing.
+
+    Carries its position as data rather than only inside the message, so
+    editors and CI can place it. ``path`` and ``line`` refer to the file
+    the problem is actually in — resolved through the include source map,
+    so a problem inside an ``!include``-ed fragment names that fragment.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        line: int | None = None,
+        column: int | None = None,
+        path: Path | None = None,
+        code: str = "parse-error",
+    ) -> None:
+        super().__init__(message)
+        self.message = message
+        self.line = line
+        self.column = column
+        self.path = path
+        self.code = code
+
+    def as_diagnostic(self) -> Diagnostic:
+        """Return this error as a :class:`Diagnostic`."""
+        return Diagnostic(
+            message=self.message,
+            severity=Severity.ERROR,
+            path=self.path,
+            line=self.line,
+            column=self.column,
+            code=self.code,
+        )
 
 
 class UnsupportedFeatureWarning(UserWarning):
@@ -188,8 +223,12 @@ class UnsupportedFeatureWarning(UserWarning):
 
 
 class _Parser:
-    def __init__(self, tokens: list[Token]) -> None:
+    def __init__(
+        self, tokens: list[Token], source_map: SourceMap | None = None
+    ) -> None:
         self._tokens = tokens
+        self._source_map = source_map or SourceMap()
+        self._diagnostics: list[Diagnostic] = []
         self._pos = 0
         # maps DSL identifier → element id used in Workspace
         self._id_map: dict[str, str] = {}
@@ -229,7 +268,9 @@ class _Parser:
         tok = self._advance()
         if tok.type != type_:
             raise ParseError(
-                f"Line {tok.line}: expected {type_}, got {tok.type!r} ({tok.value!r})"
+                f"expected {type_}, got {tok.type!r} ({tok.value!r})",
+                line=tok.line,
+                code="unexpected-token",
             )
         return tok
 
@@ -262,6 +303,7 @@ class _Parser:
         if self._default_view_key:
             ws.views.configuration.default_view = self._default_view_key
         ws.parse_warnings = self._warnings
+        ws.diagnostics = self._diagnostics
         return ws
 
     def _parse_workspace(self) -> Workspace:
@@ -423,7 +465,9 @@ class _Parser:
         tok = self._advance()
         if tok.type != IDENT or tok.value.lower() != kw:
             raise ParseError(
-                f"Line {tok.line}: expected keyword '{kw}', got {tok.value!r}"
+                f"expected keyword {kw!r}, got {tok.value!r}",
+                line=tok.line,
+                code="unexpected-keyword",
             )
 
     def _parse_directive(self, scope: str) -> None:
@@ -534,7 +578,25 @@ class _Parser:
             self._pos = start
             self._parse_relationship_body(rel)
 
-    def _warn(self, message: str) -> None:
+    def _warn(self, message: str, line: int | None = None, code: str = "") -> None:
+        """Record a skipped or ignored construct.
+
+        ``line`` is a line of the flattened source and is resolved back to
+        the file it came from, so a problem inside an ``!include``-ed
+        fragment names that fragment rather than the file that included it.
+        """
+        path, origin_line = (
+            self._source_map.resolve(line) if line is not None else (None, None)
+        )
+        self._diagnostics.append(
+            Diagnostic(
+                message=message,
+                severity=Severity.WARNING,
+                path=path,
+                line=origin_line,
+                code=code,
+            )
+        )
         self._warnings.append(message)
         warnings.warn(message, UnsupportedFeatureWarning, stacklevel=2)
 
@@ -1578,11 +1640,16 @@ class _Parser:
         if self._match(LBRACE):
             self._skip_block()
             self._warn(
-                f"Line {tok.line}: skipped unsupported block "
-                f"{tok.value!r} in {scope}"
+                f"skipped unsupported block {tok.value!r} in {scope}",
+                line=tok.line,
+                code="unsupported-block",
             )
             return
-        self._warn(f"Line {tok.line}: skipped unexpected {tok.value!r} in {scope}")
+        self._warn(
+            f"skipped unexpected {tok.value!r} in {scope}",
+            line=tok.line,
+            code="unexpected-token",
+        )
 
     def _skip_block(self) -> None:
         self._expect(LBRACE)
@@ -1648,13 +1715,22 @@ _DOCS_RE = re.compile(
 
 
 def _expand_includes(
-    source: str, base_dir: Path | None, stack: tuple[Path, ...]
-) -> str:
+    source: str,
+    base_dir: Path | None,
+    stack: tuple[Path, ...],
+    origin: Path | None = None,
+    source_map: SourceMap | None = None,
+    flat_line: int = 1,
+) -> tuple[str, int]:
     """Replace ``!include <path>`` lines with the referenced file contents.
 
     Paths are resolved relative to the including file's directory and may
     themselves contain further includes. Used before tokenising so the
     parser only ever sees a single flattened source.
+
+    Expansion is line-based so ``source_map`` can record which file each
+    flattened line came from: without that, a problem inside an included
+    fragment is reported against a line of the including file.
 
     Args:
         source: DSL text possibly containing ``!include`` lines.
@@ -1662,29 +1738,65 @@ def _expand_includes(
             parsing a bare string, in which case any ``!include`` is an
             error.
         stack: Chain of files already being expanded, for cycle detection.
+        origin: File ``source`` was read from, recorded in the map.
+        source_map: Collects the flattened-line to origin-line runs.
+        flat_line: 1-based line the expanded output starts at.
+
+    Returns:
+        The flattened text and the next free flattened line number.
 
     Raises:
         ParseError: If there is no file context, the target does not exist,
             or the includes form a cycle.
     """
+    out: list[str] = []
+    lines = source.split("\n")
+    run_open = False
 
-    def replace(match: re.Match[str]) -> str:
+    for index, line in enumerate(lines):
+        match = _INCLUDE_RE.match(line)
+        if match is None:
+            if source_map is not None and not run_open:
+                source_map.add(flat_line + len(out), origin, index + 1)
+                run_open = True
+            out.append(line)
+            continue
+
+        # An include splices another file in place of this line, so the
+        # current run ends here and a fresh one starts after the splice.
+        run_open = False
         target = match.group("target").strip('"')
         if base_dir is None:
             raise ParseError(
                 f"!include {target!r} requires a file context; "
-                "parse from a file instead of a string"
+                "parse from a file instead of a string",
+                line=index + 1,
+                path=origin,
             )
         included = (base_dir / target).resolve()
         if included in stack:
             chain = " -> ".join(str(p) for p in (*stack, included))
-            raise ParseError(f"Circular !include: {chain}")
+            raise ParseError(
+                f"Circular !include: {chain}", line=index + 1, path=origin
+            )
         if not included.is_file():
-            raise ParseError(f"!include target not found: {included}")
+            raise ParseError(
+                f"!include target not found: {included}",
+                line=index + 1,
+                path=origin,
+            )
         text = included.read_text(encoding="utf-8")
-        return _expand_includes(text, included.parent, (*stack, included))
+        expanded, _ = _expand_includes(
+            text,
+            included.parent,
+            (*stack, included),
+            origin=included,
+            source_map=source_map,
+            flat_line=flat_line + len(out),
+        )
+        out.extend(expanded.split("\n"))
 
-    return _INCLUDE_RE.sub(replace, source)
+    return "\n".join(out), flat_line + len(out)
 
 
 # ---------------------------------------------------------------------------
@@ -1703,7 +1815,7 @@ _CONST_RE = re.compile(
 _PLACEHOLDER_RE = re.compile(r"\$\{([A-Za-z0-9_.\-]+)\}")
 
 
-def _strip_scripts(source: str, warnings_out: list[str]) -> str:
+def _strip_scripts(source: str, warnings_out: list[tuple[int, str]]) -> str:
     """Remove ``!script <lang> { ... }`` blocks, recording a warning each.
 
     Script bodies are foreign syntax (Groovy/Kotlin/JS) whose strings may
@@ -1734,9 +1846,15 @@ def _strip_scripts(source: str, warnings_out: list[str]) -> str:
             pos += 1
         line = result.count("\n", 0, match.start()) + 1
         warnings_out.append(
-            f"Line {line}: unsupported directive '!script' ignored (body skipped)"
+            (line, "unsupported directive '!script' ignored (body skipped)")
         )
-        result = result[: match.start()] + result[pos:]
+        # Replace the block with as many blank lines as it occupied: every
+        # later line number (and the include source map) depends on the
+        # preprocessing passes not shifting anything.
+        removed = result[match.start() : pos]
+        result = (
+            result[: match.start()] + "\n" * removed.count("\n") + result[pos:]
+        )
 
 
 def _apply_constants(source: str) -> str:
@@ -1771,7 +1889,11 @@ def _apply_constants(source: str) -> str:
     return _PLACEHOLDER_RE.sub(lambda m: values.get(m.group(1), m.group(0)), stripped)
 
 
-def parse_dsl(source: str, base_dir: str | Path | None = None) -> Workspace:
+def parse_dsl(
+    source: str,
+    base_dir: str | Path | None = None,
+    path: str | Path | None = None,
+) -> Workspace:
     """Parse a Structurizr DSL string and return a Workspace.
 
     Args:
@@ -1781,10 +1903,19 @@ def parse_dsl(source: str, base_dir: str | Path | None = None) -> Workspace:
             against the root file's directory). When ``None`` (parsing a
             bare string), any of these directives raises
             :class:`ParseError`.
+        path: File ``source`` was read from, so diagnostics can name it.
+            ``None`` when parsing a bare string.
+
+    Raises:
+        ParseError: Carrying the path and line of the problem.
     """
     resolved = Path(base_dir).resolve() if base_dir is not None else None
-    flattened = _expand_includes(source, resolved, ())
-    preprocess_warnings: list[str] = []
+    root = Path(path).resolve() if path is not None else None
+    source_map = SourceMap()
+    flattened, _ = _expand_includes(
+        source, resolved, (), origin=root, source_map=source_map
+    )
+    preprocess_warnings: list[tuple[int, str]] = []
     flattened = _strip_scripts(flattened, preprocess_warnings)
     flattened = _apply_constants(flattened)
 
@@ -1802,10 +1933,28 @@ def parse_dsl(source: str, base_dir: str | Path | None = None) -> Workspace:
 
     flattened = _DOCS_RE.sub(extract_docs, flattened)
     tokens = _tokenize(flattened)
-    workspace = _Parser(tokens).parse()
-    for message in preprocess_warnings:
-        warnings.warn(message, UnsupportedFeatureWarning, stacklevel=2)
-    workspace.parse_warnings.extend(preprocess_warnings)
+    try:
+        workspace = _Parser(tokens, source_map).parse()
+    except ParseError as error:
+        # Positions from the parser are flattened-source lines; resolve them
+        # to the file the user actually has to edit.
+        if error.line is not None and error.path is None:
+            error.path, error.line = source_map.resolve(error.line)
+        raise
+    # Preprocessing runs before tokenising, so its positions are flattened
+    # lines too and resolve through the same map.
+    for line, message in preprocess_warnings:
+        origin_path, origin_line = source_map.resolve(line)
+        diagnostic = Diagnostic(
+            message=message,
+            severity=Severity.WARNING,
+            path=origin_path,
+            line=origin_line,
+            code="unsupported-directive",
+        )
+        warnings.warn(str(diagnostic), UnsupportedFeatureWarning, stacklevel=2)
+        workspace.diagnostics.append(diagnostic)
+        workspace.parse_warnings.append(str(diagnostic))
 
     for kind, directory in doc_dirs:
         if kind == "docs":
@@ -1818,7 +1967,9 @@ def parse_dsl(source: str, base_dir: str | Path | None = None) -> Workspace:
 def parse_dsl_file(path: str | Path) -> Workspace:
     """Read a .dsl file and parse it, resolving any ``!include`` directives."""
     path = Path(path).resolve()
-    return parse_dsl(path.read_text(encoding="utf-8"), base_dir=path.parent)
+    return parse_dsl(
+        path.read_text(encoding="utf-8"), base_dir=path.parent, path=path
+    )
 
 
 def collect_source_files(path: str | Path) -> list[Path]:
