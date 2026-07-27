@@ -301,7 +301,7 @@ class _Parser:
                 # configuration.
                 ws.views.configuration.properties.update(self._parse_properties_block())
             else:
-                self._advance()
+                self._skip_unknown("workspace")
 
         if self._match(RBRACE):
             self._advance()
@@ -594,9 +594,12 @@ class _Parser:
             if kw == "deploymentenvironment":
                 self._parse_deployment_environment(ws)
                 return
+            if kw == "properties":
+                self._advance()
+                ws.model.properties.update(self._parse_properties_block())
+                return
 
-        # skip unknown token
-        self._advance()
+        self._skip_unknown("model")
 
     def _lookahead_is_arrow(self) -> bool:
         # Relationships are single-line statements; scanning past the line
@@ -877,7 +880,7 @@ class _Parser:
                     continue
                 if self._parse_common_element_keyword(element, kw):
                     continue
-            self._advance()
+            self._skip_unknown(kind)
         self._expect(RBRACE)
         self._group_stack = saved_groups
 
@@ -1149,7 +1152,7 @@ class _Parser:
                 self._advance()
                 self._parse_terminology(ws)
             else:
-                self._advance()
+                self._skip_unknown("views")
         self._expect(RBRACE)
 
     def _parse_branding(self, ws: Workspace) -> None:
@@ -1557,6 +1560,29 @@ class _Parser:
             else:
                 self._advance()
         self._expect(RBRACE)
+
+    def _skip_unknown(self, scope: str) -> None:
+        """Skip an unrecognised construct without consuming its scope.
+
+        A bare ``advance()`` is not enough when the construct opens a block:
+        its tokens are dropped one at a time until its closing brace, which
+        the enclosing loop then reads as the end of *its* block, silently
+        discarding everything after it. Unknown blocks are therefore skipped
+        whole, brace-balanced, and reported — the same contract the parser
+        applies to unsupported directives.
+
+        Args:
+            scope: Enclosing construct, named in the warning for context.
+        """
+        tok = self._advance()
+        if self._match(LBRACE):
+            self._skip_block()
+            self._warn(
+                f"Line {tok.line}: skipped unsupported block "
+                f"{tok.value!r} in {scope}"
+            )
+            return
+        self._warn(f"Line {tok.line}: skipped unexpected {tok.value!r} in {scope}")
 
     def _skip_block(self) -> None:
         self._expect(LBRACE)

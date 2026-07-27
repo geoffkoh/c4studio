@@ -14,7 +14,7 @@ workspace "Highlighting" "Every highlighted term in one file" {
 
     model {
         customer = person "Customer" "Buys things" "External" {
-            url https://example.com/customer
+            url "https://example.com/customer"
             tags "Person" "External"
             perspectives {
                 "Security" "Handles personal data"
@@ -39,20 +39,19 @@ workspace "Highlighting" "Every highlighted term in one file" {
 
         customer -> web "Buys from" "HTTPS" {
             tags "Sync"
-            url https://example.com/checkout
+            url "https://example.com/checkout"
         }
         web -> db "Reads and writes" "SQL"
         shop -> payments "Charges via" "REST"
 
         deploymentEnvironment "Production" {
             deploymentGroup "shop"
-            aws = deploymentNode "AWS" "Cloud" "eu-west-1" {
-                instances 3
-                dns = infrastructureNode "Route 53" "DNS" {
-                    healthCheck "liveness" "https://example.com/health" 60 200
-                }
+            aws = deploymentNode "AWS" "Cloud" "eu-west-1" 3 {
+                dns = infrastructureNode "Route 53" "DNS"
                 node = deploymentNode "ECS" "Container host" "Fargate" {
-                    containerInstance web
+                    containerInstance web {
+                        healthCheck "liveness" "https://example.com/health" 60 200
+                    }
                 }
                 shopInstance = softwareSystemInstance shop
             }
@@ -132,8 +131,8 @@ workspace "Highlighting" "Every highlighted term in one file" {
             }
         }
 
-        theme default
-        themes https://static.structurizr.com/themes/default/theme.json
+        theme "https://static.structurizr.com/themes/default/theme.json"
+        themes "https://static.structurizr.com/themes/default/theme.json"
 
         branding {
             logo https://example.com/logo.png
@@ -145,12 +144,13 @@ workspace "Highlighting" "Every highlighted term in one file" {
             softwareSystem "System"
         }
 
-        configuration {
-            scope softwaresystem
-            visibility private
-            users {
-                "alice@example.com" read
-            }
+    }
+
+    configuration {
+        scope softwaresystem
+        visibility private
+        users {
+            "alice@example.com" read
         }
     }
 }
