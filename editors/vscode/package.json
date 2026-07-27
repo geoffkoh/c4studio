@@ -46,6 +46,11 @@
         "title": "Open Diagram Preview",
         "category": "Pystructurizr",
         "icon": "$(type-hierarchy-sub)"
+      },
+      {
+        "command": "pystructurizr.checkFile",
+        "title": "Check for Problems",
+        "category": "Pystructurizr"
       }
     ],
     "menus": {
@@ -59,6 +64,10 @@
       "commandPalette": [
         {
           "command": "pystructurizr.openPreview",
+          "when": "editorLangId == structurizr-dsl"
+        },
+        {
+          "command": "pystructurizr.checkFile",
           "when": "editorLangId == structurizr-dsl"
         }
       ]
@@ -78,6 +87,11 @@
           "type": "string",
           "default": "",
           "markdownDescription": "Package spec the automatic `uv tool run` rungs install (default: the pinned `pystructurizr-studio` release matching this extension). Override for pre-releases, e.g. `git+https://github.com/geoffkoh/pystructurizr` or a local wheel path."
+        },
+        "pystructurizr.diagnostics.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Report Structurizr DSL parse problems as editor diagnostics. Files are checked when opened and when saved, using the same backend as the diagram preview."
         }
       }
     }
