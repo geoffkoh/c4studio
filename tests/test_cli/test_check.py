@@ -85,3 +85,17 @@ def test_json_output_for_a_hard_error(tmp_path: Path) -> None:
     assert record["severity"] == "error"
     assert record["line"] == 4
     assert Path(record["path"]).name == "broken.dsl"
+
+
+def test_json_reports_every_error(tmp_path: Path) -> None:
+    source = _write(
+        tmp_path,
+        "two.dsl",
+        'workspace "T" {\n    views systemContext\n    views component\n}\n',
+    )
+    result = CliRunner().invoke(cli, ["check", "--json", str(source)])
+
+    assert result.exit_code == 1
+    records = json.loads(result.output)
+    assert [r["line"] for r in records] == [2, 3]
+    assert {r["severity"] for r in records} == {"error"}
