@@ -28,6 +28,7 @@ from pystructurizr.models import (
     Documentation,
     ElementStyle,
     Enterprise,
+    Font,
     FilterMode,
     Format,
     HttpHealthCheck,
@@ -290,7 +291,7 @@ def _parse_deployment_node(data: dict[str, Any], parent_id: str = "") -> Deploym
         name=data.get("name", ""),
         description=data.get("description", ""),
         technology=data.get("technology", ""),
-        instances=int(data.get("instances", 1)),
+        instances=str(data.get("instances", "1")),
         environment=data.get("environment", ""),
         tags=_tags(data.get("tags")),
         url=data.get("url", ""),
@@ -459,9 +460,11 @@ def _parse_relationship_style(data: dict[str, Any]) -> RelationshipStyle:
 def _parse_branding(data: dict[str, Any] | None) -> Optional[Branding]:
     if not data:
         return None
+    font = data.get("font") or {}
+    if isinstance(font, str):  # pre-Font exports stored a bare family name
+        font = {"name": font}
     return Branding(
-        color=data.get("color", ""),
-        font=data.get("font", ""),
+        font=Font(name=font.get("name", ""), url=font.get("url", "")),
         logo=data.get("logo", ""),
     )
 

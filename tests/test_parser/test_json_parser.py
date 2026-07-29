@@ -75,7 +75,7 @@ def test_deployment_hierarchy_parent_id_from_json():
     ws = parse_json(raw)
     aws = ws.deployment_nodes[0]
     assert aws.parent_id == ""
-    assert aws.instances == 2
+    assert aws.instances == "2"
     assert aws.children[0].parent_id == "1"
     assert aws.infrastructure_nodes[0].parent_id == "1"
 
@@ -133,8 +133,8 @@ def test_parse_branding_and_exporters_from_json():
     )
     ws = parse_json(raw)
     assert ws.configuration.branding is not None
-    assert ws.configuration.branding.color == "#0a0"
-    assert ws.configuration.branding.font == "Inter"
+    assert ws.configuration.branding.logo == "https://x/logo.png"
+    assert ws.configuration.branding.font.name == "Inter"
     assert ws.configuration.generators_and_exporters["plantuml"] == "PlantUMLExporter"
 
 

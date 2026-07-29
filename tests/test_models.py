@@ -32,6 +32,7 @@ from pystructurizr.models import (
     Styles,
     Terminology,
     Branding,
+    Font,
     Documentation,
     Vertex,
     View,
@@ -239,7 +240,7 @@ def test_container_instance_defaults() -> None:
 def test_deployment_node_defaults() -> None:
     dn = DeploymentNode(id="dn1", name="AWS")
     assert dn.technology == ""
-    assert dn.instances == 1
+    assert dn.instances == "1"
     assert dn.environment == ""
     assert dn.children == []
     assert dn.infrastructure_nodes == []
@@ -544,8 +545,8 @@ def test_custom_element_icon_default_and_set() -> None:
 
 def test_branding_defaults() -> None:
     b = Branding()
-    assert b.color == ""
-    assert b.font == ""
+    assert b.font.name == ""
+    assert b.font.url == ""
     assert b.logo == ""
 
 
@@ -554,11 +555,11 @@ def test_configuration_branding_and_exporters() -> None:
     assert cfg.branding is None
     assert cfg.generators_and_exporters == {}
     cfg = Configuration(
-        branding=Branding(color="#fff", logo="https://x/logo.png"),
+        branding=Branding(font=Font(name="Inter"), logo="https://x/logo.png"),
         generators_and_exporters={"plantuml": "exporter.PlantUMLExporter"},
     )
     assert cfg.branding is not None
-    assert cfg.branding.color == "#fff"
+    assert cfg.branding.font.name == "Inter"
     assert cfg.generators_and_exporters["plantuml"] == "exporter.PlantUMLExporter"
 
 

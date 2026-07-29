@@ -75,7 +75,10 @@ class DeploymentNode:
     name: str
     description: str = ""
     technology: str = ""
-    instances: int = 1
+    # A string, not an int: Structurizr allows range expressions such as
+    # "0..N" or "1..3" as well as a plain count, and an int silently
+    # discarded them.
+    instances: str = "1"
     environment: str = ""
     tags: list[str] = field(default_factory=list)
     url: str = ""

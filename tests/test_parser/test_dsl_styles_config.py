@@ -153,7 +153,7 @@ def test_branding_parsed():
     branding = ws.views.configuration.branding
     assert branding is not None
     assert branding.logo == "https://example.com/logo.png"
-    assert branding.font == "Open Sans"
+    assert branding.font.name == "Open Sans"
 
 
 def test_terminology_parsed_and_exported():
