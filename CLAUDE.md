@@ -51,6 +51,7 @@ features that assume a hosted multi-user deployment.
 - **Lint/Format:** `uv run ruff check .` and `uv run ruff format .`
 - **Type check:** `uv run mypy .`
 - **Rebuild frontend:** `cd frontend && npm install && npm run build`
+- **Audit frontend deps:** `npm audit` in `frontend/` (kept at zero advisories)
 
 ### Node is not on PATH
 
