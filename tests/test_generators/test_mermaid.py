@@ -6,7 +6,7 @@ from pystructurizr.generators.mermaid import MermaidGenerator
 FIXTURES = Path(__file__).parent.parent / "fixtures"
 
 
-def test_generate_system_context_from_dsl():
+def test_generate_system_context_from_dsl() -> None:
     ws = parse_dsl_file(FIXTURES / "example.dsl")
     gen = MermaidGenerator(ws)
     diagrams = gen.generate_all()
@@ -16,7 +16,7 @@ def test_generate_system_context_from_dsl():
     assert "Person(" in mmd or "Person_Ext(" in mmd
 
 
-def test_generate_container_from_dsl():
+def test_generate_container_from_dsl() -> None:
     ws = parse_dsl_file(FIXTURES / "example.dsl")
     gen = MermaidGenerator(ws)
     diagrams = gen.generate_all()
@@ -27,14 +27,14 @@ def test_generate_container_from_dsl():
     assert "System_Boundary(" in mmd
 
 
-def test_relationships_in_output():
+def test_relationships_in_output() -> None:
     ws = parse_dsl_file(FIXTURES / "example.dsl")
     gen = MermaidGenerator(ws)
     mmd = gen.generate_all()["SystemContext"]
     assert "Rel(" in mmd
 
 
-def test_generate_from_json():
+def test_generate_from_json() -> None:
     ws = parse_json_file(FIXTURES / "example.json")
     gen = MermaidGenerator(ws)
     diagrams = gen.generate_all()
@@ -43,7 +43,7 @@ def test_generate_from_json():
     assert diagrams["Containers"].startswith("C4Container")
 
 
-def test_generate_single_view():
+def test_generate_single_view() -> None:
     ws = parse_dsl_file(FIXTURES / "example.dsl")
     gen = MermaidGenerator(ws)
     view = next(v for v in ws.views if v.key == "SystemContext")
@@ -51,7 +51,7 @@ def test_generate_single_view():
     assert "C4Context" in mmd
 
 
-def test_external_system_rendered():
+def test_external_system_rendered() -> None:
     ws = parse_json_file(FIXTURES / "example.json")
     gen = MermaidGenerator(ws)
     mmd = gen.generate_all()["SystemContext"]

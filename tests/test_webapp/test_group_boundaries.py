@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from pystructurizr.parser.dsl import parse_dsl
 from pystructurizr.webapp.view_graph import build_view_graph
+from typing import Any, cast
+
+JsonDict = dict[str, Any]
 
 
 GROUPED_DSL = """
@@ -34,14 +37,14 @@ workspace "W" {
 """
 
 
-def _node_by_id(data: dict, node_id: str) -> dict:
+def _node_by_id(data: JsonDict, node_id: str) -> JsonDict:
     for node in data["nodes"]:
         if node["id"] == node_id:
-            return node
+            return cast(JsonDict, node)
     raise AssertionError(f"no node with id {node_id!r}")
 
 
-def _group_nodes(data: dict) -> list[dict]:
+def _group_nodes(data: JsonDict) -> list[JsonDict]:
     return [
         n
         for n in data["nodes"]
@@ -50,7 +53,7 @@ def _group_nodes(data: dict) -> list[dict]:
     ]
 
 
-def test_system_context_groups_become_boundaries():
+def test_system_context_groups_become_boundaries() -> None:
     ws = parse_dsl(GROUPED_DSL)
     view = next(v for v in ws.views if v.key == "ctx")
     data = build_view_graph(ws, view)
@@ -65,7 +68,7 @@ def test_system_context_groups_become_boundaries():
     assert "parentId" not in _node_by_id(data, "ext")
 
 
-def test_group_boundaries_precede_their_children():
+def test_group_boundaries_precede_their_children() -> None:
     ws = parse_dsl(GROUPED_DSL)
     view = next(v for v in ws.views if v.key == "ctx")
     data = build_view_graph(ws, view)
@@ -75,7 +78,7 @@ def test_group_boundaries_precede_their_children():
     assert order.index(group_id) < order.index("s")
 
 
-def test_container_view_groups_nest_inside_system_boundary():
+def test_container_view_groups_nest_inside_system_boundary() -> None:
     ws = parse_dsl(GROUPED_DSL)
     view = next(v for v in ws.views if v.key == "cont")
     data = build_view_graph(ws, view)
@@ -89,7 +92,7 @@ def test_container_view_groups_nest_inside_system_boundary():
     assert _node_by_id(data, "web")["parentId"] == "s"
 
 
-def test_no_group_nodes_without_groups():
+def test_no_group_nodes_without_groups() -> None:
     ws = parse_dsl(
         """
         workspace "W" {

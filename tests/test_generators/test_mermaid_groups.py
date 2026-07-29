@@ -31,7 +31,7 @@ workspace "W" {
 """
 
 
-def test_system_context_emits_group_boundary():
+def test_system_context_emits_group_boundary() -> None:
     ws = parse_dsl(GROUPED_DSL)
     view = next(v for v in ws.views if v.key == "ctx")
     output = MermaidGenerator(ws).generate_view(view)
@@ -43,7 +43,7 @@ def test_system_context_emits_group_boundary():
     assert output.index("System(ext") < boundary_start
 
 
-def test_container_view_groups_containers_inside_system_boundary():
+def test_container_view_groups_containers_inside_system_boundary() -> None:
     ws = parse_dsl(GROUPED_DSL)
     view = next(v for v in ws.views if v.key == "cont")
     output = MermaidGenerator(ws).generate_view(view)
@@ -53,7 +53,7 @@ def test_container_view_groups_containers_inside_system_boundary():
     assert output.index("Container(api", group_boundary) > group_boundary
 
 
-def test_no_group_boundary_without_groups():
+def test_no_group_boundary_without_groups() -> None:
     ws = parse_dsl(
         """
         workspace "W" {

@@ -22,7 +22,7 @@ def _workspace(views: str = "", extra: str = "") -> str:
     """
 
 
-def test_element_style_extended_properties():
+def test_element_style_extended_properties() -> None:
     ws = parse_dsl(
         _workspace(
             """
@@ -44,7 +44,7 @@ def test_element_style_extended_properties():
     assert style.icon_position == IconPosition.LEFT
 
 
-def test_element_style_light_dark_variants():
+def test_element_style_light_dark_variants() -> None:
     ws = parse_dsl(
         _workspace(
             """
@@ -75,7 +75,7 @@ def test_element_style_light_dark_variants():
     assert all(s.tag == "Person" for s in styles)
 
 
-def test_relationship_style_extended_properties():
+def test_relationship_style_extended_properties() -> None:
     ws = parse_dsl(
         _workspace(
             """
@@ -99,7 +99,7 @@ def test_relationship_style_extended_properties():
     assert style.opacity == 80
 
 
-def test_style_extensions_round_trip_to_json():
+def test_style_extensions_round_trip_to_json() -> None:
     dsl = _workspace(
         """
         styles {
@@ -139,7 +139,7 @@ def test_style_extensions_round_trip_to_json():
     assert dark.background == "#000000"
 
 
-def test_branding_parsed():
+def test_branding_parsed() -> None:
     ws = parse_dsl(
         _workspace(
             """
@@ -156,7 +156,7 @@ def test_branding_parsed():
     assert branding.font.name == "Open Sans"
 
 
-def test_terminology_parsed_and_exported():
+def test_terminology_parsed_and_exported() -> None:
     ws = parse_dsl(
         _workspace(
             """
@@ -184,7 +184,7 @@ def test_terminology_parsed_and_exported():
     }
 
 
-def test_workspace_configuration_block():
+def test_workspace_configuration_block() -> None:
     ws = parse_dsl(
         _workspace(
             extra="""
@@ -218,7 +218,7 @@ def test_workspace_configuration_block():
     assert ws2.workspace_configuration.users[0].username == "geoff"
 
 
-def test_workspace_body_name_description_properties():
+def test_workspace_body_name_description_properties() -> None:
     ws = parse_dsl(
         _workspace(
             extra="""

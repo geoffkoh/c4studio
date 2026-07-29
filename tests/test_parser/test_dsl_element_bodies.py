@@ -3,7 +3,7 @@
 from pystructurizr.parser.dsl import parse_dsl
 
 
-def test_person_body_metadata_and_no_leak():
+def test_person_body_metadata_and_no_leak() -> None:
     dsl = """
     workspace "W" {
         model {
@@ -29,7 +29,7 @@ def test_person_body_metadata_and_no_leak():
     assert len(ws.relationships) == 1
 
 
-def test_element_properties_and_perspectives():
+def test_element_properties_and_perspectives() -> None:
     dsl = """
     workspace "W" {
         model {
@@ -55,7 +55,7 @@ def test_element_properties_and_perspectives():
     assert perspective.value == "A"
 
 
-def test_comma_separated_tags_line_in_body():
+def test_comma_separated_tags_line_in_body() -> None:
     dsl = """
     workspace "W" {
         model {
@@ -70,7 +70,7 @@ def test_comma_separated_tags_line_in_body():
     assert "Tag Two" in ws.software_systems[0].tags
 
 
-def test_component_body_parsed():
+def test_component_body_parsed() -> None:
     dsl = """
     workspace "W" {
         model {
@@ -91,7 +91,7 @@ def test_component_body_parsed():
     assert component.technology == "FastAPI"
 
 
-def test_infrastructure_node_body_parsed():
+def test_infrastructure_node_body_parsed() -> None:
     dsl = """
     workspace "W" {
         model {
@@ -114,7 +114,7 @@ def test_infrastructure_node_body_parsed():
     assert "Networking" in infra.tags
 
 
-def test_container_instance_body_does_not_leak():
+def test_container_instance_body_does_not_leak() -> None:
     dsl = """
     workspace "W" {
         model {
@@ -140,7 +140,7 @@ def test_container_instance_body_does_not_leak():
     assert len(ws.deployment_nodes) == 1
 
 
-def test_deployment_node_instance_count_before_body():
+def test_deployment_node_instance_count_before_body() -> None:
     dsl = """
     workspace "W" {
         model {
@@ -160,7 +160,7 @@ def test_deployment_node_instance_count_before_body():
     assert len(ws.deployment_nodes) == 1
 
 
-def test_group_inside_software_system_body():
+def test_group_inside_software_system_body() -> None:
     dsl = """
     workspace "W" {
         model {
@@ -182,7 +182,7 @@ def test_group_inside_software_system_body():
     assert len(ws.relationships) == 1
 
 
-def test_relationship_inside_element_body_still_resolves():
+def test_relationship_inside_element_body_still_resolves() -> None:
     dsl = """
     workspace "W" {
         model {

@@ -11,6 +11,9 @@ from pystructurizr.generators.json_export import export_json, workspace_to_json
 from pystructurizr.models import Location, Shape, ViewType, Workspace
 from pystructurizr.parser.dsl import parse_dsl_file
 from pystructurizr.parser.json_parser import parse_json, parse_json_file
+from collections.abc import Iterator
+from pystructurizr.models import DeploymentNode
+from pystructurizr.models import SoftwareSystem
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"
 SAMPLES = Path(__file__).parent.parent.parent / "samples"
@@ -99,13 +102,13 @@ class TestModelShape:
 
         workspace = parse_dsl(source)
         vendor = workspace.find_element("vendor")
-        assert vendor is not None
-        vendor.location = Location.EXTERNAL  # type: ignore[union-attr]
+        assert isinstance(vendor, SoftwareSystem)
+        vendor.location = Location.EXTERNAL
 
         reparsed = parse_json(export_json(workspace))
         again = reparsed.find_element("vendor")
-        assert again is not None
-        assert again.location == Location.EXTERNAL  # type: ignore[union-attr]
+        assert isinstance(again, SoftwareSystem)
+        assert again.location == Location.EXTERNAL
 
     def test_empty_fields_are_omitted(self) -> None:
         from pystructurizr.parser.dsl import parse_dsl
@@ -189,7 +192,7 @@ class TestStylesAndDeployment:
     ) -> None:
         reparsed = parse_json(export_json(hedge_fund))
 
-        def flatten(nodes):  # type: ignore[no-untyped-def]
+        def flatten(nodes: list[DeploymentNode]) -> Iterator[DeploymentNode]:
             for node in nodes:
                 yield node
                 yield from flatten(node.children)

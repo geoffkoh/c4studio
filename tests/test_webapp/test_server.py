@@ -344,7 +344,9 @@ def test_edge_ids_are_numbered_per_pair(client: TestClient) -> None:
     leave a given endpoint pair alone.
     """
     _load(client)
-    ids = {e["id"] for e in client.get("/api/views/SystemContext/graph").json()["edges"]}
+    ids = {
+        e["id"] for e in client.get("/api/views/SystemContext/graph").json()["edges"]
+    }
     assert ids == {
         "customer__bank__0",
         "bank__email__0",

@@ -45,6 +45,12 @@ build-backend = "uv_build"
 # The distribution is pystructurizr-studio but the module stays pystructurizr.
 module-name = "pystructurizr"
 
+[tool.mypy]
+# Strict by default, so `uv run mypy .` — the command in CLAUDE.md and the
+# one run before every PR — is the strict one. Without this it ran with
+# default settings and strictness could regress unnoticed.
+strict = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"

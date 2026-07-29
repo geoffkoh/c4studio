@@ -21,7 +21,7 @@ def _workspace(views: str) -> str:
     return f'workspace "W" {{ {BASE_MODEL} views {{ {views} }} }}'
 
 
-def test_custom_view_parsed():
+def test_custom_view_parsed() -> None:
     ws = parse_dsl(
         _workspace(
             """
@@ -41,7 +41,7 @@ def test_custom_view_parsed():
     assert view.include_all is True
 
 
-def test_image_view_sources():
+def test_image_view_sources() -> None:
     ws = parse_dsl(
         _workspace(
             """
@@ -74,7 +74,7 @@ def test_image_view_sources():
     assert views["img4"].content_type == "image"
 
 
-def test_default_view_recorded():
+def test_default_view_recorded() -> None:
     ws = parse_dsl(
         _workspace(
             """
@@ -91,7 +91,7 @@ def test_default_view_recorded():
     assert ws.views.configuration.default_view == "cont"
 
 
-def test_view_properties_block():
+def test_view_properties_block() -> None:
     ws = parse_dsl(
         _workspace(
             """
@@ -107,7 +107,7 @@ def test_view_properties_block():
     assert ws.views[0].properties == {"owner": "team-a"}
 
 
-def test_animation_steps_resolve_identifiers():
+def test_animation_steps_resolve_identifiers() -> None:
     ws = parse_dsl(
         _workspace(
             """
@@ -129,7 +129,7 @@ def test_animation_steps_resolve_identifiers():
     assert view.animations[1].element_ids == ["web"]
 
 
-def test_autolayout_separations():
+def test_autolayout_separations() -> None:
     ws = parse_dsl(
         _workspace(
             """
@@ -146,7 +146,7 @@ def test_autolayout_separations():
     assert layout.node_separation == 150
 
 
-def test_autolayout_without_separations_keeps_defaults():
+def test_autolayout_without_separations_keeps_defaults() -> None:
     ws = parse_dsl(
         _workspace(
             """
@@ -163,7 +163,7 @@ def test_autolayout_without_separations_keeps_defaults():
     assert layout.node_separation == 100
 
 
-def test_view_features_round_trip_to_json():
+def test_view_features_round_trip_to_json() -> None:
     ws = parse_dsl(
         _workspace(
             """

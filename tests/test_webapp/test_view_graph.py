@@ -18,6 +18,9 @@ from pystructurizr.models import (
 )
 from pystructurizr.parser.dsl import parse_dsl_file
 from pystructurizr.webapp.view_graph import apply_positions, build_view_graph
+from typing import Any, cast
+
+JsonDict = dict[str, Any]
 
 FIXTURE = Path(__file__).parent.parent / "fixtures" / "example.dsl"
 
@@ -29,14 +32,14 @@ def _view(workspace: Workspace, view_type: ViewType) -> View:
     raise AssertionError(f"fixture has no {view_type} view")
 
 
-def _node_by_label(data: dict, label: str) -> dict:
+def _node_by_label(data: JsonDict, label: str) -> JsonDict:
     for node in data["nodes"]:
         if node["data"]["label"] == label:
-            return node
+            return cast(JsonDict, node)
     raise AssertionError(f"no node labelled {label!r}")
 
 
-def _edge_pairs(data: dict) -> set[tuple[str, str]]:
+def _edge_pairs(data: JsonDict) -> set[tuple[str, str]]:
     return {(e["source"], e["target"]) for e in data["edges"]}
 
 
@@ -257,7 +260,7 @@ workspace "Deploy" {
 
 class TestDeploymentView:
     @pytest.fixture
-    def deploy_workspace(self, tmp_path) -> Workspace:
+    def deploy_workspace(self, tmp_path: Path) -> Workspace:
         path = tmp_path / "deploy.dsl"
         path.write_text(SPLIT_DEPLOY_DSL, encoding="utf-8")
         return parse_dsl_file(path)
@@ -304,7 +307,7 @@ class TestDeploymentView:
 
 class TestContainerExpansion:
     @pytest.fixture
-    def deploy_workspace(self, tmp_path) -> Workspace:
+    def deploy_workspace(self, tmp_path: Path) -> Workspace:
         path = tmp_path / "deploy.dsl"
         path.write_text(SPLIT_DEPLOY_DSL, encoding="utf-8")
         return parse_dsl_file(path)

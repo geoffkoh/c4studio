@@ -22,7 +22,7 @@ def _errors(source: str) -> list[str]:
 def test_model_element_without_a_name_is_an_error(keyword: str) -> None:
     """``<keyword> <name>`` — the name is required, not optional."""
     messages = _errors(
-        'workspace "T" {\n    model {\n' f"        x = {keyword}\n" "    }\n}\n"
+        f'workspace "T" {{\n    model {{\n        x = {keyword}\n    }}\n}}\n'
     )
 
     assert any("name" in m for m in messages)
@@ -83,12 +83,7 @@ def test_deployment_environment_without_a_name_is_an_error() -> None:
 
 def test_relationship_without_a_destination_is_an_error() -> None:
     messages = _errors(
-        'workspace "T" {\n'
-        "    model {\n"
-        '        a = person "A"\n'
-        "        a ->\n"
-        "    }\n"
-        "}\n"
+        'workspace "T" {\n    model {\n        a = person "A"\n        a ->\n    }\n}\n'
     )
 
     assert any("destination" in m for m in messages)
@@ -96,9 +91,7 @@ def test_relationship_without_a_destination_is_an_error() -> None:
 
 def test_unterminated_workspace_is_an_error() -> None:
     """A missing closing brace changes what the file means; say so."""
-    messages = _errors(
-        'workspace "T" {\n    model {\n        a = person "A"\n    }\n'
-    )
+    messages = _errors('workspace "T" {\n    model {\n        a = person "A"\n    }\n')
 
     assert any("workspace" in m.lower() for m in messages)
 

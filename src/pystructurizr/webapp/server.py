@@ -287,9 +287,7 @@ def _write_layout_sidecar(
     if not views and not waypoints:
         sidecar.unlink(missing_ok=True)
         return sidecar
-    sidecar.write_text(
-        json.dumps(document, indent=2, sort_keys=True), encoding="utf-8"
-    )
+    sidecar.write_text(json.dumps(document, indent=2, sort_keys=True), encoding="utf-8")
     return sidecar
 
 

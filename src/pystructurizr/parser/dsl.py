@@ -134,13 +134,15 @@ def _tokenize(text: str) -> list[Token]:
     # Offset of the first character of `line`, so columns are a subtraction.
     line_start = 0
     for m in _TOKEN_RE.finditer(text):
+        # Every branch of the pattern is a named group, so a match always has
+        # one; narrowing here beats suppressing the Optional at the call.
         kind = m.lastgroup
+        if kind is None:  # pragma: no cover - unreachable with this pattern
+            continue
         value = m.group()
         if kind not in ("COMMENT", "BLOCK_COMMENT", "NEWLINE", "SKIP"):
             column = m.start() - line_start + 1
-            tokens.append(
-                Token(kind, value, line, column, column + len(value))  # type: ignore[arg-type]
-            )
+            tokens.append(Token(kind, value, line, column, column + len(value)))
         # Any token may span lines — a block comment, or a string with an
         # escaped newline — so the position is advanced for all of them, not
         # just the ones that are skipped.
@@ -677,9 +679,7 @@ class _Parser:
         # Recovery can re-report the same spot from a different rule; the
         # user only needs to be told once.
         key = (diagnostic.path, diagnostic.line, diagnostic.column, diagnostic.message)
-        if any(
-            (d.path, d.line, d.column, d.message) == key for d in self._errors
-        ):
+        if any((d.path, d.line, d.column, d.message) == key for d in self._errors):
             return
         if len(self._errors) < self._MAX_ERRORS:
             self._errors.append(diagnostic)
@@ -1994,9 +1994,7 @@ def _expand_includes(
         included = (base_dir / target).resolve()
         if included in stack:
             chain = " -> ".join(str(p) for p in (*stack, included))
-            raise ParseError(
-                f"Circular !include: {chain}", line=index + 1, path=origin
-            )
+            raise ParseError(f"Circular !include: {chain}", line=index + 1, path=origin)
         if not included.is_file():
             raise ParseError(
                 f"!include target not found: {included}",
@@ -2070,9 +2068,7 @@ def _strip_scripts(source: str, warnings_out: list[tuple[int, str]]) -> str:
         # later line number (and the include source map) depends on the
         # preprocessing passes not shifting anything.
         removed = result[match.start() : pos]
-        result = (
-            result[: match.start()] + "\n" * removed.count("\n") + result[pos:]
-        )
+        result = result[: match.start()] + "\n" * removed.count("\n") + result[pos:]
 
 
 def _apply_constants(source: str) -> str:
@@ -2185,9 +2181,7 @@ def parse_dsl(
 def parse_dsl_file(path: str | Path) -> Workspace:
     """Read a .dsl file and parse it, resolving any ``!include`` directives."""
     path = Path(path).resolve()
-    return parse_dsl(
-        path.read_text(encoding="utf-8"), base_dir=path.parent, path=path
-    )
+    return parse_dsl(path.read_text(encoding="utf-8"), base_dir=path.parent, path=path)
 
 
 def collect_source_files(path: str | Path) -> list[Path]:
