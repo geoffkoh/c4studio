@@ -104,6 +104,28 @@ Tests alone are not sufficient for webapp or parser changes. Before opening a PR
 3. For frontend changes, rebuild the bundle and commit it — a stale
    `src/pystructurizr/webapp/static/` ships a broken UI.
 
+## Answering Structurizr parity questions
+
+The upstream Java source is checked out beside this repo at
+`../structurizr/`. **Check it before deciding any compatibility question** —
+it settles in seconds what the roadmap docs and old tickets disagree about,
+and those disagreements have sent work in the wrong direction more than once.
+
+| Where | What it answers |
+| --- | --- |
+| `../structurizr/structurizr-dsl/src/main/java/com/structurizr/dsl/` | DSL syntax. Each parser declares a literal `GRAMMAR` string and index constants — e.g. `DeploymentNodeParser` has `"deploymentNode <name> [description] [technology] [tags] [instances] {"` with `TAGS_INDEX = 4`, `INSTANCES_INDEX = 5`. Definitive for positional argument order. |
+| `../structurizr/structurizr-core/src/main/java/com/structurizr/model/` | Model field names, types and defaults — e.g. `DeploymentNode.instances` is `private String instances = "1"`. |
+| `../structurizr/structurizr-application/` | The Java web UI, for behaviour comparisons (see `docs/structurizr-parity.md`). |
+
+Worked example: PP-87 changed `instances` from `int` back to `str` because
+range expressions like `"0..N"` were being discarded, and the upstream field
+turned out to be exactly `String instances = "1"`. The same check disproved a
+suspected positional-order bug in the same ticket.
+
+Note this checkout is a convenience of *this machine*, not part of the repo,
+so it may be absent elsewhere. Prefer it over memory when it is there; record
+the finding in the code or docs so the answer survives without it.
+
 ## Git & Workflow
 
 - **One Jira ticket per item** in the `PP` project (Jira access is via the

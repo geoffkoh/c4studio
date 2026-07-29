@@ -8,6 +8,12 @@ Originally written in July 2026 from a source-level review of
 `structurizr-ui.js`); updated after the PP-42…PP-49 roadmap landed, which
 implemented every item in the original recommended roadmap.
 
+The Java source these comparisons are made against is checked out beside
+this repo at `../structurizr/` — `structurizr-dsl` for syntax (each parser
+carries a literal `GRAMMAR` string), `structurizr-core` for model fields and
+defaults, `structurizr-application` for the web UI. Check it rather than
+inferring behaviour from this document when the two might disagree.
+
 ## Where the Java UI's functionality lives
 
 | Java surface | What it does |
