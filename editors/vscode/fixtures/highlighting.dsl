@@ -131,8 +131,8 @@ workspace "Highlighting" "Every highlighted term in one file" {
             }
         }
 
-        theme "https://static.structurizr.com/themes/default/theme.json"
-        themes "https://static.structurizr.com/themes/default/theme.json"
+        theme default
+        themes "https://static.structurizr.com/themes/amazon-web-services-2023.01.31/theme.json"
 
         branding {
             logo https://example.com/logo.png

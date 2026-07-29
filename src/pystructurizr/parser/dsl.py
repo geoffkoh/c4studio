@@ -1411,13 +1411,7 @@ class _Parser:
             elif kw == "styles":
                 self._parse_styles(ws)
             elif kw in ("theme", "themes"):
-                # theme "url" / themes "url" "url" ... — URLs must be quoted
-                # (the tokenizer has no token for unquoted ://... runs).
-                self._advance()
-                while self._match(STRING):
-                    url = self._advance().value.strip('"')
-                    if url:
-                        ws.views.configuration.themes.append(url)
+                self._parse_themes(ws)
             elif kw == "filtered":
                 ws.views.append(self._parse_filtered_view())
             elif kw == "branding":
@@ -1429,6 +1423,44 @@ class _Parser:
             else:
                 self._skip_unknown("views")
         self._expect(RBRACE)
+
+    # structurizr-java resolves the name "default" to this URL
+    # (ThemeParser.DEFAULT_THEME_URL); it is the only built-in alias, as
+    # every other name is a runtime-installed theme, which has no
+    # equivalent here.
+    _DEFAULT_THEME_NAME = "default"
+    _DEFAULT_THEME_URL = "https://static.structurizr.com/themes/default/theme.json"
+
+    def _parse_themes(self, ws: Workspace) -> None:
+        """Parse ``theme <name|url>`` / ``themes <name|url> ...``.
+
+        URLs must be quoted — the tokeniser has no token for an unquoted
+        ``://...`` run — but a bare name is a valid alias, and ``default``
+        is the one structurizr-java defines.
+        """
+        keyword = self._advance()
+        themes = ws.views.configuration.themes
+        # Bounded to the keyword's own line: an unquoted name is an IDENT,
+        # and without this the next statement would be swallowed as a theme.
+        while self._match(STRING, IDENT) and self._peek().line == keyword.line:
+            token = self._advance()
+            value = token.value.strip('"')
+            if not value:
+                continue
+            if token.type == IDENT:
+                if value.lower() == self._DEFAULT_THEME_NAME:
+                    themes.append(self._DEFAULT_THEME_URL)
+                else:
+                    self._warn(
+                        f"unknown theme name {value!r}; only 'default' and "
+                        "quoted URLs are supported",
+                        line=token.line,
+                        column=token.column,
+                        end_column=token.end_column,
+                        code="unknown-theme",
+                    )
+                continue
+            themes.append(value)
 
     def _parse_branding(self, ws: Workspace) -> None:
         """Parse ``branding { logo <url> font <name> [url] }``."""
