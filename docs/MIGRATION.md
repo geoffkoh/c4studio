@@ -209,3 +209,29 @@ types. Extend as needed.
 | 4 | Configuration | generators_and_exporters | `dict[str, str]` | `{}` |
 | 4 | Workspace | documentation | `list[Documentation]` | `[]` |
 | 4 | Workspace | decisions | `list[str]` | `[]` |
+
+---
+
+## Deliberate divergences from structurizr-java
+
+These fields exist in pystructurizr but not in structurizr-java, or differ
+from it. They are **intentional and supported**, not oversights, and were
+reviewed against the Java model in July 2026. Recorded here because a
+periodic "align with Java" pass keeps proposing their removal.
+
+| Field | Why it stays |
+| --- | --- |
+| `parent_id` on `Container`, `Component`, `DeploymentNode`, `InfrastructureNode` | Load-bearing. The webapp reconstructs element hierarchy from it, and `view_graph` lifts relationships to their nearest visible ancestor through it — that is what makes a `person -> container` relationship render as `person -> system` on a context diagram. Java uses transient back-references instead; pystructurizr's model is serialised and re-read, so it needs the explicit id. |
+| `Person.location`, `SoftwareSystem.location` | Java deprecated `location`, but the DSL keyword still exists and this is how external elements get their distinct styling: `view_graph._person_kind` / `_system_kind` consult it (falling back to an `external` tag). Removing it would silently flatten internal and external elements to the same colour. |
+| `Perspective.url`, `Perspective.title` | Additive metadata, parsed from the DSL and round-tripped through workspace JSON. `title` was added deliberately by the PP-31 compatibility work; a later ticket proposed removing it, which would have undone that. Check the Java model directly before revisiting. |
+| `icon` on `CustomElement`, `DeploymentNode`, `InfrastructureNode` | Java carries `icon` only on `ElementStyle`. Per-element icons are a convenience the renderer honours. |
+
+By contrast, these **are** worth aligning and are tracked as bugs rather
+than parity items, because the current behaviour loses data:
+`DeploymentNode.instances` cannot express Structurizr's `"0..N"` range
+syntax, and `Branding.font` drops the font URL.
+
+`Terminology` defaults are **not** a divergence in practice: they are
+populated in the dataclass, but `generators/json_export._terminology`
+compares against those defaults and emits only values the workspace
+actually set, so an undeclared terminology exports as `null`.
