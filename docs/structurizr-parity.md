@@ -37,7 +37,7 @@ inferring behaviour from this document when the two might disagree.
 | Expand element in place | ❌ (navigation only) | ✅ | Multiple containers expandable inside a container view — pystructurizr goes beyond the Java UI here |
 | Tag-based styles (colours, text colour) | ✅ | ✅ | DSL `styles` block; implicit Element/kind tags, declaration-order overrides; full property set incl. strokeWidth/iconPosition/metadata/description, relationship style/routing/jump/position/opacity, and `light`/`dark` colour-scheme variants (parsed + JSON; webapp edge styling not yet wired) |
 | Shapes | ✅ (full set) | ✅ | Person/Robot, Cylinder/Bucket, Box, Circle/Ellipse, Pipe, Hexagon, Folder, WebBrowser/Window, MobileDevice portrait/landscape; remaining exotics fall back to rounded box |
-| Themes (remote theme URLs) | ✅ | ✅ | `theme "https://..."` fetched, cached and merged (workspace styles win); official AWS/Azure/GCP themes attach service logo icons |
+| Themes (remote theme URLs) | ✅ | ✅ | `theme "https://..."` fetched, cached and merged (workspace styles win); `theme default` resolves to the built-in theme URL as upstream does; official AWS/Azure/GCP themes attach service logo icons |
 | Element icons | ✅ | ✅ | `icon` style property and theme icons render in the node |
 | Element metadata (`[Container: Tech]` + description) | ✅ | ✅ | |
 | Auto-layout | ✅ (dagre, per-view direction) | ✅ | Recursive compound dagre; honours `autoLayout lr/tb/bt/rl`; rank/node separations parsed and sent to the graph API (`rankSeparation`/`nodeSeparation`) |
