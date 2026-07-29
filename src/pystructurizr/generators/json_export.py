@@ -431,6 +431,25 @@ def _view(view: View) -> JsonDict:
             "content": view.content,
             "contentLight": view.content_light,
             "contentDark": view.content_dark,
+            # Written only when they differ from structurizr-java's
+            # defaults; _clean drops the None, and keeps an explicit False.
+            "enterpriseBoundaryVisible": (
+                None if view.enterprise_boundary_visible else False
+            ),
+            "mergeFromRemote": None if view.merge_from_remote else False,
+            "externalSoftwareSystemBoundariesVisible": (
+                view.external_software_system_boundaries_visible or None
+            ),
+            "containerId": view.container_id,
+            "externalContainerBoundariesVisible": (
+                view.external_container_boundaries_visible or None
+            ),
+            "generatedKey": view.generated_key or None,
+            "dimensions": (
+                {"width": view.dimensions.width, "height": view.dimensions.height}
+                if view.dimensions
+                else None
+            ),
             "contentType": view.content_type,
         }
     )

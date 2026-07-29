@@ -47,6 +47,7 @@ inferring behaviour from this document when the two might disagree.
 | PNG/SVG export | ✅ | ✅ | Toolbar buttons; diagram-bounds crop, 2× PNG |
 | Filtered views (tag include/exclude) | ✅ | ✅ | `filtered <baseKey> <include\|exclude> <tags> [key] [title]`; implicit tags participate; empty boundaries pruned; layout direction inherited from the base view |
 | Custom / image views | ✅ | ◐ | Parsed from DSL + JSON round-trip; not yet rendered in the webapp |
+| Per-type view fields (`enterpriseBoundaryVisible`, `externalSoftwareSystemBoundariesVisible`, `containerId`, `externalContainerBoundariesVisible`, `generatedKey`, `dimensions`, `mergeFromRemote`) | ✅ | ✅ | Held on the single `View` dataclass with structurizr-core's names and defaults, and round-tripped through workspace JSON. Java's nine typed view classes are deliberately not mirrored — see PP-36 |
 | Perspectives / animation of static views / health checks | ✅ | ◐ | Parsed from DSL + JSON export; not rendered |
 
 ## Navigation & exploration
