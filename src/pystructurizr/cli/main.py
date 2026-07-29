@@ -113,7 +113,17 @@ def export(input_file: Path, output: Path | None) -> None:
 
 
 @cli.command("check")
-@click.argument("input_file", type=click.Path(exists=True, path_type=Path))
+@click.argument("input_file", type=click.Path(allow_dash=True, path_type=Path))
+@click.option(
+    "--path",
+    "source_path",
+    type=click.Path(path_type=Path),
+    help=(
+        "File the source on stdin belongs to. Diagnostics are reported "
+        "against it, and relative !include/!docs/!adrs targets resolve "
+        "next to it."
+    ),
+)
 @click.option(
     "--json",
     "as_json",
@@ -125,8 +135,14 @@ def export(input_file: Path, output: Path | None) -> None:
     is_flag=True,
     help="Exit non-zero on warnings as well as errors.",
 )
-def check(input_file: Path, as_json: bool, strict: bool) -> None:
+def check(
+    input_file: Path, source_path: Path | None, as_json: bool, strict: bool
+) -> None:
     """Report problems in INPUT_FILE without generating anything.
+
+    INPUT_FILE may be ``-`` to read DSL from stdin, which is how an editor
+    checks a buffer that has not been saved. Pass ``--path`` with it so
+    diagnostics name the real file and relative directives resolve.
 
     Exits 1 when the file has errors (or, with --strict, warnings), so it
     can gate a CI job. Warnings cover DSL the parser understood but did not
@@ -135,11 +151,19 @@ def check(input_file: Path, as_json: bool, strict: bool) -> None:
     """
     import json as json_module
 
-    from pystructurizr.parser.dsl import ParseError, parse_dsl_file
+    from pystructurizr.parser.dsl import ParseError, parse_dsl, parse_dsl_file
 
     diagnostics: list[Diagnostic] = []
+    from_stdin = str(input_file) == "-"
     try:
-        if input_file.suffix.lower() == ".json":
+        if from_stdin:
+            resolved = source_path.resolve() if source_path is not None else None
+            workspace = parse_dsl(
+                click.get_text_stream("stdin").read(),
+                base_dir=resolved.parent if resolved is not None else None,
+                path=resolved,
+            )
+        elif input_file.suffix.lower() == ".json":
             workspace = _load_workspace(input_file)
         else:
             workspace = parse_dsl_file(input_file)
@@ -154,7 +178,8 @@ def check(input_file: Path, as_json: bool, strict: bool) -> None:
         for diagnostic in diagnostics:
             click.echo(f"{diagnostic.severity.value}: {diagnostic}", err=True)
         if not diagnostics:
-            click.echo(f"{input_file}: no problems found")
+            label = source_path if from_stdin and source_path else input_file
+            click.echo(f"{label}: no problems found")
 
     errors = [d for d in diagnostics if d.severity is Severity.ERROR]
     if errors or (strict and diagnostics):

@@ -16,6 +16,8 @@ interface CheckRecord {
 }
 
 const CHECK_TIMEOUT_MS = 20_000;
+/** Pause after a keystroke before re-checking, so squiggles do not flicker. */
+const DEBOUNCE_MS = 400;
 
 function severityOf(record: CheckRecord): vscode.DiagnosticSeverity {
   return record.severity === "error"
@@ -51,14 +53,19 @@ function rangeOf(record: CheckRecord): vscode.Range {
  * the file being edited: a problem inside an `!include`-ed fragment belongs
  * to the fragment, and lands there.
  *
- * Checking happens on open and on save, not on every keystroke: `check`
- * reads the file from disk, so checking an unsaved buffer would report the
- * previous contents. On-type diagnostics need the parser to accept source
- * on stdin.
+ * Checking happens as you type, debounced: the buffer is piped to
+ * `check - --path <file>`, so an unsaved edit is checked as written rather
+ * than as last saved, while diagnostics still name the real file and
+ * relative `!include` targets still resolve.
+ *
+ * One limitation is inherent: only the active document's text is in hand,
+ * so `!include`-ed fragments are read from disk. A problem introduced in an
+ * unsaved fragment appears once that fragment is saved.
  */
 export class DiagnosticsManager implements vscode.Disposable {
   private readonly collection =
     vscode.languages.createDiagnosticCollection("pystructurizr");
+  private readonly timers = new Map<string, NodeJS.Timeout>();
   /** Files this document's last run put diagnostics on, so they can be cleared. */
   private readonly owned = new Map<string, string[]>();
   private command: string[] | null = null;
@@ -69,12 +76,34 @@ export class DiagnosticsManager implements vscode.Disposable {
   ) {}
 
   dispose(): void {
+    for (const timer of this.timers.values()) clearTimeout(timer);
+    this.timers.clear();
     this.collection.dispose();
+  }
+
+  /** Re-check after a pause, so typing does not spawn a process per keystroke. */
+  scheduleCheck(document: vscode.TextDocument): void {
+    if (document.languageId !== "structurizr-dsl") return;
+    const key = document.uri.toString();
+    const existing = this.timers.get(key);
+    if (existing) clearTimeout(existing);
+    this.timers.set(
+      key,
+      setTimeout(() => {
+        this.timers.delete(key);
+        void this.check(document);
+      }, DEBOUNCE_MS),
+    );
   }
 
   /** Drop everything this document owned — including fragment diagnostics. */
   clear(document: vscode.TextDocument): void {
     const key = document.uri.toString();
+    const timer = this.timers.get(key);
+    if (timer) {
+      clearTimeout(timer);
+      this.timers.delete(key);
+    }
     for (const file of this.owned.get(key) ?? []) {
       this.collection.delete(vscode.Uri.file(file));
     }
@@ -100,7 +129,7 @@ export class DiagnosticsManager implements vscode.Disposable {
 
     let records: CheckRecord[];
     try {
-      records = await this.run(this.command, file, cwd);
+      records = await this.run(this.command, file, cwd, document.getText());
     } catch (error) {
       // A crashed checker must not leave stale squiggles behind, nor spam
       // the user: the reason goes to the output channel.
@@ -116,10 +145,13 @@ export class DiagnosticsManager implements vscode.Disposable {
     command: string[],
     file: string,
     cwd: string,
+    source: string,
   ): Promise<CheckRecord[]> {
-    const args = [...command.slice(1), "check", "--json", file];
+    // "-" reads the buffer from stdin; --path keeps diagnostics pointed at
+    // the real file and lets relative !include targets resolve.
+    const args = [...command.slice(1), "check", "-", "--path", file, "--json"];
     return new Promise((resolve, reject) => {
-      execFile(
+      const child = execFile(
         command[0],
         args,
         { cwd, timeout: CHECK_TIMEOUT_MS, maxBuffer: 8 * 1024 * 1024 },
@@ -139,6 +171,7 @@ export class DiagnosticsManager implements vscode.Disposable {
           reject(new Error(stderr.trim() || error?.message || "check produced no JSON"));
         },
       );
+      child.stdin?.end(source);
     });
   }
 
