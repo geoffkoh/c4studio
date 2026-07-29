@@ -16,6 +16,7 @@ from pystructurizr.models import (
     AutomaticLayout,
     Border,
     Branding,
+    Dimensions,
     ColorScheme,
     Component,
     Configuration,
@@ -396,6 +397,19 @@ def _parse_view(data: dict[str, Any], view_type: ViewType) -> View:
         content_light=data.get("contentLight", ""),
         content_dark=data.get("contentDark", ""),
         content_type=data.get("contentType", ""),
+        # Defaults follow structurizr-core: these two are true unless the
+        # workspace says otherwise.
+        enterprise_boundary_visible=bool(data.get("enterpriseBoundaryVisible", True)),
+        merge_from_remote=bool(data.get("mergeFromRemote", True)),
+        external_software_system_boundaries_visible=bool(
+            data.get("externalSoftwareSystemBoundariesVisible", False)
+        ),
+        container_id=data.get("containerId", ""),
+        external_container_boundaries_visible=bool(
+            data.get("externalContainerBoundariesVisible", False)
+        ),
+        generated_key=bool(data.get("generatedKey", False)),
+        dimensions=_parse_dimensions(data.get("dimensions")),
     )
 
 
@@ -454,6 +468,15 @@ def _parse_relationship_style(data: dict[str, Any]) -> RelationshipStyle:
         metadata=data.get("metadata"),
         description=data.get("description"),
         color_scheme=_enum_or_none(ColorScheme, data.get("colorScheme")),
+    )
+
+
+def _parse_dimensions(data: dict[str, Any] | None) -> Optional[Dimensions]:
+    """Parse a view's canvas size, absent in most workspaces."""
+    if not data:
+        return None
+    return Dimensions(
+        width=int(data.get("width", 0)), height=int(data.get("height", 0))
     )
 
 

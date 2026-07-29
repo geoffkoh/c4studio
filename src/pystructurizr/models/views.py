@@ -60,6 +60,14 @@ class Animation:
 
 
 @dataclass
+class Dimensions:
+    """Canvas size of a rendered view, in pixels."""
+
+    width: int = 0
+    height: int = 0
+
+
+@dataclass
 class ViewElement:
     """An element included in a view with optional x/y position."""
 
@@ -131,6 +139,23 @@ class View:
     content_light: str = ""
     content_dark: str = ""
     content_type: str = ""
+    # Per-type fields, named and defaulted as in structurizr-core. The two
+    # that default to True are why the exporter cannot simply drop falsy
+    # values for them.
+    #: System landscape and system context views.
+    enterprise_boundary_visible: bool = True
+    #: Container views.
+    external_software_system_boundaries_visible: bool = False
+    #: Component views: the container the view is scoped to.
+    container_id: str = ""
+    #: Component views.
+    external_container_boundaries_visible: bool = False
+    #: True when the key was generated rather than written by the author.
+    generated_key: bool = False
+    #: Canvas size, when the workspace records one.
+    dimensions: Optional[Dimensions] = None
+    #: Whether a remote workspace's layout may be merged into this view.
+    merge_from_remote: bool = True
 
 
 # ---------------------------------------------------------------------------
