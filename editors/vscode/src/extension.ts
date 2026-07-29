@@ -21,9 +21,9 @@ export function activate(context: vscode.ExtensionContext): void {
       .getConfiguration("pystructurizr")
       .get<boolean>("diagnostics.enabled", true);
 
-  // Check what is already open, then on open and save. Not on every
-  // keystroke: `check` reads the file from disk, so an unsaved buffer would
-  // be checked as it was before the edit.
+  // Check what is already open, then on open, save and edit. Editing is
+  // debounced inside the manager, which pipes the buffer to the checker so
+  // an unsaved edit is checked as written.
   const checkAll = (): void => {
     if (!enabled()) return;
     for (const document of vscode.workspace.textDocuments) {
@@ -38,6 +38,9 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
     vscode.workspace.onDidSaveTextDocument((document) => {
       if (enabled()) void diagnostics.check(document);
+    }),
+    vscode.workspace.onDidChangeTextDocument((event) => {
+      if (enabled()) diagnostics.scheduleCheck(event.document);
     }),
     vscode.workspace.onDidCloseTextDocument((document) => {
       diagnostics.clear(document);

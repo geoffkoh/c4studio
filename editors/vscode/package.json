@@ -91,7 +91,7 @@
         "pystructurizr.diagnostics.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "Report Structurizr DSL parse problems as editor diagnostics. Files are checked when opened and when saved, using the same backend as the diagram preview."
+          "description": "Report Structurizr DSL parse problems as editor diagnostics. Checked as you type, on open and on save, using the same backend as the diagram preview."
         }
       }
     }

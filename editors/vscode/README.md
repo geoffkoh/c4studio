@@ -19,8 +19,11 @@ Structurizr DSL support in VS Code, powered by
   `pystructurizr check --json` — the same backend the preview uses, so
   there is one implementation of the language's rules. Problems inside an
   `!include`-ed fragment are reported against the fragment, not the file
-  that included it. Files are checked when opened and when saved; disable
-  with `pystructurizr.diagnostics.enabled`.
+  that included it. Checking happens as you type (debounced) as well as on
+  open and save: the buffer is piped to the checker, so unsaved edits are
+  checked as written. `!include`-ed fragments are still read from disk, so
+  a problem introduced in an unsaved fragment appears once it is saved.
+  Disable with `pystructurizr.diagnostics.enabled`.
 - **Interactive C4 diagram preview**: the "Pystructurizr: Open Diagram
   Preview" command (also a button in the editor title bar of DSL files)
   opens the full pystructurizr React Flow app beside your editor — view
