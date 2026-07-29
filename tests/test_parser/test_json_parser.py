@@ -6,7 +6,7 @@ from pystructurizr.parser.json_parser import parse_json, parse_json_file
 FIXTURES = Path(__file__).parent.parent / "fixtures"
 
 
-def test_parse_json_fixture():
+def test_parse_json_fixture() -> None:
     ws = parse_json_file(FIXTURES / "example.json")
     assert ws.name == "Internet Banking"
     assert len(ws.people) == 1
@@ -14,14 +14,14 @@ def test_parse_json_fixture():
     assert len(ws.software_systems) == 2
 
 
-def test_parse_json_relationships():
+def test_parse_json_relationships() -> None:
     ws = parse_json_file(FIXTURES / "example.json")
     assert len(ws.relationships) > 0
     rels_from_customer = [r for r in ws.relationships if r.source_id == "1"]
     assert len(rels_from_customer) == 2
 
 
-def test_parse_json_containers():
+def test_parse_json_containers() -> None:
     ws = parse_json_file(FIXTURES / "example.json")
     banking = next(
         s for s in ws.software_systems if s.name == "Internet Banking System"
@@ -29,7 +29,7 @@ def test_parse_json_containers():
     assert len(banking.containers) == 3
 
 
-def test_parse_json_views():
+def test_parse_json_views() -> None:
     ws = parse_json_file(FIXTURES / "example.json")
     assert len(ws.views) == 2
     keys = {v.key for v in ws.views}
@@ -37,13 +37,13 @@ def test_parse_json_views():
     assert "Containers" in keys
 
 
-def test_external_system_flag():
+def test_external_system_flag() -> None:
     ws = parse_json_file(FIXTURES / "example.json")
     email = next(s for s in ws.software_systems if s.name == "E-mail System")
     assert email.location == Location.EXTERNAL
 
 
-def test_container_parent_id_set_from_json():
+def test_container_parent_id_set_from_json() -> None:
     ws = parse_json_file(FIXTURES / "example.json")
     banking = next(
         s for s in ws.software_systems if s.name == "Internet Banking System"
@@ -53,7 +53,7 @@ def test_container_parent_id_set_from_json():
         assert c.parent_id == banking.id
 
 
-def test_deployment_hierarchy_parent_id_from_json():
+def test_deployment_hierarchy_parent_id_from_json() -> None:
     raw = json.dumps(
         {
             "workspace": {
@@ -80,7 +80,7 @@ def test_deployment_hierarchy_parent_id_from_json():
     assert aws.infrastructure_nodes[0].parent_id == "1"
 
 
-def test_perspective_title_from_json():
+def test_perspective_title_from_json() -> None:
     raw = json.dumps(
         {
             "workspace": {
@@ -112,7 +112,7 @@ def test_perspective_title_from_json():
 # ---------------------------------------------------------------------------
 
 
-def test_parse_branding_and_exporters_from_json():
+def test_parse_branding_and_exporters_from_json() -> None:
     raw = json.dumps(
         {
             "workspace": {
@@ -138,7 +138,7 @@ def test_parse_branding_and_exporters_from_json():
     assert ws.configuration.generators_and_exporters["plantuml"] == "PlantUMLExporter"
 
 
-def test_parse_workspace_documentation_and_decisions_from_json():
+def test_parse_workspace_documentation_and_decisions_from_json() -> None:
     raw = json.dumps(
         {
             "workspace": {
@@ -165,7 +165,7 @@ def test_parse_workspace_documentation_and_decisions_from_json():
     assert ws.documentation.decisions[0].status == "Accepted"
 
 
-def test_terminology_defaults_preserved_when_json_omits_them():
+def test_terminology_defaults_preserved_when_json_omits_them() -> None:
     raw = json.dumps(
         {
             "workspace": {

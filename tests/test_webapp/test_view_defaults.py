@@ -28,7 +28,7 @@ workspace "W" {
 """
 
 
-def test_views_index_flags_and_orders_default_first():
+def test_views_index_flags_and_orders_default_first() -> None:
     ws = parse_dsl(DSL)
     index = _views_index(ws)
     assert index[0]["key"] == "ctx"
@@ -36,14 +36,14 @@ def test_views_index_flags_and_orders_default_first():
     assert all(not entry["default"] for entry in index[1:])
 
 
-def test_views_index_keeps_declaration_order_without_default():
+def test_views_index_keeps_declaration_order_without_default() -> None:
     ws = parse_dsl(DSL)
     ws.views.configuration.default_view = ""
     index = _views_index(ws)
     assert [entry["key"] for entry in index] == ["land", "ctx"]
 
 
-def test_graph_payload_carries_layout_separations():
+def test_graph_payload_carries_layout_separations() -> None:
     ws = parse_dsl(DSL)
     view = next(v for v in ws.views if v.key == "ctx")
     payload = react_flow_graph(ws, view)
@@ -52,7 +52,7 @@ def test_graph_payload_carries_layout_separations():
     assert payload["nodeSeparation"] == 150
 
 
-def test_graph_payload_defaults_without_autolayout():
+def test_graph_payload_defaults_without_autolayout() -> None:
     ws = parse_dsl(DSL)
     view = next(v for v in ws.views if v.key == "land")
     payload = react_flow_graph(ws, view)

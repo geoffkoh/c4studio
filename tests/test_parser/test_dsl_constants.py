@@ -12,7 +12,7 @@ from pystructurizr.parser.dsl import (
 )
 
 
-def test_const_substitution_in_strings():
+def test_const_substitution_in_strings() -> None:
     dsl = """
     !const SYSTEM_NAME "Payment System"
     workspace "W" {
@@ -27,7 +27,7 @@ def test_const_substitution_in_strings():
     assert system.description == "Handles Payment System payments"
 
 
-def test_var_redefinition_last_wins():
+def test_var_redefinition_last_wins() -> None:
     dsl = """
     !var ENV "dev"
     !var ENV "prod"
@@ -41,7 +41,7 @@ def test_var_redefinition_last_wins():
     assert ws.software_systems[0].name == "S prod"
 
 
-def test_const_redefinition_raises():
+def test_const_redefinition_raises() -> None:
     dsl = """
     !const NAME "one"
     !const NAME "two"
@@ -51,7 +51,7 @@ def test_const_redefinition_raises():
         parse_dsl(dsl)
 
 
-def test_var_cannot_override_const():
+def test_var_cannot_override_const() -> None:
     dsl = """
     !const NAME "one"
     !var NAME "two"
@@ -61,7 +61,7 @@ def test_var_cannot_override_const():
         parse_dsl(dsl)
 
 
-def test_unknown_placeholder_left_intact():
+def test_unknown_placeholder_left_intact() -> None:
     dsl = """
     workspace "W" {
         model {
@@ -73,7 +73,7 @@ def test_unknown_placeholder_left_intact():
     assert ws.software_systems[0].name == "Uses ${UNDEFINED}"
 
 
-def test_const_from_included_file(tmp_path: Path):
+def test_const_from_included_file(tmp_path: Path) -> None:
     (tmp_path / "constants.dsl").write_text('!const ORG "Acme"\n', encoding="utf-8")
     main = tmp_path / "workspace.dsl"
     main.write_text(
@@ -92,7 +92,7 @@ def test_const_from_included_file(tmp_path: Path):
     assert ws.software_systems[0].name == "Acme System"
 
 
-def test_script_block_stripped_with_warning():
+def test_script_block_stripped_with_warning() -> None:
     dsl = """
     workspace "W" {
         model {
@@ -115,7 +115,7 @@ def test_script_block_stripped_with_warning():
     assert any("!script" in w for w in ws.parse_warnings)
 
 
-def test_script_with_nested_braces_stripped():
+def test_script_with_nested_braces_stripped() -> None:
     dsl = """
     workspace "W" {
         model {
@@ -131,7 +131,7 @@ def test_script_with_nested_braces_stripped():
     assert [s.name for s in ws.software_systems] == ["S"]
 
 
-def test_constants_do_not_substitute_inside_scripts():
+def test_constants_do_not_substitute_inside_scripts() -> None:
     dsl = """
     !const NAME "X"
     workspace "W" {

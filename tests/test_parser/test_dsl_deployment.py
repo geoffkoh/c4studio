@@ -17,7 +17,7 @@ def _workspace(body: str) -> str:
     """
 
 
-def test_deployment_group_declarations():
+def test_deployment_group_declarations() -> None:
     dsl = _workspace(
         """
         deploymentEnvironment "Live" {
@@ -34,7 +34,7 @@ def test_deployment_group_declarations():
     assert inst.deployment_groups == ["Service 1"]
 
 
-def test_instance_quoted_deployment_group_list():
+def test_instance_quoted_deployment_group_list() -> None:
     dsl = _workspace(
         """
         deploymentEnvironment "Live" {
@@ -51,7 +51,7 @@ def test_instance_quoted_deployment_group_list():
     assert inst.deployment_groups == ["Service 1", "Service 2"]
 
 
-def test_instance_unknown_string_arg_becomes_tags():
+def test_instance_unknown_string_arg_becomes_tags() -> None:
     dsl = _workspace(
         """
         deploymentEnvironment "Live" {
@@ -68,7 +68,7 @@ def test_instance_unknown_string_arg_becomes_tags():
     assert "Tag Two" in inst.tags
 
 
-def test_instance_groups_then_tags():
+def test_instance_groups_then_tags() -> None:
     dsl = _workspace(
         """
         deploymentEnvironment "Live" {
@@ -86,7 +86,7 @@ def test_instance_groups_then_tags():
     assert "Live Tag" in inst.tags
 
 
-def test_instance_positionals_do_not_swallow_next_line():
+def test_instance_positionals_do_not_swallow_next_line() -> None:
     dsl = _workspace(
         """
         deploymentEnvironment "Live" {
@@ -103,7 +103,7 @@ def test_instance_positionals_do_not_swallow_next_line():
     assert len(node.infrastructure_nodes) == 1
 
 
-def test_health_check_full_and_defaults():
+def test_health_check_full_and_defaults() -> None:
     dsl = _workspace(
         """
         deploymentEnvironment "Live" {
@@ -131,7 +131,7 @@ def test_health_check_full_and_defaults():
     assert ping.timeout == 0
 
 
-def test_instance_body_tags_combine_with_positional():
+def test_instance_body_tags_combine_with_positional() -> None:
     dsl = _workspace(
         """
         deploymentEnvironment "Live" {
@@ -149,7 +149,7 @@ def test_instance_body_tags_combine_with_positional():
     assert "Nested" in inst.tags
 
 
-def test_instance_metadata_round_trips_to_json():
+def test_instance_metadata_round_trips_to_json() -> None:
     dsl = _workspace(
         """
         deploymentEnvironment "Live" {

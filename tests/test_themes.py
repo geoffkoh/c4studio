@@ -11,6 +11,8 @@ from pystructurizr.models import Shape, ViewType
 from pystructurizr.parser.dsl import parse_dsl
 from pystructurizr.themes import ThemeLoadError, parse_theme, theme_styles
 from pystructurizr.webapp.view_graph import build_view_graph
+from typing import Any
+from pystructurizr.models import Workspace
 
 AWS_LIKE_THEME = {
     "name": "Cloud Icons",
@@ -32,7 +34,9 @@ AWS_LIKE_THEME = {
 }
 
 
-def _theme_file(tmp_path: Path, payload: dict, name: str = "theme.json") -> str:
+def _theme_file(
+    tmp_path: Path, payload: dict[str, Any], name: str = "theme.json"
+) -> str:
     path = tmp_path / name
     path.write_text(json.dumps(payload), encoding="utf-8")
     return path.as_uri()
@@ -118,7 +122,9 @@ class TestDslThemeCapture:
 
 
 class TestThemeInViewGraph:
-    def _workspace(self, tmp_path: Path, theme_name: str, extra_styles: str = ""):  # type: ignore[no-untyped-def]
+    def _workspace(
+        self, tmp_path: Path, theme_name: str, extra_styles: str = ""
+    ) -> Workspace:
         url = _theme_file(tmp_path, AWS_LIKE_THEME, theme_name)
         return parse_dsl(
             f"""

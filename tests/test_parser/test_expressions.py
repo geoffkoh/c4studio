@@ -2,6 +2,7 @@
 
 from pystructurizr.parser.dsl import parse_dsl
 from pystructurizr.webapp.view_graph import build_view_graph
+from pystructurizr.models import View, Workspace
 
 
 WORKSPACE = """
@@ -25,25 +26,25 @@ workspace "W" {{
 """
 
 
-def _view(ws, key="v"):
+def _view(ws: Workspace, key: str = "v") -> View:
     return next(v for v in ws.views if v.key == key)
 
 
-def test_include_by_element_type():
+def test_include_by_element_type() -> None:
     ws = parse_dsl(
         WORKSPACE.format(view='systemLandscape "v" { include element.type==Person }')
     )
     assert set(_view(ws).included_ids) == {"u", "admin"}
 
 
-def test_include_by_element_tag():
+def test_include_by_element_tag() -> None:
     ws = parse_dsl(
         WORKSPACE.format(view='systemLandscape "v" { include element.tag==Legacy }')
     )
     assert set(_view(ws).included_ids) == {"ext"}
 
 
-def test_include_by_implicit_tag():
+def test_include_by_implicit_tag() -> None:
     ws = parse_dsl(
         WORKSPACE.format(
             view='systemLandscape "v" { include "element.tag==Software System" }'
@@ -52,21 +53,21 @@ def test_include_by_implicit_tag():
     assert set(_view(ws).included_ids) == {"s", "ext"}
 
 
-def test_element_tag_requires_all_tags():
+def test_element_tag_requires_all_tags() -> None:
     ws = parse_dsl(
         WORKSPACE.format(view='systemLandscape "v" { include element.tag==Person,VIP }')
     )
     assert set(_view(ws).included_ids) == {"u"}
 
 
-def test_include_by_parent():
+def test_include_by_parent() -> None:
     ws = parse_dsl(
         WORKSPACE.format(view='container s "v" { include element.parent==s }')
     )
     assert set(_view(ws).included_ids) == {"web", "db"}
 
 
-def test_exclude_by_tag_expression():
+def test_exclude_by_tag_expression() -> None:
     ws = parse_dsl(
         WORKSPACE.format(
             view='systemLandscape "v" { include * \n exclude element.tag==Legacy }'
@@ -76,7 +77,7 @@ def test_exclude_by_tag_expression():
     assert "ext" in view.excluded_ids
 
 
-def test_afferent_efferent_expressions():
+def test_afferent_efferent_expressions() -> None:
     ws = parse_dsl(WORKSPACE.format(view='systemLandscape "v" { include ->s-> }'))
     # s plus everything related to it in either direction
     assert set(_view(ws).included_ids) == {"u", "admin", "s", "ext"}
@@ -86,7 +87,7 @@ def test_afferent_efferent_expressions():
     assert set(_view(ws3).included_ids) == {"ext", "s"}
 
 
-def test_mixed_identifiers_and_expressions_on_one_line():
+def test_mixed_identifiers_and_expressions_on_one_line() -> None:
     ws = parse_dsl(
         WORKSPACE.format(
             view='systemLandscape "v" { include ext element.type==Person }'
@@ -95,7 +96,7 @@ def test_mixed_identifiers_and_expressions_on_one_line():
     assert set(_view(ws).included_ids) == {"ext", "u", "admin"}
 
 
-def test_exclude_relationship_between():
+def test_exclude_relationship_between() -> None:
     ws = parse_dsl(
         WORKSPACE.format(view='systemLandscape "v" { include * \n exclude admin -> s }')
     )
@@ -107,7 +108,7 @@ def test_exclude_relationship_between():
     assert "Uses" in labels
 
 
-def test_exclude_relationship_by_tag():
+def test_exclude_relationship_by_tag() -> None:
     ws = parse_dsl(
         WORKSPACE.format(
             view='systemLandscape "v" { include * \n exclude relationship.tag==AdminOnly }'
@@ -120,7 +121,7 @@ def test_exclude_relationship_by_tag():
     assert "Uses" in labels
 
 
-def test_exclude_all_relationships():
+def test_exclude_all_relationships() -> None:
     ws = parse_dsl(
         WORKSPACE.format(
             view='systemLandscape "v" { include * \n exclude relationship==* }'
@@ -130,7 +131,7 @@ def test_exclude_all_relationships():
     assert data["edges"] == []
 
 
-def test_exclude_relationship_by_source():
+def test_exclude_relationship_by_source() -> None:
     ws = parse_dsl(
         WORKSPACE.format(
             view='systemLandscape "v" { include * \n exclude relationship.source==admin }'
@@ -141,7 +142,7 @@ def test_exclude_relationship_by_source():
     assert "Administers" not in labels
 
 
-def test_plain_include_lines_unchanged():
+def test_plain_include_lines_unchanged() -> None:
     ws = parse_dsl(
         WORKSPACE.format(view='systemLandscape "v" { include u s \n exclude s }')
     )
@@ -150,7 +151,7 @@ def test_plain_include_lines_unchanged():
     assert view.excluded_ids == ["s"]
 
 
-def test_expressions_resolve_forward_references():
+def test_expressions_resolve_forward_references() -> None:
     dsl = """
     workspace "W" {
         views {
@@ -167,7 +168,7 @@ def test_expressions_resolve_forward_references():
     assert set(_view(ws).included_ids) == {"u"}
 
 
-def test_bang_elements_bulk_mutation():
+def test_bang_elements_bulk_mutation() -> None:
     ws = parse_dsl(
         """
         workspace "W" {
@@ -187,7 +188,7 @@ def test_bang_elements_bulk_mutation():
     assert all("Bulk" in c.tags for c in containers)
 
 
-def test_bang_relationships_bulk_mutation():
+def test_bang_relationships_bulk_mutation() -> None:
     ws = parse_dsl(
         """
         workspace "W" {

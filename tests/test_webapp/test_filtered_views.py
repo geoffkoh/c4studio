@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from pystructurizr.models import FilterMode, ViewType, Workspace
+from pystructurizr.models import FilterMode, View, ViewType, Workspace
 from pystructurizr.parser.dsl import parse_dsl
 from pystructurizr.webapp.graph import is_supported, react_flow_graph
 from pystructurizr.webapp.view_graph import build_view_graph
@@ -44,7 +44,7 @@ def workspace() -> Workspace:
     return parse_dsl(DSL)
 
 
-def _view(workspace: Workspace, key: str):  # type: ignore[no-untyped-def]
+def _view(workspace: Workspace, key: str) -> View:
     return next(v for v in workspace.views if v.key == key)
 
 

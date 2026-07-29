@@ -49,37 +49,37 @@ from pystructurizr.models import (
 
 
 def test_location_enum_values() -> None:
-    assert Location.INTERNAL == "Internal"
-    assert Location.EXTERNAL == "External"
-    assert Location.UNSPECIFIED == "Unspecified"
+    assert Location.INTERNAL.value == "Internal"
+    assert Location.EXTERNAL.value == "External"
+    assert Location.UNSPECIFIED.value == "Unspecified"
 
 
 def test_interaction_style_enum() -> None:
-    assert InteractionStyle.SYNCHRONOUS == "Synchronous"
-    assert InteractionStyle.ASYNCHRONOUS == "Asynchronous"
+    assert InteractionStyle.SYNCHRONOUS.value == "Synchronous"
+    assert InteractionStyle.ASYNCHRONOUS.value == "Asynchronous"
 
 
 def test_rank_direction_enum() -> None:
-    assert RankDirection.TOP_BOTTOM == "TopBottom"
-    assert RankDirection.LEFT_RIGHT == "LeftRight"
+    assert RankDirection.TOP_BOTTOM.value == "TopBottom"
+    assert RankDirection.LEFT_RIGHT.value == "LeftRight"
 
 
 def test_shape_enum_has_all_values() -> None:
-    assert Shape.BOX == "Box"
-    assert Shape.PERSON == "Person"
-    assert Shape.COMPONENT == "Component"
+    assert Shape.BOX.value == "Box"
+    assert Shape.PERSON.value == "Person"
+    assert Shape.COMPONENT.value == "Component"
 
 
 def test_view_type_has_new_values() -> None:
-    assert ViewType.SYSTEM_LANDSCAPE == "systemLandscape"
-    assert ViewType.CUSTOM == "custom"
-    assert ViewType.IMAGE == "image"
-    assert ViewType.FILTERED == "filtered"
+    assert ViewType.SYSTEM_LANDSCAPE.value == "systemLandscape"
+    assert ViewType.CUSTOM.value == "custom"
+    assert ViewType.IMAGE.value == "image"
+    assert ViewType.FILTERED.value == "filtered"
 
 
 def test_paper_size_enum() -> None:
-    assert PaperSize.A4_PORTRAIT == "A4_Portrait"
-    assert PaperSize.SLIDE_16_9 == "Slide_16_9"
+    assert PaperSize.A4_PORTRAIT.value == "A4_Portrait"
+    assert PaperSize.SLIDE_16_9.value == "Slide_16_9"
 
 
 # ---------------------------------------------------------------------------
@@ -574,7 +574,7 @@ def test_section_and_format_defaults() -> None:
     s = Section(content="# Overview")
     assert s.content == "# Overview"
     assert s.format is Format.MARKDOWN
-    assert Format.ASCIIDOC == "AsciiDoc"
+    assert Format.ASCIIDOC.value == "AsciiDoc"
 
 
 def test_workspace_documentation_and_decisions() -> None:

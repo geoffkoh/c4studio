@@ -4,7 +4,7 @@ from pystructurizr.generators.json_export import workspace_to_json
 from pystructurizr.parser.dsl import parse_dsl
 
 
-def test_relationship_positional_tags():
+def test_relationship_positional_tags() -> None:
     dsl = """
     workspace "W" {
         model {
@@ -21,7 +21,7 @@ def test_relationship_positional_tags():
     assert rel.tags == ["tag one", "tag two"]
 
 
-def test_relationship_nested_block():
+def test_relationship_nested_block() -> None:
     dsl = """
     workspace "W" {
         model {
@@ -51,7 +51,7 @@ def test_relationship_nested_block():
     assert rel.perspectives[0].description == "mTLS"
 
 
-def test_relationship_positional_tags_combine_with_nested():
+def test_relationship_positional_tags_combine_with_nested() -> None:
     dsl = """
     workspace "W" {
         model {
@@ -69,7 +69,7 @@ def test_relationship_positional_tags_combine_with_nested():
     assert "nested" in rel.tags
 
 
-def test_this_as_relationship_source():
+def test_this_as_relationship_source() -> None:
     dsl = """
     workspace "W" {
         model {
@@ -89,7 +89,7 @@ def test_this_as_relationship_source():
     assert rel.description == "Notifies"
 
 
-def test_this_as_relationship_destination():
+def test_this_as_relationship_destination() -> None:
     dsl = """
     workspace "W" {
         model {
@@ -106,7 +106,7 @@ def test_this_as_relationship_destination():
     assert rel.destination_id == ws.software_systems[0].id
 
 
-def test_implicit_source_arrow_in_element_body():
+def test_implicit_source_arrow_in_element_body() -> None:
     dsl = """
     workspace "W" {
         model {
@@ -124,7 +124,7 @@ def test_implicit_source_arrow_in_element_body():
     assert rel.description == "Reads from"
 
 
-def test_dynamic_view_step_block_does_not_leak():
+def test_dynamic_view_step_block_does_not_leak() -> None:
     dsl = """
     workspace "W" {
         model {
@@ -149,7 +149,7 @@ def test_dynamic_view_step_block_does_not_leak():
     assert view.auto_layout is not None
 
 
-def test_relationship_metadata_round_trips_to_json():
+def test_relationship_metadata_round_trips_to_json() -> None:
     dsl = """
     workspace "W" {
         model {

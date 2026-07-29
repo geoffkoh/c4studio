@@ -4,7 +4,7 @@ from pystructurizr.generators.json_export import workspace_to_json
 from pystructurizr.parser.dsl import parse_dsl
 
 
-def test_flat_group_membership():
+def test_flat_group_membership() -> None:
     dsl = """
     workspace "W" {
         model {
@@ -22,7 +22,7 @@ def test_flat_group_membership():
     assert groups == {"S": "Internal", "External": ""}
 
 
-def test_nested_groups_join_with_separator():
+def test_nested_groups_join_with_separator() -> None:
     dsl = """
     workspace "W" {
         model {
@@ -39,7 +39,7 @@ def test_nested_groups_join_with_separator():
     assert ws.model.properties.get("structurizr.groupSeparator") == "/"
 
 
-def test_flat_groups_set_no_separator_property():
+def test_flat_groups_set_no_separator_property() -> None:
     dsl = """
     workspace "W" {
         model {
@@ -53,7 +53,7 @@ def test_flat_groups_set_no_separator_property():
     assert "structurizr.groupSeparator" not in ws.model.properties
 
 
-def test_group_inside_software_system_body_sets_container_group():
+def test_group_inside_software_system_body_sets_container_group() -> None:
     dsl = """
     workspace "W" {
         model {
@@ -71,7 +71,7 @@ def test_group_inside_software_system_body_sets_container_group():
     assert containers == {"API": "Backend", "Web": ""}
 
 
-def test_group_membership_exported_to_json():
+def test_group_membership_exported_to_json() -> None:
     dsl = """
     workspace "W" {
         model {
@@ -86,7 +86,7 @@ def test_group_membership_exported_to_json():
     assert data["workspace"]["model"]["people"][0]["group"] == "Internal"
 
 
-def test_custom_element_positional_args():
+def test_custom_element_positional_args() -> None:
     dsl = """
     workspace "W" {
         model {
@@ -104,7 +104,7 @@ def test_custom_element_positional_args():
     assert "Tag1" in ce.tags and "Tag2" in ce.tags
 
 
-def test_custom_element_body_and_relationships():
+def test_custom_element_body_and_relationships() -> None:
     dsl = """
     workspace "W" {
         model {
@@ -130,7 +130,7 @@ def test_custom_element_body_and_relationships():
     assert rel.destination_id == ws.software_systems[0].id
 
 
-def test_custom_element_in_group():
+def test_custom_element_in_group() -> None:
     dsl = """
     workspace "W" {
         model {
@@ -144,7 +144,7 @@ def test_custom_element_in_group():
     assert ws.custom_elements[0].group == "Infra"
 
 
-def test_group_context_does_not_cross_parent_boundaries():
+def test_group_context_does_not_cross_parent_boundaries() -> None:
     dsl = """
     workspace "W" {
         model {

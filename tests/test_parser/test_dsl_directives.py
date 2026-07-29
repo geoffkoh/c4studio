@@ -6,7 +6,7 @@ from pystructurizr.generators.json_export import workspace_to_json
 from pystructurizr.parser.dsl import UnsupportedFeatureWarning, parse_dsl
 
 
-def test_identifiers_directive_is_consumed_silently():
+def test_identifiers_directive_is_consumed_silently() -> None:
     dsl = """
     workspace "W" {
         !identifiers hierarchical
@@ -24,7 +24,7 @@ def test_identifiers_directive_is_consumed_silently():
     assert ws.parse_warnings == []
 
 
-def test_unknown_directive_with_argument_warns_and_skips():
+def test_unknown_directive_with_argument_warns_and_skips() -> None:
     dsl = """
     workspace "W" {
         model {
@@ -42,7 +42,7 @@ def test_unknown_directive_with_argument_warns_and_skips():
     assert any("someUnknownDirective" in w for w in ws.parse_warnings)
 
 
-def test_unknown_directive_with_block_is_skipped():
+def test_unknown_directive_with_block_is_skipped() -> None:
     dsl = """
     workspace "W" {
         model {
@@ -60,7 +60,7 @@ def test_unknown_directive_with_block_is_skipped():
     assert [s.name for s in ws.software_systems] == ["S"]
 
 
-def test_unknown_directive_inside_views_and_view_body():
+def test_unknown_directive_inside_views_and_view_body() -> None:
     dsl = """
     workspace "W" {
         model {
@@ -84,7 +84,7 @@ def test_unknown_directive_inside_views_and_view_body():
     assert ws.views[0].include_all is True
 
 
-def test_parse_warnings_empty_by_default():
+def test_parse_warnings_empty_by_default() -> None:
     dsl = """
     workspace "W" {
         model {
@@ -96,7 +96,7 @@ def test_parse_warnings_empty_by_default():
     assert ws.parse_warnings == []
 
 
-def test_parse_warnings_not_included_in_json_export():
+def test_parse_warnings_not_included_in_json_export() -> None:
     dsl = """
     workspace "W" {
         model {

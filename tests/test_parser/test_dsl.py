@@ -5,7 +5,7 @@ from pystructurizr.parser.dsl import ParseError, parse_dsl, parse_dsl_file
 FIXTURES = Path(__file__).parent.parent / "fixtures"
 
 
-def test_parse_minimal():
+def test_parse_minimal() -> None:
     dsl = """
     workspace "Test" "desc" {
         model {
@@ -30,7 +30,7 @@ def test_parse_minimal():
     assert ws.relationships[0].description == "Uses"
 
 
-def test_parse_containers():
+def test_parse_containers() -> None:
     dsl = """
     workspace "W" {
         model {
@@ -54,7 +54,7 @@ def test_parse_containers():
     assert len(ws.relationships) == 1
 
 
-def test_parse_example_fixture():
+def test_parse_example_fixture() -> None:
     ws = parse_dsl_file(FIXTURES / "example.dsl")
     assert ws.name == "Internet Banking"
     assert len(ws.people) == 1
@@ -64,7 +64,7 @@ def test_parse_example_fixture():
     assert len(ws.views) == 2
 
 
-def test_include_multiple_identifiers_on_one_line():
+def test_include_multiple_identifiers_on_one_line() -> None:
     dsl = """
     workspace {
         model {
@@ -91,7 +91,7 @@ def test_include_multiple_identifiers_on_one_line():
     assert view.auto_layout is not None
 
 
-def test_include_splits_workspace_across_files():
+def test_include_splits_workspace_across_files() -> None:
     ws = parse_dsl_file(FIXTURES / "split_workspace" / "workspace.dsl")
     assert ws.name == "Split Workspace"
     assert len(ws.people) == 1
@@ -103,7 +103,7 @@ def test_include_splits_workspace_across_files():
     assert len(ws.views) == 1
 
 
-def test_include_missing_file_raises(tmp_path: Path):
+def test_include_missing_file_raises(tmp_path: Path) -> None:
     main = tmp_path / "workspace.dsl"
     main.write_text(
         'workspace "W" { model {\n!include missing.dsl\n} }', encoding="utf-8"
@@ -112,7 +112,7 @@ def test_include_missing_file_raises(tmp_path: Path):
         parse_dsl_file(main)
 
 
-def test_include_cycle_raises(tmp_path: Path):
+def test_include_cycle_raises(tmp_path: Path) -> None:
     a = tmp_path / "a.dsl"
     b = tmp_path / "b.dsl"
     a.write_text('workspace "W" { model {\n!include b.dsl\n} }', encoding="utf-8")
@@ -121,12 +121,12 @@ def test_include_cycle_raises(tmp_path: Path):
         parse_dsl_file(a)
 
 
-def test_include_without_file_context_raises():
+def test_include_without_file_context_raises() -> None:
     with pytest.raises(ParseError, match="file context"):
         parse_dsl('workspace "W" { model {\n!include other.dsl\n} }')
 
 
-def test_styles_block_parses_element_and_relationship_rules():
+def test_styles_block_parses_element_and_relationship_rules() -> None:
     dsl = """
     workspace {
         model {
@@ -176,7 +176,7 @@ def test_styles_block_parses_element_and_relationship_rules():
     assert len(ws.views) == 1
 
 
-def test_styles_block_skips_unknown_properties():
+def test_styles_block_skips_unknown_properties() -> None:
     dsl = """
     workspace {
         model {
@@ -201,7 +201,7 @@ def test_styles_block_skips_unknown_properties():
     assert ws.views.configuration.styles.element_styles[0].background == "#123456"
 
 
-def test_docs_and_adrs_directives_attach_documentation(tmp_path: Path):
+def test_docs_and_adrs_directives_attach_documentation(tmp_path: Path) -> None:
     docs = tmp_path / "docs"
     adrs = tmp_path / "adrs"
     docs.mkdir()
@@ -245,12 +245,12 @@ def test_docs_and_adrs_directives_attach_documentation(tmp_path: Path):
     assert len(ws.views) == 1
 
 
-def test_docs_directive_without_file_context_raises():
+def test_docs_directive_without_file_context_raises() -> None:
     with pytest.raises(ParseError, match="file context"):
         parse_dsl('workspace "W" {\n!docs docs\n}')
 
 
-def test_docs_files_are_watched_for_live_reload(tmp_path: Path):
+def test_docs_files_are_watched_for_live_reload(tmp_path: Path) -> None:
     from pystructurizr.parser.dsl import collect_source_files
 
     docs = tmp_path / "docs"
@@ -266,7 +266,7 @@ def test_docs_files_are_watched_for_live_reload(tmp_path: Path):
     assert (docs / "a.md").resolve() in files
 
 
-def test_relationship_technology():
+def test_relationship_technology() -> None:
     dsl = """
     workspace {
         model {

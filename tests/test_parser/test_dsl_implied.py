@@ -3,6 +3,7 @@
 from pystructurizr.generators.json_export import workspace_to_json
 from pystructurizr.parser.dsl import parse_dsl
 from pystructurizr.webapp.view_graph import build_view_graph
+from pystructurizr.models import Workspace
 
 
 MODEL = """
@@ -20,16 +21,16 @@ MODEL = """
 """
 
 
-def _pairs(ws):
+def _pairs(ws: Workspace) -> set[tuple[str, str]]:
     return {(r.source_id, r.destination_id) for r in ws.relationships}
 
 
-def test_implied_relationships_off_by_default():
+def test_implied_relationships_off_by_default() -> None:
     ws = parse_dsl(f'workspace "W" {{ {MODEL} }}')
     assert _pairs(ws) == {("u", "web"), ("handler", "ext")}
 
 
-def test_implied_relationships_creates_parent_levels():
+def test_implied_relationships_creates_parent_levels() -> None:
     ws = parse_dsl(f'workspace "W" {{ !impliedRelationships true {MODEL} }}')
     pairs = _pairs(ws)
     # u -> web implies u -> s
@@ -46,7 +47,7 @@ def test_implied_relationships_creates_parent_levels():
     assert implied.linked_relationship_id
 
 
-def test_implied_skips_existing_pairs():
+def test_implied_skips_existing_pairs() -> None:
     ws = parse_dsl(
         """
         workspace "W" {
@@ -69,12 +70,12 @@ def test_implied_skips_existing_pairs():
     assert rels[0].description == "Direct usage"
 
 
-def test_implied_relationships_false_is_noop():
+def test_implied_relationships_false_is_noop() -> None:
     ws = parse_dsl(f'workspace "W" {{ !impliedRelationships false {MODEL} }}')
     assert _pairs(ws) == {("u", "web"), ("handler", "ext")}
 
 
-def test_implied_relationships_export_linked_id():
+def test_implied_relationships_export_linked_id() -> None:
     ws = parse_dsl(f'workspace "W" {{ !impliedRelationships true {MODEL} }}')
     data = workspace_to_json(ws)
     people = data["workspace"]["model"]["people"]
@@ -83,7 +84,7 @@ def test_implied_relationships_export_linked_id():
     assert linked, "implied relationships must carry linkedRelationshipId"
 
 
-def test_no_duplicate_edges_in_webapp_with_implied_on():
+def test_no_duplicate_edges_in_webapp_with_implied_on() -> None:
     ws = parse_dsl(
         f"""
         workspace "W" {{
@@ -102,7 +103,7 @@ def test_no_duplicate_edges_in_webapp_with_implied_on():
     assert len(pairs) == len(set(pairs)), f"duplicate edges: {pairs}"
 
 
-def test_bang_element_extends_existing():
+def test_bang_element_extends_existing() -> None:
     ws = parse_dsl(
         """
         workspace "W" {
@@ -123,7 +124,7 @@ def test_bang_element_extends_existing():
     assert system.description == "Updated"
 
 
-def test_bang_element_can_add_children():
+def test_bang_element_can_add_children() -> None:
     ws = parse_dsl(
         """
         workspace "W" {
@@ -139,7 +140,7 @@ def test_bang_element_can_add_children():
     assert [c.name for c in ws.software_systems[0].containers] == ["API"]
 
 
-def test_relationship_alias_and_bang_relationship():
+def test_relationship_alias_and_bang_relationship() -> None:
     ws = parse_dsl(
         """
         workspace "W" {

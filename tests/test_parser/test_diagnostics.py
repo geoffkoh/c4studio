@@ -204,12 +204,7 @@ def test_recovery_does_not_swallow_the_following_statement() -> None:
     silently hiding whatever is wrong with it.
     """
     with pytest.raises(ParseError) as excinfo:
-        parse_dsl(
-            'workspace "T" {\n'
-            "    views systemContext\n"
-            "    views component\n"
-            "}\n"
-        )
+        parse_dsl('workspace "T" {\n    views systemContext\n    views component\n}\n')
 
     assert len(excinfo.value.diagnostics) == 2
 
