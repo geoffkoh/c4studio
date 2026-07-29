@@ -380,6 +380,17 @@ class _Parser:
 
         if self._match(RBRACE):
             self._advance()
+        else:
+            tok = self._peek()
+            self._record_error(
+                ParseError(
+                    "workspace block is never closed (missing '}')",
+                    line=tok.line,
+                    column=tok.column,
+                    end_column=tok.end_column,
+                    code="unclosed-block",
+                )
+            )
         return ws
 
     def _parse_workspace_item(self, ws: Workspace) -> None:
@@ -831,6 +842,24 @@ class _Parser:
             and self._tokens[self._pos + 1].type == EQUALS
         )
 
+    def _require_name(self, keyword: str, kw_tok: Token) -> str:
+        """Read an element's name, which the DSL requires.
+
+        Treating it as optional means a typo produces a nameless element
+        rather than a complaint, and the author only finds out when the
+        diagram is missing something.
+        """
+        name = self._optional_string()
+        if not name:
+            raise ParseError(
+                f"{keyword} requires a name",
+                line=kw_tok.line,
+                column=kw_tok.column,
+                end_column=kw_tok.end_column,
+                code="missing-name",
+            )
+        return name
+
     def _parse_element(
         self, ws: Workspace, alias: str | None, parent_id: str | None
     ) -> None:
@@ -839,7 +868,7 @@ class _Parser:
         if kw in ("softwaresysteminstance", "containerinstance"):
             self._parse_instance(ws, kw, alias, parent_id, kw_tok.line)
             return
-        name = self._optional_string()
+        name = self._require_name(kw_tok.value, kw_tok)
         # element <name> [metadata] [description] [tags] — custom elements
         # take a metadata string before the description.
         metadata = self._optional_string() if kw == "element" else ""
@@ -1089,7 +1118,14 @@ class _Parser:
             if self._peek().value.lower() in children:
                 self._parse_element(ws, alias=alias, parent_id=element.id)
             else:
-                self._advance()
+                wrong = self._advance()
+                self._warn(
+                    f"{wrong.value!r} is not valid inside {kind}; skipped",
+                    line=wrong.line,
+                    column=wrong.column,
+                    end_column=wrong.end_column,
+                    code="unexpected-element",
+                )
             return
         if tok.type == IDENT:
             kw = tok.value.lower()
@@ -1244,8 +1280,16 @@ class _Parser:
         Deployment nodes and instances created inside the block are stamped
         with the environment name so deployment views can filter on it.
         """
-        self._advance()  # consume keyword
+        kw_tok = self._advance()  # consume keyword
         env_name = self._optional_string() or self._optional_ident()
+        if not env_name:
+            raise ParseError(
+                "deploymentEnvironment requires a name",
+                line=kw_tok.line,
+                column=kw_tok.column,
+                end_column=kw_tok.end_column,
+                code="missing-name",
+            )
         if env_name and env_name not in ws.model.deployment_environments:
             ws.model.deployment_environments.append(env_name)
         previous = self._current_environment
@@ -1275,6 +1319,17 @@ class _Parser:
         else:
             src = self._advance().value
             self._expect(ARROW)
+        if not self._match(IDENT):
+            tok = self._peek()
+            raise ParseError(
+                f"relationship requires a destination, got {tok.value!r}"
+                if tok.type != EOF
+                else "relationship requires a destination",
+                line=tok.line,
+                column=tok.column,
+                end_column=tok.end_column,
+                code="missing-destination",
+            )
         dst = self._advance().value
         if this_id is not None:
             if src.lower() == "this":

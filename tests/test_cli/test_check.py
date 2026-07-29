@@ -20,7 +20,7 @@ WARNING_DSL = (
     "}\n"
 )
 
-BROKEN_DSL = 'workspace "T" {\n    model {\n        u = person\n'
+BROKEN_DSL = 'workspace "T"\n    model {\n    }\n'
 
 CLEAN_DSL = 'workspace "T" {\n    model {\n        u = person "User"\n    }\n}\n'
 
@@ -83,7 +83,7 @@ def test_json_output_for_a_hard_error(tmp_path: Path) -> None:
     assert result.exit_code == 1
     [record] = json.loads(result.output)
     assert record["severity"] == "error"
-    assert record["line"] == 4
+    assert record["line"] == 2
     assert Path(record["path"]).name == "broken.dsl"
 
 

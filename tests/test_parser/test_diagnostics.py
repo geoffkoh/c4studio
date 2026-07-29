@@ -37,17 +37,17 @@ def test_diagnostic_renders_and_serialises() -> None:
 def test_parse_error_carries_position_as_data() -> None:
     """The line is a field, not something to scrape out of the message."""
     with pytest.raises(ParseError) as excinfo:
-        parse_dsl('workspace "T" {\n    model {\n        u = person\n')
+        parse_dsl('workspace "T"\n    model {\n    }\n')
 
     error = excinfo.value
-    assert error.line == 4
-    assert "Line 4" not in error.message
+    assert error.line == 2
+    assert "Line 2" not in error.message
     assert error.as_diagnostic().severity is Severity.ERROR
 
 
 def test_parse_error_from_a_file_names_the_file(tmp_path: Path) -> None:
     source = tmp_path / "broken.dsl"
-    source.write_text('workspace "T" {\n    model {\n        u = person\n')
+    source.write_text('workspace "T"\n    model {\n    }\n')
 
     with pytest.raises(ParseError) as excinfo:
         parse_dsl_file(source)
@@ -155,7 +155,7 @@ def test_columns_survive_multi_line_tokens() -> None:
 
 def test_error_underlines_the_offending_token() -> None:
     with pytest.raises(ParseError) as excinfo:
-        parse_dsl('workspace "T" {\n    model {\n        u = person "U"\n')
+        parse_dsl('workspace "T"\n    model {\n    }\n')
 
     error = excinfo.value
     assert error.column is not None
