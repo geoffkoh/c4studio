@@ -154,7 +154,7 @@ def test_deployment_node_instance_count_before_body():
     """
     ws = parse_dsl(dsl)
     node = ws.deployment_nodes[0]
-    assert node.instances == 4
+    assert node.instances == "4"
     # The body must attach to the node, not leak to the environment level.
     assert len(node.infrastructure_nodes) == 1
     assert len(ws.deployment_nodes) == 1

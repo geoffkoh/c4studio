@@ -7,7 +7,7 @@ compatibility work (PP-31 → PP-35) and how to adapt existing code.
 
 ## Phase 1 — Critical fixes (PP-32)
 
-### `DeploymentNode.instances`: `str` → `int`
+### `DeploymentNode.instances`: `str` → `int` *(reverted — see below)*
 
 Before:
 
@@ -23,6 +23,12 @@ DeploymentNode(id="dn", name="EC2", instances=3)
 
 JSON parser already casts via `int(...)`; if you constructed `DeploymentNode`
 directly with a string literal, update the call.
+
+> **Reverted (PP-87).** This change lost data: Structurizr allows range
+> expressions such as `"0..N"` and `"1..3"`, which an `int` cannot hold — the
+> parser fell back to `1` and discarded the author's intent without a warning.
+> `instances` is a `str` again, defaulting to `"1"`, matching
+> structurizr-java. Compare against `"3"` rather than `3`.
 
 ### `parent_id` on `Container`, `Component`, `DeploymentNode`, `InfrastructureNode`
 

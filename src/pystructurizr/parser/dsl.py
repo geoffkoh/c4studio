@@ -37,6 +37,7 @@ from pystructurizr.models import (
     DeploymentNode,
     ElementStyle,
     Enterprise,
+    Font,
     FilterMode,
     HttpHealthCheck,
     IconPosition,
@@ -882,14 +883,14 @@ class _Parser:
         tags = [t.strip() for t in tags_str.split(",")] if tags_str else []
 
         # deploymentNode <name> [description] [technology] [tags] [instances]
-        instances = 1
+        instances = "1"
         if kw == "deploymentnode":
+            # Either a bare count or a quoted expression; both are kept
+            # verbatim so range syntax such as "0..N" survives.
             if self._match(NUMBER):
-                instances = int(self._advance().value)
+                instances = self._advance().value
             elif self._match(STRING):
-                raw = self._advance().value.strip('"')
-                if raw.isdigit():
-                    instances = int(raw)  # ranges like "0..N" keep the default
+                instances = self._advance().value.strip('"') or "1"
 
         elem_id = alias or name.replace(" ", "_").lower()
 
@@ -1443,8 +1444,9 @@ class _Parser:
             if kw == "logo":
                 branding.logo = self._optional_string()
             elif kw == "font":
-                branding.font = self._optional_string()
-                self._optional_string()  # optional web font url, not stored
+                branding.font = Font(
+                    name=self._optional_string(), url=self._optional_string()
+                )
         self._expect(RBRACE)
         ws.views.configuration.branding = branding
 

@@ -204,11 +204,18 @@ class Terminology:
 
 
 @dataclass
-class Branding:
-    """Custom branding configuration: brand color, font, and logo URL."""
+class Font:
+    """A branding font: a family name and an optional web-font URL."""
 
-    color: str = ""
-    font: str = ""
+    name: str = ""
+    url: str = ""
+
+
+@dataclass
+class Branding:
+    """Custom branding configuration: font and logo URL."""
+
+    font: Font = field(default_factory=Font)
     logo: str = ""
 
 

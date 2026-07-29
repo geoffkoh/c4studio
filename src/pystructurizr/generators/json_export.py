@@ -45,6 +45,7 @@ from pystructurizr.models import (
     RelationshipView,
     SoftwareSystem,
     SoftwareSystemInstance,
+    Font,
     Terminology,
     View,
     ViewType,
@@ -331,7 +332,7 @@ def _deployment_node(node: DeploymentNode) -> JsonDict:
             "name": node.name,
             "description": node.description,
             "technology": node.technology,
-            "instances": node.instances if node.instances != 1 else None,
+            "instances": node.instances if node.instances != "1" else None,
             "environment": node.environment,
             "tags": _tags(node.tags),
             "url": node.url,
@@ -484,6 +485,13 @@ def _relationship_style(style: RelationshipStyle) -> JsonDict:
     )
 
 
+def _font(font: Font) -> JsonDict | None:
+    """Serialise a branding font, or ``None`` when nothing was set."""
+    if not font.name and not font.url:
+        return None
+    return {"name": font.name, **({"url": font.url} if font.url else {})}
+
+
 def _terminology(terminology: Terminology) -> JsonDict:
     """Serialise only the labels that differ from the defaults."""
     defaults = Terminology()
@@ -545,8 +553,7 @@ def _configuration(configuration: Configuration) -> JsonDict:
             "branding": (
                 _clean(
                     {
-                        "color": configuration.branding.color,
-                        "font": configuration.branding.font,
+                        "font": _font(configuration.branding.font),
                         "logo": configuration.branding.logo,
                     }
                 )

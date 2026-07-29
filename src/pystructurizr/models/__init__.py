@@ -53,6 +53,7 @@ from pystructurizr.models.views import (
     Animation,
     AutomaticLayout,
     Branding,
+    Font,
     Configuration,
     ElementStyle,
     RelationshipStyle,
@@ -121,6 +122,7 @@ __all__ = [
     "Styles",
     "Terminology",
     "Branding",
+    "Font",
     "Configuration",
     "ViewSet",
     # workspace
