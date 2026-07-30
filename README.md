@@ -132,7 +132,7 @@ uv run pystructurizr webapp file.dsl          # preload a single file
 
 Pass a directory to browse and load any `.dsl`/`.json` file from the
 in-app file picker, or a single file to preload it. The element tree and
-per-view graph come from the parser and `webapp/view_graph`;
+per-view graph come from the parser and `graph/view_graph`;
 `systemLandscape`, `systemContext`, `container`, `component`, `dynamic`
 and `deployment` views all render as interactive graphs (other view
 types are flagged "not renderable yet").

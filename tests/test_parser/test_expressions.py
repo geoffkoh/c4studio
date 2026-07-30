@@ -1,7 +1,7 @@
 """Tests for include/exclude expressions and bulk directives (Phase 8)."""
 
 from pystructurizr.parser.dsl import parse_dsl
-from pystructurizr.webapp.view_graph import build_view_graph
+from pystructurizr.graph.view_graph import build_view_graph
 from pystructurizr.models import View, Workspace
 
 

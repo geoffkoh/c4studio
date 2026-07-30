@@ -42,7 +42,7 @@ governance and overlay features are UI/reporting work, not model work.
 
 | Feature | Value | Cx | Notes |
 |---|---|---|---|
-| **Headless CI rendering** — `pystructurizr render` → SVG/PNG/Mermaid for all views, no browser | High (enabler) | L | Server-side SVG reusing `view_graph.py` semantics. **Now also pulled by Phase 5** (Confluence export, the GitHub Action, Pages), which settles the layout-engine question: dagre is pure JS and runs headless in Node, so layout stays in `diagram-core` with one implementation and no new Python dependency. |
+| **Headless CI rendering** — `pystructurizr render` → SVG/PNG/Mermaid for all views, no browser | High (enabler) | L | Server-side SVG reusing `graph/view_graph.py` semantics. **Now also pulled by Phase 5** (Confluence export, the GitHub Action, Pages), which settles the layout-engine question: dagre is pure JS and runs headless in Node, so layout stays in `diagram-core` with one implementation and no new Python dependency. |
 | **Static HTML site export** — self-contained site (diagrams + docs + ADRs + inventory) for any static host/Confluence | High | M-L | *The* sharing story for a local-first tool. Must embed fetched theme icons as data URIs. |
 | **Diagram diff** — two git revisions compared: added/removed/changed elements & relationships per view, visual overlay + text report | High | L | `pystructurizr diff rev1 rev2` for PR comments; model diff on the query layer, overlay via the renderer. |
 
@@ -68,8 +68,8 @@ relationship elsewhere in the view no longer renumbers them. Bend points
 live in the layout sidecar as per-user UI state, and Reset layout clears
 them along with node positions.
 
-**Open chore:** PP-50 — vite/esbuild upgrade for the frontend's npm audit
-advisories.
+**Also shipped:** PP-50 — the vite/esbuild upgrade that cleared the
+frontend's npm audit advisories.
 
 ## Phase 5 — Publishing surfaces: Confluence and GitHub
 
@@ -110,8 +110,10 @@ Parsing is split by *when* it happens:
 Two packages carry every surface. Python owns
 `DSL → Workspace → graph JSON → Mermaid text`; TypeScript (`diagram-core`)
 owns `graph JSON → layout → React Flow canvas | headless SVG`. The graph
-JSON emitted by `webapp/view_graph.py` is the contract between them, and
-each renderer exists exactly once.
+JSON emitted by `graph/view_graph.py` is the contract between them, and
+each renderer exists exactly once. PP-88 moved that module out of
+`webapp/` for exactly this reason — it is consumed by the CLI and the
+Mermaid generator, not just the web app.
 
 | Surface | New code beyond the two packages |
 |---|---|
@@ -127,7 +129,7 @@ each renderer exists exactly once.
 
 | Feature | Value | Cx | Notes |
 |---|---|---|---|
-| **Mermaid renders from the graph model** | High (correctness) | S-M | Fixes the defect below and collapses the duplicate C4 semantics. Precondition for the GitHub work. |
+| ~~**Mermaid renders from the graph model**~~ **shipped, PP-88** | High (correctness) | S-M | Fixed the defect below and collapsed the duplicate C4 semantics. `systemLandscape` came along nearly free; dynamic, deployment and filtered views still emit the unsupported comment and are the flowchart target's job. |
 | **`flowchart`/`subgraph` Mermaid target** | Med-High | S | Mermaid's `C4Context`/`C4Container` types are experimental upstream, lay out poorly on dense models, and GitHub pins its own Mermaid version. Same graph model in, more reliable rendering out. |
 | **Headless SVG renderer** (`diagram-core` + `pystructurizr render`) | High (enabler) | L | This is Phase 3's headless-rendering item. Serves Confluence export, the GitHub Action and Pages — and answers Phase 3's open "Python dagre-equivalent vs small Node script" question: dagre is pure JS and runs headless in Node, so layout stays in one implementation. |
 | **`diagram-core` extraction** | High (enabler) | M-L | Move `frontend/src/layout.ts`, the node/edge components and export out of the SPA into a package. `GraphPane` currently imports `api.ts` and saves layout itself; that coupling must be lifted into props before it can embed anywhere. |
@@ -137,16 +139,25 @@ each renderer exists exactly once.
 | **GitHub Action** | High | M | Render every view on push/PR, commit SVGs or upload artifacts, comment on the PR. Composite action using `uv`; runners already have Python. Becomes "diagram diff on PRs" once the model diff exists. |
 | **github.dev web extension** | Med-High | M | The existing extension bootstraps a Python backend via `uv` (PP-68), which cannot work in a browser tab. With the Pyodide bridge it becomes a web extension: press `.` on any GitHub repo, get interactive C4. |
 
-### Known defect this depends on
+### The defect this fixed (PP-88, resolved)
 
-`generators/mermaid.py` filters *elements* by view visibility but then
-emits relationships raw via `all_relationships_for(visible_ids)`, so a
-system context view for `samples/internet_banking.dsl` declares five
-elements and then references eight container-level aliases that were never
-declared (`webApp`, `apiGateway`, `db`, …). `webapp/view_graph.py` gets
-this right — `_lift_to()` walks each endpoint to its nearest visible
-ancestor. The C4 semantics are implemented twice and only one copy is
-correct; rendering Mermaid from the graph model removes the second copy.
+`generators/mermaid.py` filtered *elements* by view visibility but then
+emitted relationships raw via `all_relationships_for(visible_ids)`, with no
+endpoint lifting. Every static view in every sample was affected, not just
+the reported one: the `samples/internet_banking.dsl` system context view
+declared five elements and referenced eight undeclared container aliases
+(`webApp`, `apiGateway`, `db`, …), and `samples/hedge_fund` reached 30
+undeclared aliases on a single view. `graph/view_graph.py` had it right all
+along — `_lift_to()` walks each endpoint to its nearest visible ancestor —
+so the fix was to delete the second copy of the semantics rather than
+patch it. The sweep that proved it is now a test
+(`tests/test_generators/test_mermaid_graph_model.py`): for every view of
+every sample, each `Rel()` endpoint must be an alias the same diagram
+declares.
+
+Rendering from the graph model also corrected `include *` on system
+context views, which used to pull in every person and system in the model
+instead of the scope plus its directly related elements.
 
 ### Layout engine: elkjs, considered and deferred
 
@@ -222,10 +233,10 @@ Python-free, so only the authoring path needs a different answer.
 
 ### Sequencing
 
-Mermaid-from-graph-model → flowchart target → headless renderer →
-GitHub Action (all useful to the local tool on their own merits, and none
-of them depend on Forge) → Pyodide spike → `SourceResolver` → Confluence
-macro → github.dev.
+~~Mermaid-from-graph-model~~ (PP-88) → flowchart target → headless
+renderer → GitHub Action (all useful to the local tool on their own
+merits, and none of them depend on Forge) → Pyodide spike →
+`SourceResolver` → Confluence macro → github.dev.
 
 ## Delivery conventions (unchanged)
 

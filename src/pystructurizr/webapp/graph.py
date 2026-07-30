@@ -2,7 +2,7 @@
 
 The heavy lifting (deciding which elements are visible and collecting the
 relationships between them) lives in
-:mod:`pystructurizr.webapp.view_graph`. This module re-shapes that graph output
+:mod:`pystructurizr.graph.view_graph`. This module re-shapes that graph output
 into the node/edge structure the React Flow frontend expects.
 """
 
@@ -11,7 +11,7 @@ from __future__ import annotations
 from typing import Any
 
 from pystructurizr.models import RankDirection, View, ViewType, Workspace
-from pystructurizr.webapp.view_graph import KIND_COLOURS, base_view, build_view_graph
+from pystructurizr.graph.view_graph import KIND_COLOURS, base_view, build_view_graph
 
 
 # View rank direction → dagre rankdir.

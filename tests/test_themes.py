@@ -10,7 +10,7 @@ import pytest
 from pystructurizr.models import Shape, ViewType
 from pystructurizr.parser.dsl import parse_dsl
 from pystructurizr.themes import ThemeLoadError, parse_theme, theme_styles
-from pystructurizr.webapp.view_graph import build_view_graph
+from pystructurizr.graph.view_graph import build_view_graph
 from typing import Any
 from pystructurizr.models import Workspace
 

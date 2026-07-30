@@ -17,7 +17,7 @@ from pystructurizr.models import (
     Workspace,
 )
 from pystructurizr.parser.dsl import parse_dsl_file
-from pystructurizr.webapp.view_graph import apply_positions, build_view_graph
+from pystructurizr.graph.view_graph import apply_positions, build_view_graph
 from typing import Any, cast
 
 JsonDict = dict[str, Any]

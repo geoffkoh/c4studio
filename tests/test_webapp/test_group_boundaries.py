@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pystructurizr.parser.dsl import parse_dsl
-from pystructurizr.webapp.view_graph import build_view_graph
+from pystructurizr.graph.view_graph import build_view_graph
 from typing import Any, cast
 
 JsonDict = dict[str, Any]

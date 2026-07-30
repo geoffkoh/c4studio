@@ -23,7 +23,7 @@ from pydantic import BaseModel
 
 from pystructurizr.models import View, Workspace
 from pystructurizr.parser.locations import element_locations
-from pystructurizr.webapp.view_graph import apply_positions, apply_sizes
+from pystructurizr.graph.view_graph import apply_positions, apply_sizes
 from pystructurizr.webapp import graph, model_graph
 from pystructurizr.webapp.loader import (
     WorkspaceLoadError,
