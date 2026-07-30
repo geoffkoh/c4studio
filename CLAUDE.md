@@ -36,7 +36,7 @@ features that assume a hosted multi-user deployment.
 | `src/pystructurizr/models/` | The domain model: `workspace`, `elements`, `views`, `deployment`, `documentation`, `enums`. |
 | `src/pystructurizr/parser/` | `dsl.py` (DSL parser), `json_parser.py`, `expressions.py` (include/exclude engine), `implied.py`, `docs.py`, `locations.py` (source spans for go-to-definition). |
 | `src/pystructurizr/graph/` | `view_graph.py` — workspace + view → `{nodes, edges}` with C4 visibility, boundary nesting and endpoint lifting applied. The shared contract every renderer consumes; depends only on `models/` and `themes.py`. |
-| `src/pystructurizr/generators/` | `mermaid.py` (renders from `graph/`), `json_export.py` (Structurizr JSON round-trip). |
+| `src/pystructurizr/generators/` | `mermaid.py` (Mermaid C4 syntax) and `flowchart.py` (Mermaid `flowchart`/`subgraph`, covers every view type) — both render from `graph/`, sharing `mermaid_common.py`; `json_export.py` (Structurizr JSON round-trip). |
 | `src/pystructurizr/webapp/` | `server.py` (FastAPI), `loader.py` (load + live reload), `graph.py` / `model_graph.py` (React Flow reshape and full-model graph, both over `graph/view_graph`), `static/` (built SPA). |
 | `src/pystructurizr/cli/main.py` | click CLI: `generate`, `export`, `check`, `list-views`, `webapp`. |
 | `editors/vscode/` | VS Code extension (TypeScript, esbuild, packaged as `.vsix`). |

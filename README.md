@@ -58,7 +58,7 @@ ws.views.append(view)
 
 - ✅ Full Structurizr metamodel support (C4 architecture model)
 - ✅ DSL and JSON parsing
-- ✅ Mermaid C4 diagram generation
+- ✅ Mermaid diagram generation — C4 syntax or `flowchart`/`subgraph`
 - ✅ Comprehensive type hints
 - ✅ Custom properties and perspectives on all elements
 - ✅ Deployment infrastructure modeling
@@ -81,16 +81,34 @@ ws = parse_json_file("workspace.json")
 
 ## Diagram Generation
 
-Generate Mermaid C4 diagrams:
+Two Mermaid targets, both rendering from the same view graph — so what they
+show matches the web app's view semantics exactly:
+
+| Target | Syntax | Covers |
+| --- | --- | --- |
+| `MermaidGenerator` | `C4Context` / `C4Container` / `C4Component` | system landscape, system context, container, component views |
+| `FlowchartGenerator` | `flowchart` + `subgraph` | all of the above **plus** dynamic, deployment and filtered views |
+
+Mermaid's C4 diagram types are experimental upstream and lay out poorly on
+dense models, and GitHub pins its own Mermaid version — so prefer the
+flowchart target for anything rendered on GitHub or in a wiki.
 
 ```python
-from pystructurizr.generators.mermaid import MermaidGenerator
+from pystructurizr.generators import FlowchartGenerator, MermaidGenerator
 
-gen = MermaidGenerator(ws)
-diagrams = gen.generate_all()
-
-for view_name, mermaid_code in diagrams.items():
+for view_name, mermaid_code in MermaidGenerator(ws).generate_all().items():
     print(f"{view_name}:\n{mermaid_code}\n")
+
+# Or the flowchart target, which renders every view type:
+diagrams = FlowchartGenerator(ws).generate_all()
+```
+
+From the CLI:
+
+```bash
+uv run pystructurizr generate architecture.dsl                     # C4 (default)
+uv run pystructurizr generate architecture.dsl -f flowchart        # flowchart
+uv run pystructurizr generate architecture.dsl -f flowchart -o out # one .mmd per view
 ```
 
 ## Workspace JSON Export

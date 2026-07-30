@@ -12,14 +12,17 @@ Supported view types:
   - C4Container (container views)
   - C4Component (component views)
 
-Dynamic, deployment, filtered and custom/image views emit a comment; they
-are deferred to the ``flowchart``/``subgraph`` target.
+Dynamic, deployment, filtered and custom/image views emit a comment; use
+:mod:`pystructurizr.generators.flowchart`, which renders every view type.
 """
 
 from __future__ import annotations
 
-import re
-
+from pystructurizr.generators.mermaid_common import (
+    children_by_parent,
+    safe_id,
+    view_title,
+)
 from pystructurizr.graph.view_graph import GraphEdge, GraphNode, build_view_graph
 from pystructurizr.models import (
     View,
@@ -36,13 +39,6 @@ _DIAGRAM_TYPES: dict[ViewType, str] = {
     ViewType.COMPONENT: "C4Component",
 }
 
-# Default title prefix per view type, used when the view declares none.
-_TITLE_PREFIXES: dict[ViewType, str] = {
-    ViewType.SYSTEM_CONTEXT: "System Context",
-    ViewType.CONTAINER: "Container Diagram",
-    ViewType.COMPONENT: "Component Diagram",
-}
-
 # Boundary macro per the graph's ``boundaryLabel``. Group boundaries and
 # anything unrecognised fall back to the generic ``Boundary``.
 _BOUNDARY_MACROS: dict[str, str] = {
@@ -50,13 +46,6 @@ _BOUNDARY_MACROS: dict[str, str] = {
     "Software System": "System_Boundary",
     "Container": "Container_Boundary",
 }
-
-_INVALID_ID_CHARS = re.compile(r"[^0-9A-Za-z_]")
-
-
-def _safe_id(raw: str) -> str:
-    """Convert an element id into a valid Mermaid node id."""
-    return _INVALID_ID_CHARS.sub("_", raw)
 
 
 def _q(text: str) -> str:
@@ -104,12 +93,11 @@ class MermaidGenerator:
         nodes: list[GraphNode] = data["nodes"]
 
         # Boundaries hold their children via parentId; emit the tree.
-        children: dict[str | None, list[GraphNode]] = {}
-        for node in nodes:
-            children.setdefault(node.get("parentId"), []).append(node)
+        children = children_by_parent(nodes)
         inside = _scope_members(nodes, view.element_id)
 
-        lines: list[str] = [diagram_type, f"    title {_q(self._title(view))}", ""]
+        title = _q(view_title(self.workspace, view))
+        lines: list[str] = [diagram_type, f"    title {title}", ""]
         self._emit_nodes(lines, children, None, inside, indent="    ")
 
         lines.append("")
@@ -138,7 +126,7 @@ class MermaidGenerator:
                     node_data.get("boundaryLabel", ""), "Boundary"
                 )
                 label = _q(node_data["label"])
-                lines.append(f'{indent}{macro}({_safe_id(node["id"])}, "{label}") {{')
+                lines.append(f'{indent}{macro}({safe_id(node["id"])}, "{label}") {{')
                 self._emit_nodes(lines, children, node["id"], inside, indent + "    ")
                 lines.append(f"{indent}}}")
             else:
@@ -154,7 +142,7 @@ class MermaidGenerator:
         """
         node_data = node["data"]
         kind = node_data["kind"]
-        eid = _safe_id(node["id"])
+        eid = safe_id(node["id"])
         name = _q(node_data["label"])
         description = _q(node_data.get("description", ""))
 
@@ -176,18 +164,6 @@ class MermaidGenerator:
         tech = f', "{_q(technology)}"' if technology else ""
         label = _q(edge_data.get("label", ""))
         return (
-            f"    Rel({_safe_id(edge['source'])}, "
-            f'{_safe_id(edge["target"])}, "{label}"{tech})'
+            f"    Rel({safe_id(edge['source'])}, "
+            f'{safe_id(edge["target"])}, "{label}"{tech})'
         )
-
-    def _title(self, view: View) -> str:
-        """The view's own title, else one derived from its type and subject."""
-        if view.title:
-            return view.title
-        if view.type == ViewType.SYSTEM_LANDSCAPE:
-            return "System Landscape"
-        subject = (
-            self.workspace.find_element(view.element_id) if view.element_id else None
-        )
-        name = subject.name if subject is not None else view.element_id
-        return f"{_TITLE_PREFIXES[view.type]} – {name}"
