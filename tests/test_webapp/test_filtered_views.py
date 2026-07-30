@@ -7,7 +7,7 @@ import pytest
 from pystructurizr.models import FilterMode, View, ViewType, Workspace
 from pystructurizr.parser.dsl import parse_dsl
 from pystructurizr.webapp.graph import is_supported, react_flow_graph
-from pystructurizr.webapp.view_graph import build_view_graph
+from pystructurizr.graph.view_graph import build_view_graph
 
 DSL = """
 workspace "W" {

@@ -17,7 +17,7 @@ from typing import Any
 
 from pystructurizr.models import Workspace
 from pystructurizr.webapp import graph
-from pystructurizr.webapp.view_graph import (
+from pystructurizr.graph.view_graph import (
     KIND_COLOURS,
     GraphNode,
     _ancestry,
