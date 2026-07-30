@@ -20,12 +20,14 @@ from typing import Any
 
 from pystructurizr.themes import theme_styles
 from pystructurizr.models import (
+    AutomaticLayout,
     Component,
     Container,
     CustomElement,
     DeploymentNode,
     Location,
     Person,
+    RankDirection,
     Relationship,
     SoftwareSystem,
     View,
@@ -34,6 +36,15 @@ from pystructurizr.models import (
     ViewType,
     Workspace,
 )
+
+
+# Rank direction as dagre and Mermaid both spell it.
+_RANK_DIRECTIONS: dict[RankDirection, str] = {
+    RankDirection.TOP_BOTTOM: "TB",
+    RankDirection.BOTTOM_TOP: "BT",
+    RankDirection.LEFT_RIGHT: "LR",
+    RankDirection.RIGHT_LEFT: "RL",
+}
 
 
 GraphNode = dict[str, Any]
@@ -672,6 +683,30 @@ def base_view(workspace: Workspace, view: View) -> View | None:
         if candidate.key == view.base_view_key and candidate.type != ViewType.FILTERED:
             return candidate
     return None
+
+
+def effective_layout(workspace: Workspace, view: View) -> AutomaticLayout | None:
+    """The view's automatic layout, or its base view's when filtered.
+
+    Filtered views carry no layout of their own, so they inherit the base
+    view's — otherwise a filtered landscape would silently flip back to
+    top-to-bottom.
+    """
+    if view.auto_layout is not None:
+        return view.auto_layout
+    if view.type == ViewType.FILTERED:
+        base = base_view(workspace, view)
+        if base is not None:
+            return base.auto_layout
+    return None
+
+
+def rank_direction(workspace: Workspace, view: View) -> str:
+    """Layout direction for ``view`` as ``TB``, ``BT``, ``LR`` or ``RL``."""
+    layout = effective_layout(workspace, view)
+    if layout is None:
+        return "TB"
+    return _RANK_DIRECTIONS.get(layout.rank_direction, "TB")
 
 
 def _filtered_data(

@@ -7,6 +7,7 @@ from pathlib import Path
 import click
 
 from pystructurizr.diagnostics import Diagnostic, Severity
+from pystructurizr.generators.flowchart import FlowchartGenerator
 from pystructurizr.generators.mermaid import MermaidGenerator
 from pystructurizr.models import Workspace
 from pystructurizr.webapp.loader import WorkspaceLoadError, load_workspace
@@ -49,18 +50,25 @@ def cli() -> None:
     "--format",
     "-f",
     "fmt",
-    type=click.Choice(["mermaid"], case_sensitive=False),
+    type=click.Choice(["mermaid", "flowchart"], case_sensitive=False),
     default="mermaid",
     show_default=True,
+    help=(
+        "mermaid: Mermaid C4 syntax (C4Context/C4Container/C4Component). "
+        "flowchart: Mermaid flowchart + subgraph — renders more reliably on "
+        "GitHub and dense models, and covers dynamic, deployment and "
+        "filtered views too."
+    ),
 )
 def generate(
     input_file: Path, output: Path | None, view_key: str | None, fmt: str
 ) -> None:
     """Generate diagrams from INPUT_FILE (DSL or JSON)."""
     workspace = _load_workspace(input_file)
-    generator = MermaidGenerator(workspace)
-
-    diagrams = generator.generate_all()
+    if fmt.lower() == "flowchart":
+        diagrams = FlowchartGenerator(workspace).generate_all()
+    else:
+        diagrams = MermaidGenerator(workspace).generate_all()
     if view_key:
         if view_key not in diagrams:
             available = ", ".join(diagrams) or "(none)"

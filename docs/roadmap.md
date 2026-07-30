@@ -130,7 +130,7 @@ Mermaid generator, not just the web app.
 | Feature | Value | Cx | Notes |
 |---|---|---|---|
 | ~~**Mermaid renders from the graph model**~~ **shipped, PP-88** | High (correctness) | S-M | Fixed the defect below and collapsed the duplicate C4 semantics. `systemLandscape` came along nearly free; dynamic, deployment and filtered views still emit the unsupported comment and are the flowchart target's job. |
-| **`flowchart`/`subgraph` Mermaid target** | Med-High | S | Mermaid's `C4Context`/`C4Container` types are experimental upstream, lay out poorly on dense models, and GitHub pins its own Mermaid version. Same graph model in, more reliable rendering out. |
+| ~~**`flowchart`/`subgraph` Mermaid target**~~ **shipped, PP-89** | Med-High | S | Mermaid's `C4Context`/`C4Container` types are experimental upstream, lay out poorly on dense models, and GitHub pins its own Mermaid version. Same graph model in, more reliable rendering out — and it took the view types the C4 target skips (dynamic, deployment, filtered), so every view now renders. `generate -f flowchart`; the C4 target stays the default. |
 | **Headless SVG renderer** (`diagram-core` + `pystructurizr render`) | High (enabler) | L | This is Phase 3's headless-rendering item. Serves Confluence export, the GitHub Action and Pages — and answers Phase 3's open "Python dagre-equivalent vs small Node script" question: dagre is pure JS and runs headless in Node, so layout stays in one implementation. |
 | **`diagram-core` extraction** | High (enabler) | M-L | Move `frontend/src/layout.ts`, the node/edge components and export out of the SPA into a package. `GraphPane` currently imports `api.ts` and saves layout itself; that coupling must be lifted into props before it can embed anywhere. |
 | **`SourceResolver` injection** | Med-High | M | `!include` (`dsl.py`), `docs.py` and `locations.py` reach for the filesystem. Replace `base_dir: Path` with a `read(name) -> str` protocol; filesystem impl stays the default, Confluence supplies its own. Good hygiene regardless — it makes the parser testable without temp dirs. |
@@ -233,10 +233,14 @@ Python-free, so only the authoring path needs a different answer.
 
 ### Sequencing
 
-~~Mermaid-from-graph-model~~ (PP-88) → flowchart target → headless
-renderer → GitHub Action (all useful to the local tool on their own
-merits, and none of them depend on Forge) → Pyodide spike →
+~~Mermaid-from-graph-model~~ (PP-88) → ~~flowchart target~~ (PP-89) →
+headless renderer → GitHub Action (all useful to the local tool on their
+own merits, and none of them depend on Forge) → Pyodide spike →
 `SourceResolver` → Confluence macro → github.dev.
+
+**Next up: the headless SVG renderer**, which needs the `diagram-core`
+extraction first — and that is where the elkjs question below gets
+answered rather than deferred again.
 
 ## Delivery conventions (unchanged)
 

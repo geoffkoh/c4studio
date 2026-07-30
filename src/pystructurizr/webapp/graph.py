@@ -10,17 +10,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from pystructurizr.models import RankDirection, View, ViewType, Workspace
-from pystructurizr.graph.view_graph import KIND_COLOURS, base_view, build_view_graph
-
-
-# View rank direction → dagre rankdir.
-_RANK_DIRECTIONS: dict[RankDirection, str] = {
-    RankDirection.TOP_BOTTOM: "TB",
-    RankDirection.BOTTOM_TOP: "BT",
-    RankDirection.LEFT_RIGHT: "LR",
-    RankDirection.RIGHT_LEFT: "RL",
-}
+from pystructurizr.models import View, ViewType, Workspace
+from pystructurizr.graph.view_graph import (
+    KIND_COLOURS,
+    build_view_graph,
+    effective_layout,
+    rank_direction,
+)
 
 
 ReactFlowNode = dict[str, Any]
@@ -106,19 +102,10 @@ def react_flow_graph(
         edges.append(edge)
 
     # Filtered views carry no layout of their own; inherit the base view's.
-    layout = view.auto_layout
-    if layout is None and view.type == ViewType.FILTERED:
-        base = base_view(workspace, view)
-        if base is not None:
-            layout = base.auto_layout
-
-    direction = "TB"
-    rank_separation = 100
-    node_separation = 100
-    if layout is not None:
-        direction = _RANK_DIRECTIONS.get(layout.rank_direction, "TB")
-        rank_separation = layout.rank_separation
-        node_separation = layout.node_separation
+    layout = effective_layout(workspace, view)
+    direction = rank_direction(workspace, view)
+    rank_separation = layout.rank_separation if layout is not None else 100
+    node_separation = layout.node_separation if layout is not None else 100
 
     return {
         "nodes": nodes,

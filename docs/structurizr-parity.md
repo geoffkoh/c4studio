@@ -88,7 +88,7 @@ inferring behaviour from this document when the two might disagree.
 | Branding / terminology from DSL | ✅ | ✅ parsed + JSON export (terminology export bug fixed) |
 | Workspace `configuration { scope, visibility, users }` | ✅ | ✅ parsed + JSON round-trip (informational; no auth enforcement) |
 | Multi-workspace, users, locking, branches | ✅ | ❌ (single local user by design) |
-| Mermaid export | ❌ (PlantUML et al. via structurizr-export) | ✅ CLI — rendered from the shared view graph (`graph/view_graph.py`), so C4 visibility and endpoint lifting match the webapp exactly (PP-88). Covers `systemLandscape`/`systemContext`/`container`/`component`; dynamic, deployment and filtered views await the `flowchart` target |
+| Mermaid export | ❌ (PlantUML et al. via structurizr-export) | ✅ CLI, two targets, both rendered from the shared view graph (`graph/view_graph.py`) so C4 visibility and endpoint lifting match the webapp exactly. `-f mermaid` emits C4 syntax for `systemLandscape`/`systemContext`/`container`/`component` (PP-88); `-f flowchart` emits `flowchart`+`subgraph` for every view type, dynamic, deployment and filtered included (PP-89) |
 
 ## Roadmap status
 
