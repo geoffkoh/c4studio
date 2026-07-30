@@ -43,7 +43,7 @@ inferring behaviour from this document when the two might disagree.
 | Auto-layout | ✅ (dagre, per-view direction) | ✅ | Recursive compound dagre; honours `autoLayout lr/tb/bt/rl`; rank/node separations parsed and sent to the graph API (`rankSeparation`/`nodeSeparation`) |
 | Default view (`default` keyword) | ✅ | ✅ | Recorded in the configuration; views index flags it and lists it first so the webapp opens it |
 | Drag nodes / persist layout | ✅ (full editor) | ✅ | Drag autosaves to a `<source>.layout.json` sidecar, restored on load and live reload; Reset returns to auto-layout. Multi-level-nested views re-run auto-layout on restore |
-| Edge routing | ✅ (orthogonal/curved, manual vertices) | ✅ | Bezier / straight / step / smooth-step, centre-anchored floating anchors; no manual vertices |
+| Edge routing | ✅ (orthogonal/curved, manual vertices) | ✅ | Bezier / straight / step / smooth-step, centre-anchored floating anchors, plus draggable waypoints persisted per edge id (PP-76) |
 | PNG/SVG export | ✅ | ✅ | Toolbar buttons; diagram-bounds crop, 2× PNG |
 | Filtered views (tag include/exclude) | ✅ | ✅ | `filtered <baseKey> <include\|exclude> <tags> [key] [title]`; implicit tags participate; empty boundaries pruned; layout direction inherited from the base view |
 | Custom / image views | ✅ | ◐ | Parsed from DSL + JSON round-trip; not yet rendered in the webapp |
@@ -88,7 +88,7 @@ inferring behaviour from this document when the two might disagree.
 | Branding / terminology from DSL | ✅ | ✅ parsed + JSON export (terminology export bug fixed) |
 | Workspace `configuration { scope, visibility, users }` | ✅ | ✅ parsed + JSON round-trip (informational; no auth enforcement) |
 | Multi-workspace, users, locking, branches | ✅ | ❌ (single local user by design) |
-| Mermaid export | ❌ (PlantUML et al. via structurizr-export) | ✅ CLI |
+| Mermaid export | ❌ (PlantUML et al. via structurizr-export) | ✅ CLI — rendered from the shared view graph (`graph/view_graph.py`), so C4 visibility and endpoint lifting match the webapp exactly (PP-88). Covers `systemLandscape`/`systemContext`/`container`/`component`; dynamic, deployment and filtered views await the `flowchart` target |
 
 ## Roadmap status
 
@@ -109,5 +109,6 @@ pane. Deployment elements remain view-only.
    with an external editor, so this is convenience rather than capability.
 2. **Custom / image views, perspectives** — long-tail Structurizr
    features with niche usage.
-3. **Manual edge vertices** — point-to-point routing control on top of
-   the floating edges.
+
+Manual edge vertices, previously listed here, shipped as draggable
+waypoints in PP-76.

@@ -1,31 +1,87 @@
 """
 Mermaid C4 diagram generator.
 
-Converts a Workspace + View into Mermaid C4 syntax, supporting:
-  - C4Context  (system context views)
+Renders from the shared view graph (:mod:`pystructurizr.graph.view_graph`)
+rather than re-deriving C4 semantics: abstraction level per view type,
+boundary nesting, group boundaries, and — the part this module used to get
+wrong — relationship endpoints lifted to their nearest visible ancestor, so
+every alias a ``Rel()`` references is an entity the same diagram declares.
+
+Supported view types:
+  - C4Context   (system landscape, system context views)
   - C4Container (container views)
   - C4Component (component views)
+
+Dynamic, deployment, filtered and custom/image views emit a comment; they
+are deferred to the ``flowchart``/``subgraph`` target.
 """
 
 from __future__ import annotations
 
+import re
+
+from pystructurizr.graph.view_graph import GraphEdge, GraphNode, build_view_graph
 from pystructurizr.models import (
-    Container,
-    Location,
-    Relationship,
     View,
     ViewType,
     Workspace,
 )
 
 
+# Mermaid diagram type per view type; absent means "not yet supported".
+_DIAGRAM_TYPES: dict[ViewType, str] = {
+    ViewType.SYSTEM_LANDSCAPE: "C4Context",
+    ViewType.SYSTEM_CONTEXT: "C4Context",
+    ViewType.CONTAINER: "C4Container",
+    ViewType.COMPONENT: "C4Component",
+}
+
+# Default title prefix per view type, used when the view declares none.
+_TITLE_PREFIXES: dict[ViewType, str] = {
+    ViewType.SYSTEM_CONTEXT: "System Context",
+    ViewType.CONTAINER: "Container Diagram",
+    ViewType.COMPONENT: "Component Diagram",
+}
+
+# Boundary macro per the graph's ``boundaryLabel``. Group boundaries and
+# anything unrecognised fall back to the generic ``Boundary``.
+_BOUNDARY_MACROS: dict[str, str] = {
+    "Enterprise": "Enterprise_Boundary",
+    "Software System": "System_Boundary",
+    "Container": "Container_Boundary",
+}
+
+_INVALID_ID_CHARS = re.compile(r"[^0-9A-Za-z_]")
+
+
 def _safe_id(raw: str) -> str:
     """Convert an element id into a valid Mermaid node id."""
-    return raw.replace("-", "_").replace(" ", "_")
+    return _INVALID_ID_CHARS.sub("_", raw)
 
 
 def _q(text: str) -> str:
     return text.replace('"', '\\"')
+
+
+def _scope_members(nodes: list[GraphNode], scope_id: str) -> set[str]:
+    """Ids nested (at any depth) inside the view's scope boundary.
+
+    Containers and components inside the scope are the diagram's subject and
+    render as ``Container``/``Component``; the same kinds surfaced from
+    elsewhere in the model are peers and render as ``*_Ext``.
+    """
+    if not scope_id:
+        return set()
+    parents = {node["id"]: node.get("parentId") for node in nodes}
+    members: set[str] = set()
+    for nid in parents:
+        ancestor = parents.get(nid)
+        while ancestor is not None:
+            if ancestor == scope_id:
+                members.add(nid)
+                break
+            ancestor = parents.get(ancestor)
+    return members
 
 
 class MermaidGenerator:
@@ -39,240 +95,99 @@ class MermaidGenerator:
         return {v.key: self.generate_view(v) for v in self.workspace.views}
 
     def generate_view(self, view: View) -> str:
-        if view.type == ViewType.SYSTEM_CONTEXT:
-            return self._system_context(view)
-        if view.type == ViewType.CONTAINER:
-            return self._container(view)
-        if view.type == ViewType.COMPONENT:
-            return self._component(view)
-        return f"%%  View type {view.type} is not yet supported\n"
+        """Render one view as a Mermaid C4 diagram."""
+        diagram_type = _DIAGRAM_TYPES.get(view.type)
+        if diagram_type is None:
+            return f"%%  View type {view.type} is not yet supported\n"
 
-    # ------------------------------------------------------------------
-    # System Context
-    # ------------------------------------------------------------------
+        data = build_view_graph(self.workspace, view)
+        nodes: list[GraphNode] = data["nodes"]
 
-    def _system_context(self, view: View) -> str:
-        ws = self.workspace
-        lines: list[str] = ["C4Context"]
-        title = view.title or f"System Context – {view.element_id}"
-        lines.append(f"    title {_q(title)}")
-        lines.append("")
+        # Boundaries hold their children via parentId; emit the tree.
+        children: dict[str | None, list[GraphNode]] = {}
+        for node in nodes:
+            children.setdefault(node.get("parentId"), []).append(node)
+        inside = _scope_members(nodes, view.element_id)
 
-        visible_ids = self._visible_ids(view)
-        grouped: dict[str, list[str]] = {}
-
-        for person in ws.people:
-            if person.id in visible_ids:
-                tag = "Person_Ext" if person.location == Location.EXTERNAL else "Person"
-                entity = f'{tag}({_safe_id(person.id)}, "{_q(person.name)}", "{_q(person.description)}")'
-                self._emit(lines, grouped, entity, person.group)
-
-        for system in ws.software_systems:
-            if system.id in visible_ids:
-                tag = "System_Ext" if system.location == Location.EXTERNAL else "System"
-                entity = f'{tag}({_safe_id(system.id)}, "{_q(system.name)}", "{_q(system.description)}")'
-                self._emit(lines, grouped, entity, system.group)
-
-        self._append_group_boundaries(lines, grouped, indent="    ")
+        lines: list[str] = [diagram_type, f"    title {_q(self._title(view))}", ""]
+        self._emit_nodes(lines, children, None, inside, indent="    ")
 
         lines.append("")
-        for rel in ws.all_relationships_for(visible_ids):
-            self._append_rel(lines, rel)
+        for edge in data["edges"]:
+            lines.append(self._rel(edge))
 
         return "\n".join(lines)
 
     # ------------------------------------------------------------------
-    # Container
+    # Emission
     # ------------------------------------------------------------------
 
-    def _container(self, view: View) -> str:
-        ws = self.workspace
-        lines: list[str] = ["C4Container"]
-        subject = ws.find_element(view.element_id)
-        subject_name = subject.name if subject else view.element_id
-        title = view.title or f"Container Diagram – {subject_name}"
-        lines.append(f"    title {_q(title)}")
-        lines.append("")
-
-        visible_ids = self._visible_ids(view)
-
-        for person in ws.people:
-            if person.id in visible_ids:
-                tag = "Person_Ext" if person.location == Location.EXTERNAL else "Person"
-                lines.append(
-                    f'    {tag}({_safe_id(person.id)}, "{_q(person.name)}", "{_q(person.description)}")'
-                )
-
-        for system in ws.software_systems:
-            if system.id == view.element_id:
-                lines.append(
-                    f'    System_Boundary({_safe_id(system.id)}, "{_q(system.name)}") {{'
-                )
-                grouped: dict[str, list[str]] = {}
-                for container in system.containers:
-                    if container.id in visible_ids or view.include_all:
-                        tech = (
-                            f", {_q(container.technology)}"
-                            if container.technology
-                            else ', ""'
-                        )
-                        entity = f'Container({_safe_id(container.id)}, "{_q(container.name)}"{tech}, "{_q(container.description)}")'
-                        self._emit(
-                            lines, grouped, entity, container.group, indent="        "
-                        )
-                self._append_group_boundaries(lines, grouped, indent="        ")
-                lines.append("    }")
-            elif system.id in visible_ids and system.id != view.element_id:
-                tag = "System_Ext" if system.location == Location.EXTERNAL else "System"
-                lines.append(
-                    f'    {tag}({_safe_id(system.id)}, "{_q(system.name)}", "{_q(system.description)}")'
-                )
-
-        lines.append("")
-        all_ids: set[str] = set()
-        for system in ws.software_systems:
-            if system.id == view.element_id:
-                all_ids.update(c.id for c in system.containers)
-        all_ids.update(visible_ids)
-        for rel in ws.all_relationships_for(all_ids):
-            self._append_rel(lines, rel)
-
-        return "\n".join(lines)
-
-    # ------------------------------------------------------------------
-    # Component
-    # ------------------------------------------------------------------
-
-    def _component(self, view: View) -> str:
-        ws = self.workspace
-        lines: list[str] = ["C4Component"]
-        subject = ws.find_element(view.element_id)
-        subject_name = subject.name if subject else view.element_id
-        title = view.title or f"Component Diagram – {subject_name}"
-        lines.append(f"    title {_q(title)}")
-        lines.append("")
-
-        visible_ids = self._visible_ids(view)
-
-        # find the container
-        container: Container | None = None
-        for system in ws.software_systems:
-            for c in system.containers:
-                if c.id == view.element_id:
-                    container = c
-                    break
-
-        if container:
-            lines.append(
-                f'    Container_Boundary({_safe_id(container.id)}, "{_q(container.name)}") {{'
-            )
-            grouped: dict[str, list[str]] = {}
-            for comp in container.components:
-                if comp.id in visible_ids or view.include_all:
-                    tech = f", {_q(comp.technology)}" if comp.technology else ', ""'
-                    entity = f'Component({_safe_id(comp.id)}, "{_q(comp.name)}"{tech}, "{_q(comp.description)}")'
-                    self._emit(lines, grouped, entity, comp.group, indent="        ")
-            self._append_group_boundaries(lines, grouped, indent="        ")
-            lines.append("    }")
-
-        # external containers / people
-        for person in ws.people:
-            if person.id in visible_ids:
-                tag = "Person_Ext" if person.location == Location.EXTERNAL else "Person"
-                lines.append(
-                    f'    {tag}({_safe_id(person.id)}, "{_q(person.name)}", "{_q(person.description)}")'
-                )
-        for system in ws.software_systems:
-            for c in system.containers:
-                if c.id in visible_ids and (container is None or c.id != container.id):
-                    tech = f", {_q(c.technology)}" if c.technology else ', ""'
-                    lines.append(
-                        f'    Container_Ext({_safe_id(c.id)}, "{_q(c.name)}"{tech}, "{_q(c.description)}")'
-                    )
-
-        lines.append("")
-        all_ids: set[str] = set(visible_ids)
-        if container:
-            all_ids.update(comp.id for comp in container.components)
-        for rel in ws.all_relationships_for(all_ids):
-            self._append_rel(lines, rel)
-
-        return "\n".join(lines)
-
-    # ------------------------------------------------------------------
-    # Helpers
-    # ------------------------------------------------------------------
-
-    def _emit(
+    def _emit_nodes(
         self,
         lines: list[str],
-        grouped: dict[str, list[str]],
-        entity: str,
-        group: str,
-        indent: str = "    ",
+        children: dict[str | None, list[GraphNode]],
+        parent: str | None,
+        inside: set[str],
+        indent: str,
     ) -> None:
-        """Append an entity line, deferring grouped ones for boundary blocks."""
-        if group:
-            grouped.setdefault(group, []).append(entity)
-        else:
-            lines.append(indent + entity)
+        """Append entity lines for ``parent``'s children, recursing into boundaries."""
+        for node in children.get(parent, []):
+            node_data = node["data"]
+            if node_data.get("kind") == "boundary":
+                macro = _BOUNDARY_MACROS.get(
+                    node_data.get("boundaryLabel", ""), "Boundary"
+                )
+                label = _q(node_data["label"])
+                lines.append(f'{indent}{macro}({_safe_id(node["id"])}, "{label}") {{')
+                self._emit_nodes(lines, children, node["id"], inside, indent + "    ")
+                lines.append(f"{indent}}}")
+            else:
+                lines.append(indent + self._entity(node, inside))
 
-    def _append_group_boundaries(
-        self, lines: list[str], grouped: dict[str, list[str]], indent: str
-    ) -> None:
-        """Emit one ``Boundary`` block per model group path.
+    def _entity(self, node: GraphNode, inside: set[str]) -> str:
+        """Render one leaf node as a C4 entity macro call.
 
-        Nested group paths (``a/b``) render as a single boundary labelled
-        with the last path segment; the boundary id embeds the full path.
+        Externality for people and systems comes from the node kind (which
+        the graph derives from ``location`` or an ``external`` tag); for
+        containers and components it is whether they sit inside the view's
+        scope boundary.
         """
-        for path, entities in grouped.items():
-            gid = _safe_id("group_" + path.replace("/", "_"))
-            label = path.split("/")[-1]
-            lines.append(f'{indent}Boundary({gid}, "{_q(label)}") {{')
-            lines.extend(f"{indent}    {entity}" for entity in entities)
-            lines.append(f"{indent}}}")
+        node_data = node["data"]
+        kind = node_data["kind"]
+        eid = _safe_id(node["id"])
+        name = _q(node_data["label"])
+        description = _q(node_data.get("description", ""))
 
-    def _append_rel(self, lines: list[str], rel: Relationship) -> None:
-        tech = f', "{_q(rel.technology)}"' if rel.technology else ""
-        lines.append(
-            f'    Rel({_safe_id(rel.source_id)}, {_safe_id(rel.destination_id)}, "{_q(rel.description)}"{tech})'
+        if kind.startswith("person"):
+            macro = "Person_Ext" if kind == "person-external" else "Person"
+            return f'{macro}({eid}, "{name}", "{description}")'
+        if kind in ("container", "component"):
+            macro = kind.capitalize()
+            if node["id"] not in inside:
+                macro += "_Ext"
+            technology = _q(node_data.get("technology", ""))
+            return f'{macro}({eid}, "{name}", "{technology}", "{description}")'
+        macro = "System_Ext" if kind == "system-external" else "System"
+        return f'{macro}({eid}, "{name}", "{description}")'
+
+    def _rel(self, edge: GraphEdge) -> str:
+        edge_data = edge["data"]
+        technology = edge_data.get("technology", "")
+        tech = f', "{_q(technology)}"' if technology else ""
+        label = _q(edge_data.get("label", ""))
+        return (
+            f"    Rel({_safe_id(edge['source'])}, "
+            f'{_safe_id(edge["target"])}, "{label}"{tech})'
         )
 
-    def _visible_ids(self, view: View) -> set[str]:
-        if view.include_all:
-            ws = self.workspace
-            ids: set[str] = set()
-            ids.update(p.id for p in ws.people)
-            ids.update(s.id for s in ws.software_systems)
-            for s in ws.software_systems:
-                ids.update(c.id for c in s.containers)
-                for c in s.containers:
-                    ids.update(comp.id for comp in c.components)
-            ids.difference_update(view.excluded_ids)
-            return ids
-        if view.included_ids:
-            return set(view.included_ids) - set(view.excluded_ids)
-        # default: include everything reachable for this view
-        return self._default_visible(view)
-
-    def _default_visible(self, view: View) -> set[str]:
-        ws = self.workspace
-        ids: set[str] = set()
-        if view.type == ViewType.SYSTEM_CONTEXT:
-            ids.update(p.id for p in ws.people)
-            ids.update(s.id for s in ws.software_systems)
-        elif view.type == ViewType.CONTAINER:
-            ids.update(p.id for p in ws.people)
-            ids.update(s.id for s in ws.software_systems)
-            for s in ws.software_systems:
-                if s.id == view.element_id:
-                    ids.update(c.id for c in s.containers)
-        elif view.type == ViewType.COMPONENT:
-            for s in ws.software_systems:
-                for c in s.containers:
-                    if c.id == view.element_id:
-                        ids.update(comp.id for comp in c.components)
-                    else:
-                        ids.add(c.id)
-            ids.update(p.id for p in ws.people)
-        return ids
+    def _title(self, view: View) -> str:
+        """The view's own title, else one derived from its type and subject."""
+        if view.title:
+            return view.title
+        if view.type == ViewType.SYSTEM_LANDSCAPE:
+            return "System Landscape"
+        subject = (
+            self.workspace.find_element(view.element_id) if view.element_id else None
+        )
+        name = subject.name if subject is not None else view.element_id
+        return f"{_TITLE_PREFIXES[view.type]} – {name}"
