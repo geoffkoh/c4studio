@@ -56,8 +56,9 @@ Additive fields with safe defaults — no migration needed:
   `last_modified_by`, `created_date`, `created_by`
 - **ViewElement**: `title`, `description`, `width`, `height`
 - **RelationshipView**: `title`, `link`, `link_element`
-- **View**: `owner`, `disable_automatic_layout`, `hide_element_metadata`,
-  `hide_relationship_metadata`
+- **View**: `owner`, `disable_automatic_layout` (`hide_element_metadata` and
+  `hide_relationship_metadata` were added here too, and removed again in
+  PP-90 — see below)
 - **DeploymentNode** / **InfrastructureNode**: `icon`
 
 ### `Terminology` defaults changed
@@ -182,6 +183,49 @@ types. Extend as needed.
 
 ---
 
+## Removed: `View.hide_element_metadata` / `hide_relationship_metadata` (PP-90)
+
+**Breaking, but only in theory.** Both fields were added by the PP-33
+compatibility pass and neither exists in Structurizr: they are absent from
+`structurizr-core`, from the DSL, and from the workspace JSON schema. They
+were read from JSON keys nothing ever writes, never exported, and never
+consumed by a renderer. Nothing could have depended on them doing
+anything.
+
+The real mechanism, now honoured, is the style properties Structurizr
+actually defines — `ElementStyle.metadata` / `ElementStyle.description`
+and `RelationshipStyle.metadata` / `RelationshipStyle.description`, all
+`Optional[bool]`:
+
+```
+styles {
+    element "Datastore" {
+        metadata false        # drops the [Container: PostgreSQL] line
+        description false     # drops the description line
+    }
+    relationship "Relationship" {
+        metadata false        # drops the technology from edge labels
+    }
+}
+```
+
+Resolution follows the usual cascade — theme styles first, then the
+workspace's own, later matches overriding earlier ones — and is applied
+once in `graph/view_graph.py`, so the Mermaid C4 target, the flowchart
+target and the web app all honour it.
+
+If you were setting the removed fields in Python, move to a style rule:
+
+```python
+# before (did nothing)
+View(type=ViewType.CONTAINER, key="c", hide_element_metadata=True)
+
+# after
+workspace.views.configuration.styles.element_styles.append(
+    ElementStyle(tag="Element", metadata=False)
+)
+```
+
 ## Field mapping reference
 
 | Phase | Class | Field | Type | Default |
@@ -204,8 +248,8 @@ types. Extend as needed.
 | 2 | RelationshipView | link, link_element | `Optional[bool]`/`Optional[int]` | `None` |
 | 2 | View | owner | `str` | `""` |
 | 2 | View | disable_automatic_layout | `bool` | `False` |
-| 2 | View | hide_element_metadata | `bool` | `False` |
-| 2 | View | hide_relationship_metadata | `bool` | `False` |
+| 2 | View | ~~hide_element_metadata~~ | removed in PP-90 | — |
+| 2 | View | ~~hide_relationship_metadata~~ | removed in PP-90 | — |
 | 2 | DeploymentNode/InfrastructureNode | icon | `str` | `""` |
 | 2 | Terminology | (all) | `str` | Java defaults |
 | 3 | Workspace | model | `Model` | `Model()` |

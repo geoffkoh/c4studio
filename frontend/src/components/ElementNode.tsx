@@ -27,6 +27,8 @@ export interface ElementNodeData {
   /** Tag-based style overrides from the DSL styles block or a theme. */
   textColor?: string;
   shape?: string;
+  /** False when an element style declares `metadata false`. */
+  showMetadata?: boolean;
   /** Icon image URL (e.g. a cloud-provider service logo from a theme). */
   icon?: string;
   /** Key of the view this node drills into on double-click, if any. */
@@ -39,7 +41,13 @@ export interface ElementNodeData {
   onToggleExpand?: (id: string, expand: boolean) => void;
 }
 
-function metaLine(data: ElementNodeData): string {
+/**
+ * The `[Kind: technology]` line, or null when an element style declares
+ * `metadata false`. The backend blanks the technology in that case but the
+ * kind is composed here, so the whole line has to be dropped explicitly.
+ */
+function metaLine(data: ElementNodeData): string | null {
+  if (data.showMetadata === false) return null;
   const kindLabel = KIND_LABELS[data.kind] ?? data.kind;
   return data.technology ? `[${kindLabel}: ${data.technology}]` : `[${kindLabel}]`;
 }
@@ -102,7 +110,7 @@ function ElementNodeComponent({ id, data }: NodeProps<ElementNodeData>) {
         <img className="node__icon" src={data.icon} alt="" loading="lazy" />
       ) : null}
       <div className="node__label">{data.label}</div>
-      <div className="node__kind">{metaLine(data)}</div>
+      {metaLine(data) ? <div className="node__kind">{metaLine(data)}</div> : null}
       {data.description ? (
         <div className="node__desc">{data.description}</div>
       ) : null}
