@@ -323,6 +323,12 @@ class View:
     hide_relationship_metadata: bool = False  # Hide relationship metadata
 ```
 
+> **The last two were a mistake and were removed in PP-90.** No such
+> fields exist in Structurizr — not in `structurizr-core`, not in the DSL,
+> not in the workspace JSON schema. Metadata visibility is a *style*
+> property (`ElementStyle.metadata`/`.description` and the relationship
+> equivalents), which is what the renderers honour. Do not re-add them.
+
 **Impact:**
 - Enables view-level customization
 - Allows disabling automatic layout for specific views
