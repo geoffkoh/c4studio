@@ -125,8 +125,6 @@ class View:
     animations: list[Animation] = field(default_factory=list)
     owner: str = ""
     disable_automatic_layout: bool = False
-    hide_element_metadata: bool = False
-    hide_relationship_metadata: bool = False
     # Deployment / dynamic views
     environment: str = ""
     external_boundaries_visible: bool = False

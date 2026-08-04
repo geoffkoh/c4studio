@@ -29,6 +29,7 @@ from pystructurizr.models import (
     Person,
     RankDirection,
     Relationship,
+    RelationshipStyle,
     SoftwareSystem,
     View,
     FilterMode,
@@ -306,6 +307,7 @@ def _edges(
     kept (e.g. separate "Reads" and "Writes" relationships).
     """
     excluded = excluded_relationship_ids or set()
+    styles = _relationship_styles(workspace)
     edges: list[GraphEdge] = []
     seen_pairs: set[tuple[str, str]] = set()
     seen_direct: set[tuple[str, str, str]] = set()
@@ -331,12 +333,13 @@ def _edges(
                 continue
             seen_direct.add(key)
         seen_pairs.add((src, dst))
+        label, technology = _edge_text(styles, rel)
         edges.append(
             {
                 "id": rel.id or _pair_edge_id(src, dst, pair_counts),
                 "source": src,
                 "target": dst,
-                "data": {"label": rel.description, "technology": rel.technology},
+                "data": {"label": label, "technology": technology},
             }
         )
     return edges
@@ -387,6 +390,12 @@ def _apply_styles(workspace: Workspace, nodes: list[GraphNode]) -> None:
     earlier ones. Remote theme styles come first, so the workspace's own
     styles win. Applied properties land in node data as ``background``,
     ``textColor``, ``shape`` and ``icon``.
+
+    ``metadata`` and ``description`` are visibility switches rather than
+    appearance: a suppressed field is blanked here so every renderer drops
+    it without knowing the rule. The metadata *line* is composed by each
+    renderer from the element kind, though, so suppressing it also needs
+    the explicit ``showMetadata`` flag.
     """
     styles = [
         *theme_styles(workspace).element_styles,
@@ -400,6 +409,8 @@ def _apply_styles(workspace: Workspace, nodes: list[GraphNode]) -> None:
         if implicit is None:
             continue
         tags = {"Element", implicit, *data.get("tags", [])}
+        show_metadata = True
+        show_description = True
         for style in styles:
             if style.tag not in tags:
                 continue
@@ -411,6 +422,50 @@ def _apply_styles(workspace: Workspace, nodes: list[GraphNode]) -> None:
                 data["shape"] = style.shape.value
             if style.icon:
                 data["icon"] = style.icon
+            if style.metadata is not None:
+                show_metadata = style.metadata
+            if style.description is not None:
+                show_description = style.description
+        if not show_metadata:
+            data["showMetadata"] = False
+            data["technology"] = ""
+        if not show_description:
+            data["description"] = ""
+
+
+def _relationship_styles(workspace: Workspace) -> list[RelationshipStyle]:
+    """Relationship styles in resolution order: theme styles first."""
+    return [
+        *theme_styles(workspace).relationship_styles,
+        *workspace.views.configuration.styles.relationship_styles,
+    ]
+
+
+def _edge_text(styles: list[RelationshipStyle], rel: Relationship) -> tuple[str, str]:
+    """Return the (description, technology) an edge should show.
+
+    Structurizr's ``description`` and ``metadata`` relationship-style
+    properties hide the label and the technology respectively; every
+    relationship implicitly carries the ``Relationship`` tag. Blanking the
+    text here keeps the rule in one place — renderers print what they are
+    given.
+    """
+    if not styles:
+        return rel.description, rel.technology
+    tags = {"Relationship", *rel.tags}
+    show_description = True
+    show_metadata = True
+    for style in styles:
+        if style.tag not in tags:
+            continue
+        if style.description is not None:
+            show_description = style.description
+        if style.metadata is not None:
+            show_metadata = style.metadata
+    return (
+        rel.description if show_description else "",
+        rel.technology if show_metadata else "",
+    )
 
 
 def _deployment_data(workspace: Workspace, view: View) -> GraphData:
@@ -562,16 +617,19 @@ def _deployment_data(workspace: Workspace, view: View) -> GraphData:
 
     pair_counts: dict[tuple[str, str], int] = {}
 
+    rel_styles = _relationship_styles(workspace)
+
     def add_edge(src: str, dst: str, rel: Relationship) -> None:
         if src == dst or (src, dst) in seen:
             return
         seen.add((src, dst))
+        label, technology = _edge_text(rel_styles, rel)
         edges.append(
             {
                 "id": _pair_edge_id(src, dst, pair_counts),
                 "source": src,
                 "target": dst,
-                "data": {"label": rel.description, "technology": rel.technology},
+                "data": {"label": label, "technology": technology},
             }
         )
 
@@ -614,6 +672,7 @@ def _dynamic_data(workspace: Workspace, view: View) -> GraphData:
     endpoints as ``src__dst`` (see the DSL parser); ids that instead match
     a model relationship are resolved through it.
     """
+    rel_styles = _relationship_styles(workspace)
     rel_by_id = {rel.id: rel for rel in workspace.relationships if rel.id}
     rel_by_pair: dict[tuple[str, str], Relationship] = {}
     for rel in workspace.relationships:
@@ -655,6 +714,12 @@ def _dynamic_data(workspace: Workspace, view: View) -> GraphData:
         order = int(rv.order) if rv.order.isdigit() else index
         model_rel = rel_by_pair.get((src, dst))
         description = rv.description or (model_rel.description if model_rel else "")
+        technology = model_rel.technology if model_rel else ""
+        if model_rel is not None:
+            # A suppressed description leaves the step numbered but unlabelled.
+            styled_description, technology = _edge_text(rel_styles, model_rel)
+            if not styled_description:
+                description = ""
         edges.append(
             {
                 "id": f"step-{order}-{src}__{dst}",
@@ -662,7 +727,7 @@ def _dynamic_data(workspace: Workspace, view: View) -> GraphData:
                 "target": dst,
                 "data": {
                     "label": f"{order}. {description}" if description else str(order),
-                    "technology": model_rel.technology if model_rel else "",
+                    "technology": technology,
                     "order": order,
                 },
             }

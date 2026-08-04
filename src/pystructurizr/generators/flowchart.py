@@ -265,9 +265,15 @@ class FlowchartGenerator:
         return f"{label}<br/>[{detail}]"
 
     def _element_label(self, node_data: dict[str, object]) -> str:
-        """Element label: name, ``[Kind: Technology]``, then description."""
+        """Element label: name, ``[Kind: Technology]``, then description.
+
+        A ``metadata false`` element style drops the middle line entirely —
+        the graph blanks the technology, but the kind is composed here.
+        """
         parts = [_escape(str(node_data.get("label", "")))]
         kind_label = _KIND_LABELS.get(str(node_data.get("kind", "")))
+        if node_data.get("showMetadata") is False:
+            kind_label = None
         technology = _escape(str(node_data.get("technology", "")))
         if kind_label:
             detail = f"{kind_label}: {technology}" if technology else kind_label

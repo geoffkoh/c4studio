@@ -413,8 +413,6 @@ def test_view_control_flag_defaults() -> None:
     v = View(type=ViewType.SYSTEM_CONTEXT, key="k")
     assert v.owner == ""
     assert v.disable_automatic_layout is False
-    assert v.hide_element_metadata is False
-    assert v.hide_relationship_metadata is False
 
 
 def test_view_control_flags_set() -> None:
@@ -423,13 +421,22 @@ def test_view_control_flags_set() -> None:
         key="k",
         owner="alice",
         disable_automatic_layout=True,
-        hide_element_metadata=True,
-        hide_relationship_metadata=True,
     )
     assert v.owner == "alice"
     assert v.disable_automatic_layout is True
-    assert v.hide_element_metadata is True
-    assert v.hide_relationship_metadata is True
+
+
+def test_metadata_visibility_lives_on_styles_not_views() -> None:
+    """`hideElementMetadata` was never a Structurizr field (PP-90).
+
+    Upstream controls this with the `metadata`/`description` properties of
+    an element or relationship style, which is what the renderers honour.
+    """
+    assert not hasattr(
+        View(type=ViewType.SYSTEM_CONTEXT, key="k"), "hide_element_metadata"
+    )
+    assert ElementStyle(tag="Element", metadata=False).metadata is False
+    assert RelationshipStyle(tag="Relationship", description=False).description is False
 
 
 def test_deployment_and_infra_icon_default_empty() -> None:

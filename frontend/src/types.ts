@@ -49,6 +49,8 @@ export interface GNode {
     textColor?: string;
     /** Structurizr shape name, e.g. "Cylinder", "Box", "Person". */
     shape?: string;
+    /** False when an element style declares `metadata false`. */
+    showMetadata?: boolean;
     /** On containers that can be expanded in place (container views). */
     expandable?: boolean;
     /** On boundary nodes produced by expanding a container. */

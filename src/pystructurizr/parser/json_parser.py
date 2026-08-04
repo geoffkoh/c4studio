@@ -384,8 +384,6 @@ def _parse_view(data: dict[str, Any], view_type: ViewType) -> View:
         animations=animations,
         owner=data.get("owner", ""),
         disable_automatic_layout=bool(data.get("disableAutomaticLayout", False)),
-        hide_element_metadata=bool(data.get("hideElementMetadata", False)),
-        hide_relationship_metadata=bool(data.get("hideRelationshipMetadata", False)),
         environment=data.get("environment", ""),
         external_boundaries_visible=bool(data.get("externalBoundariesVisible", False)),
         base_view_key=data.get("baseViewKey", ""),
