@@ -114,12 +114,24 @@ function ancestorAtLevel(
  * Assign positions to all nodes, sizing boundary group nodes (at any
  * nesting depth) to fit their children. Child positions are relative to
  * their parent, as React Flow expects for nested nodes.
+ *
+ * **Async by contract, synchronous by implementation.** dagre computes
+ * this inline, but every caller awaits, so an engine with an asynchronous
+ * API (elkjs) can replace this without touching a single call site — see
+ * the layout-engine decision in `docs/roadmap.md`.
+ *
+ * Still on `dagre@0.8.5` deliberately. The maintained `@dagrejs/dagre`
+ * fork is not coordinate-compatible: it breaks cycles differently, which
+ * re-ranks nodes on cyclic graphs (PP-92 measured a Person moving from the
+ * top to the bottom of a context diagram). Changing engine is a layout
+ * decision to take on its own merits, not a side effect of a dependency
+ * upgrade.
  */
-export function layoutGraph(
+export async function layoutGraph(
   nodes: Node[],
   edges: Edge[],
   direction: RankDirection = "TB",
-): Node[] {
+): Promise<Node[]> {
   const { parentOf, childrenOf } = buildHierarchy(nodes);
   const positions = new Map<string, Point>();
   const groupSizes = new Map<string, Size>();
@@ -209,15 +221,19 @@ export function layoutGraph(
  * boundary must be positioned relative to it. Groups are re-derived from
  * their children's bounding boxes. Multi-level nesting (deployment views)
  * has no stored layouts in practice, so only one level is handled; deeper
- * graphs fall back to a fresh auto-layout.
+ * graphs fall back to a fresh auto-layout — which is why this is async
+ * too, despite doing no asynchronous work of its own.
  */
-export function normalizeStoredPositions(nodes: Node[], edges: Edge[]): Node[] {
+export async function normalizeStoredPositions(
+  nodes: Node[],
+  edges: Edge[],
+): Promise<Node[]> {
   const { parentOf, childrenOf } = buildHierarchy(nodes);
   const multiLevel = nodes.some((n) => {
     const parent = n.parentNode;
     return parent !== undefined && parentOf.has(parent);
   });
-  if (multiLevel) return layoutGraph(nodes, edges);
+  if (multiLevel) return await layoutGraph(nodes, edges);
 
   const nodesById = new Map(nodes.map((n) => [n.id, n]));
   const groups = new Map<string, { position: Point; size: Size }>();

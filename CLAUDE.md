@@ -24,8 +24,10 @@ features that assume a hosted multi-user deployment.
 
 - **Language:** Python 3.13+, `uv` for dependency and env management.
 - **Pattern:** Domain-driven design, test-driven development.
-- **Frontend:** Vite + React + TypeScript SPA in `frontend/`, React Flow +
-  dagre for graph layout. `npm run build` writes to
+- **Frontend:** an npm **workspace** at the repo root. `packages/diagram-core`
+  holds the renderer-agnostic diagram layer (layout, React Flow node/edge
+  components, image export); `frontend/` is the Vite + React SPA that consumes
+  it. React Flow + dagre for graph layout. `npm run build` writes to
   `src/pystructurizr/webapp/static/` — a **committed** bundle, so the wheel
   ships a working UI and end users never need Node.
 
@@ -39,6 +41,7 @@ features that assume a hosted multi-user deployment.
 | `src/pystructurizr/generators/` | `mermaid.py` (Mermaid C4 syntax) and `flowchart.py` (Mermaid `flowchart`/`subgraph`, covers every view type) — both render from `graph/`, sharing `mermaid_common.py`; `json_export.py` (Structurizr JSON round-trip). |
 | `src/pystructurizr/webapp/` | `server.py` (FastAPI), `loader.py` (load + live reload), `graph.py` / `model_graph.py` (React Flow reshape and full-model graph, both over `graph/view_graph`), `static/` (built SPA). |
 | `src/pystructurizr/cli/main.py` | click CLI: `generate`, `export`, `check`, `list-views`, `webapp`. |
+| `packages/diagram-core/` | The renderer-agnostic diagram layer: `layout.ts` (compound dagre, **async by contract** so the engine can be swapped), the React Flow node/edge components, `export.ts` (PNG/SVG) and `edgePaint.ts`. Knows nothing about the API or app state — that is what lets the headless renderer and the embedded surfaces reuse it. |
 | `editors/vscode/` | VS Code extension (TypeScript, esbuild, packaged as `.vsix`). |
 | `samples/` | Sample workspaces used for live verification. |
 
@@ -51,8 +54,10 @@ features that assume a hosted multi-user deployment.
 - **Run tests:** `uv run pytest`
 - **Lint/Format:** `uv run ruff check .` and `uv run ruff format .`
 - **Type check:** `uv run mypy .`
-- **Rebuild frontend:** `cd frontend && npm install && npm run build`
-- **Audit frontend deps:** `npm audit` in `frontend/` (kept at zero advisories)
+- **Rebuild frontend:** `npm install && npm run build` **from the repo root** —
+  it is a workspace, so `diagram-core` must be built before the SPA. The root
+  `build` script does both in order.
+- **Audit frontend deps:** `npm audit` at the repo root (kept at zero advisories)
 
 ### Node is not on PATH
 
@@ -61,11 +66,12 @@ features that assume a hosted multi-user deployment.
 must go through it, e.g.:
 
 ```bash
-conda run -n pystructurizr --no-capture-output npm --prefix frontend run build
+conda run -n pystructurizr --no-capture-output npm install
+conda run -n pystructurizr --no-capture-output npm run build
 ```
 
-Plain `npm ...` will fail with "command not found". This applies to
-`frontend/` and `editors/vscode/` alike.
+Plain `npm ...` will fail with "command not found". This applies to the
+workspace (`packages/*`, `frontend/`) and `editors/vscode/` alike.
 
 ## Rules & Coding Conventions
 

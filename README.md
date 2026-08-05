@@ -166,11 +166,16 @@ The built SPA ships inside the package (`pystructurizr/webapp/static/`),
 so end users need no Node toolchain. To rebuild the frontend after
 changes (requires Node 18+):
 
+The frontend is an npm workspace: `packages/diagram-core` holds the
+diagram layer (layout, node/edge components, image export) and
+`frontend/` is the SPA that consumes it, so build from the repo root.
+
 ```bash
-cd frontend
 npm install
-npm run build          # outputs to ../src/pystructurizr/webapp/static/
-# dev loop: `npm run dev` (Vite :5173, proxies /api → :8090) alongside
+npm run build          # diagram-core, then the SPA
+                       # outputs to src/pystructurizr/webapp/static/
+# dev loop: `npm run dev --workspace pystructurizr-frontend`
+#           (Vite :5173, proxies /api → :8090) alongside
 #           `uv run pystructurizr webapp samples/ --no-browser`
 ```
 

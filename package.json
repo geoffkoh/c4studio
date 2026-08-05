@@ -1,0 +1,12 @@
+{
+  "name": "pystructurizr-workspace",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "packages/*",
+    "frontend"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace @pystructurizr/diagram-core && npm run build --workspace pystructurizr-frontend"
+  }
+}

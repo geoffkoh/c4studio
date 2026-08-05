@@ -21,8 +21,13 @@ import ReactFlow, {
 import "reactflow/dist/style.css";
 
 import { ApiError, getModelGraph } from "../api";
-import { EDGE_PAINT } from "../edgePaint";
-import { layoutGraph } from "../layout";
+import {
+  BoundaryNode,
+  EDGE_PAINT,
+  ElementNode,
+  FloatingEdge,
+  layoutGraph,
+} from "@pystructurizr/diagram-core";
 import { crumbLabel } from "../navigation";
 import { isTypingTarget } from "../shortcuts";
 import type {
@@ -32,9 +37,6 @@ import type {
   ViewInfo,
   Workspace,
 } from "../types";
-import { BoundaryNode } from "./BoundaryNode";
-import { ElementNode } from "./ElementNode";
-import { FloatingEdge } from "./FloatingEdge";
 
 const NODE_TYPES: NodeTypes = { element: ElementNode, boundary: BoundaryNode };
 const EDGE_TYPES: EdgeTypes = { floating: FloatingEdge };
@@ -67,7 +69,9 @@ function storedLevel(): ExplorerLevel {
 }
 
 /** Convert the explorer payload into laid-out React Flow nodes/edges. */
-function toFlow(data: ModelGraphData): { nodes: Node[]; edges: Edge[] } {
+async function toFlow(
+  data: ModelGraphData,
+): Promise<{ nodes: Node[]; edges: Edge[] }> {
   const nodes: Node[] = data.nodes.map((n) => {
     const isBoundary = n.data.kind === "boundary";
     return {
@@ -114,7 +118,7 @@ function toFlow(data: ModelGraphData): { nodes: Node[]; edges: Edge[] } {
     };
   });
 
-  return { nodes: layoutGraph(nodes, edges, data.rankDirection), edges };
+  return { nodes: await layoutGraph(nodes, edges, data.rankDirection), edges };
 }
 
 function matchesQuery(element: ModelElement, query: string): boolean {
@@ -190,9 +194,10 @@ export function ExplorerPane({
     setStatus("loading");
     setError(null);
     getModelGraph(level)
-      .then((payload) => {
+      .then(async (payload) => {
         if (cancelled) return;
-        const flow = toFlow(payload);
+        const flow = await toFlow(payload);
+        if (cancelled) return;
         setData(payload);
         setNodes(flow.nodes);
         setEdges(flow.edges);

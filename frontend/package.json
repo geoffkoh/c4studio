@@ -9,15 +9,13 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "dagre": "^0.8.5",
-    "html-to-image": "^1.11.13",
+    "@pystructurizr/diagram-core": "^0.1.0",
     "marked": "^15.0.12",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "reactflow": "^11.11.4"
   },
   "devDependencies": {
-    "@types/dagre": "^0.7.52",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^6.0.4",
