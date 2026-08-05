@@ -168,16 +168,16 @@ bounding box plus label space, then joins its parent's layout as a single
 large node, with edges crossing a boundary lifted to the level being laid
 out. That recursion is the bulk of the module.
 
-**The decision: keep dagre, on the maintained fork, behind an async
-seam — and adopt elkjs only on a named trigger.** Concretely, as part of
-the `diagram-core` extraction:
+**The decision: keep dagre behind an async seam — and change engine only
+on a named trigger, judged on layout quality.** The async seam landed
+with the `diagram-core` extraction (PP-92):
+`layout(nodes, edges, direction): Promise<Node[]>`, synchronous dagre
+inside, every caller awaiting. That is what makes a different engine a
+swap rather than a refactor.
 
-1. Migrate `dagre@0.8.5` → `@dagrejs/dagre`. Same API, ships its own
-   types (so `@types/dagre` goes too), and drops the lodash dependency.
-2. Give `diagram-core` an **async** layout interface —
-   `layout(nodes, edges, direction): Promise<Node[]>` — even though the
-   dagre implementation is synchronous inside. This is what makes elk a
-   swap later instead of a refactor.
+The `@dagrejs/dagre` migration this section originally prescribed was
+**tried and reverted** — see the measurement below. It is not the free
+hygiene upgrade it looked like.
 
 **Adopt elkjs when one of these happens**, and not merely because it
 would be nicer:
@@ -205,6 +205,35 @@ bundle nearly unchanged but still pays 462 KB on first layout. That cost
 lands on the PyPI wheel and the `.vsix`, not on a localhost viewer —
 which is why the browser surfaces, where it would be network weight, are
 also where it stops mattering relative to Pyodide.
+
+#### The maintained fork is not coordinate-compatible (PP-92, measured)
+
+`@dagrejs/dagre@3.1.0` is the maintained fork of `dagre@0.8.5`: same API,
+own types, no lodash, and it shrinks the bundle by 34.5 KB raw / 9.6 KB
+gzip. It also **changes the layout**. Running the *same* `layout.ts`
+against both engines over ten real sample view payloads:
+
+| | |
+| --- | --- |
+| views compared | 10 |
+| identical | 1 |
+| differ, horizontal ordering only | 7 |
+| differ, with nodes changing rank | 2 (both cyclic) |
+
+The rank changes come from **cycle-breaking**, not tie-breaking, and are
+not tunable — `network-simplex`, `tight-tree` and `longest-path` all
+agree with each other and disagree with 0.8.5. The visible case: on
+`samples/internet_banking.dsl`'s system context view, `customer` moves
+from the top rank to the bottom (y=55 → y=685) because the
+`email -> customer` notification edge closes a cycle. A Person at the
+bottom of a C4 context diagram is against convention.
+
+So the engine stays on `dagre@0.8.5`, stale and lodash-laden, until the
+engine question is decided on its merits. Nobody's saved layout was ever
+at risk — sidecars store absolute positions keyed by element id — but
+every *auto* layout would have shifted, as a side effect of a dependency
+upgrade nobody asked for. If a future engine change is taken, the same
+harness should be re-run and the shift accepted deliberately.
 
 #### Correction: the async objection was overstated
 

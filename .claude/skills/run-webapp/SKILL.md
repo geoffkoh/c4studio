@@ -29,8 +29,8 @@ changes do not need a rebuild. If you touched `frontend/`:
 
 ```bash
 # node/npm exist ONLY in the conda env "pystructurizr" — plain npm will not resolve
-conda run -n pystructurizr --no-capture-output npm --prefix frontend install
-conda run -n pystructurizr --no-capture-output npm --prefix frontend run build
+conda run -n pystructurizr --no-capture-output npm install
+conda run -n pystructurizr --no-capture-output npm run build
 ```
 
 The build writes into `src/pystructurizr/webapp/static/` — commit that output

@@ -22,22 +22,26 @@ import ReactFlow, {
 } from "reactflow";
 import "reactflow/dist/style.css";
 
-import { ApiError, deleteLayout, getViewGraph, saveLayout } from "../api";
-import { EDGE_PAINT } from "../edgePaint";
-import { layoutGraph, normalizeStoredPositions } from "../layout";
+import {
+  BoundaryNode,
+  EDGE_PAINT,
+  ElementNode,
+  ExportButtons,
+  FloatingEdge,
+  insertionIndex,
+  layoutGraph,
+  normalizeStoredPositions,
+  type ElementNodeData,
+  type FloatingEdgeData,
+} from "@pystructurizr/diagram-core";
 import { buildTrail, crumbLabel, drillTarget } from "../navigation";
 import type { GraphData, ViewInfo, Workspace } from "../types";
-import { insertionIndex } from "../waypoints";
-import { BoundaryNode } from "./BoundaryNode";
-import { ElementNode, type ElementNodeData } from "./ElementNode";
 import {
   EdgeContextMenu,
   type EdgeMenuState,
   type MenuAction,
 } from "./EdgeContextMenu";
-import { ExportButtons } from "./ExportButtons";
 import { KeyboardShortcuts } from "./KeyboardShortcuts";
-import { FloatingEdge, type FloatingEdgeData } from "./FloatingEdge";
 
 const NODE_TYPES: NodeTypes = { element: ElementNode, boundary: BoundaryNode };
 const EDGE_TYPES: EdgeTypes = { floating: FloatingEdge };
@@ -107,17 +111,31 @@ interface GraphPaneProps {
   views: ViewInfo[];
   workspace: Workspace | null;
   onNavigate: (view: ViewInfo) => void;
+  /**
+   * How to reach the backend. Injected rather than imported so the pane
+   * can be embedded where there is no pystructurizr API to call — a
+   * Confluence macro reading Forge storage, or github.dev talking to the
+   * Pyodide bridge.
+   */
+  loadGraph: (key: string, expand: string[]) => Promise<GraphData>;
+  saveLayout: (
+    key: string,
+    positions: Record<string, [number, number]>,
+    sizes: Record<string, [number, number]>,
+    waypoints: Record<string, [number, number][]>,
+  ) => Promise<unknown>;
+  resetLayout: (key: string) => Promise<unknown>;
 }
 
 /** Convert the API graph payload into React Flow nodes/edges. */
-function toFlow(
+async function toFlow(
   data: GraphData,
   view: ViewInfo,
   views: ViewInfo[],
   workspace: Workspace | null,
   onToggleExpand: (id: string, expand: boolean) => void,
   onGeometryChange: () => void,
-): { nodes: Node[]; edges: Edge[] } {
+): Promise<{ nodes: Node[]; edges: Edge[] }> {
   const anyMissingPosition = data.nodes.some((n) => n.position === undefined);
   const trail = buildTrail(view, views, workspace);
   const parentView = trail.length > 1 ? trail[trail.length - 2] : undefined;
@@ -199,8 +217,8 @@ function toFlow(
   // If any node lacks a stored position, run a fresh auto-layout; otherwise
   // adapt the stored absolute positions to the nested-node model.
   const positioned = anyMissingPosition
-    ? layoutGraph(nodes, edges, data.rankDirection)
-    : normalizeStoredPositions(nodes, edges);
+    ? await layoutGraph(nodes, edges, data.rankDirection)
+    : await normalizeStoredPositions(nodes, edges);
   return { nodes: positioned, edges };
 }
 
@@ -250,7 +268,15 @@ function absolutePositions(nodes: Node[]): Record<string, [number, number]> {
  * navigation, controls and a minimap. Falls back to friendly notices for
  * unsupported/empty views and load errors.
  */
-export function GraphPane({ view, views, workspace, onNavigate }: GraphPaneProps) {
+export function GraphPane({
+  view,
+  views,
+  workspace,
+  onNavigate,
+  loadGraph,
+  saveLayout,
+  resetLayout,
+}: GraphPaneProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [status, setStatus] = useState<"idle" | "loading" | "error" | "ready">(
@@ -500,7 +526,7 @@ export function GraphPane({ view, views, workspace, onNavigate }: GraphPaneProps
       })
       .catch(() => setLayoutState("failed"));
     },
-    [view, collectWaypoints],
+    [view, collectWaypoints, saveLayout],
   );
 
   /** Replace one edge's bend points, then persist the whole layout. */
@@ -645,13 +671,13 @@ export function GraphPane({ view, views, workspace, onNavigate }: GraphPaneProps
 
   const handleResetLayout = useCallback(() => {
     if (!view) return;
-    deleteLayout(view.key)
+    resetLayout(view.key)
       .then(() => {
         setLayoutState("idle");
         setLayoutEpoch((epoch) => epoch + 1);
       })
       .catch(() => setLayoutState("failed"));
-  }, [view]);
+  }, [view, resetLayout]);
 
   // Routing is presentation-only, so it is applied on the way into React
   // Flow rather than baked into the edge state.
@@ -731,10 +757,10 @@ export function GraphPane({ view, views, workspace, onNavigate }: GraphPaneProps
     setStatus("loading");
     setError(null);
 
-    getViewGraph(view.key, expandedIds)
-      .then((data) => {
+    loadGraph(view.key, expandedIds)
+      .then(async (data) => {
         if (cancelled) return;
-        const flow = toFlow(
+        const flow = await toFlow(
           data,
           view,
           views,
@@ -742,6 +768,7 @@ export function GraphPane({ view, views, workspace, onNavigate }: GraphPaneProps
           handleToggleExpand,
           saveCurrentLayout,
         );
+        if (cancelled) return;
         const sameView =
           shownViewRef.current === view.key && nodesRef.current.length > 0;
         shownViewRef.current = view.key;
@@ -756,7 +783,7 @@ export function GraphPane({ view, views, workspace, onNavigate }: GraphPaneProps
       .catch((err: unknown) => {
         if (cancelled) return;
         const message =
-          err instanceof ApiError ? err.message : "Failed to load graph";
+          err instanceof Error ? err.message : "Failed to load graph";
         setError(message);
         setStatus("error");
       });
@@ -775,6 +802,7 @@ export function GraphPane({ view, views, workspace, onNavigate }: GraphPaneProps
     animateToNodes,
     setNodes,
     setEdges,
+    loadGraph,
   ]);
 
   const handleNodeDoubleClick = useCallback(

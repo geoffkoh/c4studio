@@ -2,11 +2,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   ApiError,
+  deleteLayout,
   getStatus,
+  getViewGraph,
   getWorkspace,
   listFiles,
   listViews,
   loadFile,
+  saveLayout,
 } from "./api";
 import type { ViewInfo, Workspace } from "./types";
 import { buildTrail } from "./navigation";
@@ -225,6 +228,9 @@ export default function App() {
               views={views}
               workspace={workspace}
               onNavigate={setSelectedView}
+              loadGraph={getViewGraph}
+              saveLayout={saveLayout}
+              resetLayout={deleteLayout}
             />
           ) : page === "explorer" ? (
             <ExplorerPane

@@ -49,8 +49,8 @@ A stale bundle silently ships an old UI, so rebuild it for every Python release:
 
 ```bash
 # node/npm exist ONLY in the conda env "pystructurizr"
-conda run -n pystructurizr --no-capture-output npm --prefix frontend install
-conda run -n pystructurizr --no-capture-output npm --prefix frontend run build
+conda run -n pystructurizr --no-capture-output npm install
+conda run -n pystructurizr --no-capture-output npm run build
 git status --short src/pystructurizr/webapp/static   # commit any change
 ```
 
