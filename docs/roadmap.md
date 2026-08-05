@@ -132,7 +132,7 @@ Mermaid generator, not just the web app.
 | ~~**Mermaid renders from the graph model**~~ **shipped, PP-88** | High (correctness) | S-M | Fixed the defect below and collapsed the duplicate C4 semantics. `systemLandscape` came along nearly free; dynamic, deployment and filtered views still emit the unsupported comment and are the flowchart target's job. |
 | ~~**`flowchart`/`subgraph` Mermaid target**~~ **shipped, PP-89** | Med-High | S | Mermaid's `C4Context`/`C4Container` types are experimental upstream, lay out poorly on dense models, and GitHub pins its own Mermaid version. Same graph model in, more reliable rendering out — and it took the view types the C4 target skips (dynamic, deployment, filtered), so every view now renders. `generate -f flowchart`; the C4 target stays the default. |
 | **Headless SVG renderer** (`diagram-core` + `pystructurizr render`) | High (enabler) | L | This is Phase 3's headless-rendering item. Serves Confluence export, the GitHub Action and Pages — and answers Phase 3's open "Python dagre-equivalent vs small Node script" question: dagre is pure JS and runs headless in Node, so layout stays in one implementation. |
-| **`diagram-core` extraction** | High (enabler) | M-L | Move `frontend/src/layout.ts`, the node/edge components and export out of the SPA into a package. `GraphPane` currently imports `api.ts` and saves layout itself; that coupling must be lifted into props before it can embed anywhere. |
+| **`diagram-core` extraction** | High (enabler) | M-L | Move `frontend/src/layout.ts`, the node/edge components and export out of the SPA into a package. `GraphPane` currently imports `api.ts` and saves layout itself; that coupling must be lifted into props before it can embed anywhere. Also carries the settled layout-engine decision below: migrate to `@dagrejs/dagre` and give layout an async interface. |
 | **`SourceResolver` injection** | Med-High | M | `!include` (`dsl.py`), `docs.py` and `locations.py` reach for the filesystem. Replace `base_dir: Path` with a `read(name) -> str` protocol; filesystem impl stays the default, Confluence supplies its own. Good hygiene regardless — it makes the parser testable without temp dirs. |
 | **Pyodide bridge** | High | M-L | Loads Pyodide, installs the pure-Python wheel, typed `parse() -> graph JSON`. Shared by Confluence and github.dev. |
 | **Confluence Forge macro** | High | L | Macro + config panel, DSL in Forge storage (macro *parameters* have size limits real DSL will exceed), cached render, static SVG path first — it is the one that must work everywhere. |
@@ -159,7 +159,7 @@ Rendering from the graph model also corrected `include *` on system
 context views, which used to pull in every person and system in the model
 instead of the scope plus its directly related elements.
 
-### Layout engine: elkjs, considered and deferred
+### Layout engine: settled (August 2026, supersedes PP-77's deferral)
 
 Layout is dagre (`frontend/src/layout.ts`). dagre has no notion of
 compound graphs, so nested C4 boundaries are handled by running it
@@ -168,34 +168,69 @@ bounding box plus label space, then joins its parent's layout as a single
 large node, with edges crossing a boundary lifted to the level being laid
 out. That recursion is the bulk of the module.
 
-**elkjs** (Eclipse Layout Kernel) is the obvious alternative, and two
-things make it more attractive here than usual:
+**The decision: keep dagre, on the maintained fork, behind an async
+seam — and adopt elkjs only on a named trigger.** Concretely, as part of
+the `diagram-core` extraction:
 
-- It does **compound/nested layout natively**, which is most of what that
-  recursion exists to work around — and nesting to arbitrary depth is core
-  to C4, not an edge case.
-- It computes **orthogonal edge routes with bend points**, the same shape
-  of data PP-76 added persistence for. That turns "route this edge around
-  the obstacle" into something the tool can do rather than something the
-  user drags by hand.
+1. Migrate `dagre@0.8.5` → `@dagrejs/dagre`. Same API, ships its own
+   types (so `@types/dagre` goes too), and drops the lodash dependency.
+2. Give `diagram-core` an **async** layout interface —
+   `layout(nodes, edges, direction): Promise<Node[]>` — even though the
+   dagre implementation is synchronous inside. This is what makes elk a
+   swap later instead of a refactor.
 
-Deferred, for three reasons:
+**Adopt elkjs when one of these happens**, and not merely because it
+would be nicer:
 
-- **New npm dependency, and a heavy one.** `elk.bundled.js` is over 1 MB
-  against a bundle of roughly 490 KB. Lazy loading or a worker mitigates
-  it, but that is more machinery, and new dependencies are ask-first.
-- **ELK's API is asynchronous.** `layoutGraph()` is called synchronously
-  from `toFlow`, itself called synchronously from the fetch handler.
-  Going async ripples through `GraphPane`, the expand/collapse tween and
-  the stored-position path — a refactor, not a swap.
-- **It unblocks nothing in Phase 5.** Headless rendering needs a layout
-  engine that runs in Node; dagre already does.
+- someone asks for orthogonal auto-routing;
+- a real model lays out visibly badly under recursive dagre;
+- the Confluence macro or github.dev surfaces ship — those pages already
+  load a Pyodide runtime, next to which elk's weight stops mattering.
 
-**Revisit during the `diagram-core` extraction**, when layout moves into a
-package anyway and the engine sits behind a boundary that can be swapped.
-Doing it before then means paying the async refactor twice. Nobody has
-complained about layout *quality* so far — the friction has been in
-interaction — so this is an enabler for auto-routing rather than a fix.
+#### What the numbers actually are
+
+Measured August 2026, not estimated. The earlier "over 1 MB against a
+bundle of roughly 490 KB" was in the right direction but compared raw
+bytes to raw bytes:
+
+| | raw | gzip |
+| --- | --- | --- |
+| current app bundle | 470 KB | **151 KB** |
+| `elk.bundled.js` | 1.61 MB | **467 KB** |
+| worker split: `elk-api.js` (main bundle) | 9.8 KB | 3 KB |
+| worker split: `elk-worker.min.js` (deferred) | 1.60 MB | 462 KB |
+
+Inlining elk is 4.1× the gzipped bundle; a worker split keeps the main
+bundle nearly unchanged but still pays 462 KB on first layout. That cost
+lands on the PyPI wheel and the `.vsix`, not on a localhost viewer —
+which is why the browser surfaces, where it would be network weight, are
+also where it stops mattering relative to Pyodide.
+
+#### Correction: the async objection was overstated
+
+PP-77 recorded that going async "ripples through `GraphPane`, the
+expand/collapse tween and the stored-position path — a refactor, not a
+swap." That is wrong, and it was one of the three reasons for deferring.
+There are exactly two `layoutGraph` call sites — `GraphPane.tsx` and
+`ExplorerPane.tsx`, both inside their `toFlow` helper — and **both are
+already invoked from inside a `.then()` callback**. The expand/collapse
+tween consumes layout *results* and never calls layout itself; expanding
+re-fetches through the same promise chain. Making layout async is a
+contained change, which is exactly why the async seam is cheap enough to
+put in now.
+
+#### What elk would still buy, when the trigger comes
+
+- **Compound/nested layout natively**, which is most of what the
+  recursion exists to work around — nesting to arbitrary depth is core to
+  C4, not an edge case. Roughly 100 of `layout.ts`'s 284 lines.
+- **Orthogonal edge routes with bend points**, the same shape of data
+  PP-76 added persistence for: routing around an obstacle becomes
+  something the tool does rather than something the user drags.
+
+Nobody has complained about layout *quality*; the friction has been
+interaction, addressed by PP-73…PP-76. elk remains an enabler for
+auto-routing, not a fix for a defect.
 
 ### Rejected options — do not re-litigate
 
