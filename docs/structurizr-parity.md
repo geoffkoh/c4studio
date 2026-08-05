@@ -44,7 +44,7 @@ inferring behaviour from this document when the two might disagree.
 | Default view (`default` keyword) | ✅ | ✅ | Recorded in the configuration; views index flags it and lists it first so the webapp opens it |
 | Drag nodes / persist layout | ✅ (full editor) | ✅ | Drag autosaves to a `<source>.layout.json` sidecar, restored on load and live reload; Reset returns to auto-layout. Multi-level-nested views re-run auto-layout on restore |
 | Edge routing | ✅ (orthogonal/curved, manual vertices) | ✅ | Bezier / straight / step / smooth-step, centre-anchored floating anchors, plus draggable waypoints persisted per edge id (PP-76) |
-| PNG/SVG export | ✅ | ✅ | Toolbar buttons; diagram-bounds crop, 2× PNG |
+| PNG/SVG export | ✅ | ✅ | Toolbar buttons; diagram-bounds crop, 2× PNG. Also headless: `pystructurizr render` draws the same diagram as standalone SVG with no browser (PP-93), using the same layout code so positions match the web app |
 | Filtered views (tag include/exclude) | ✅ | ✅ | `filtered <baseKey> <include\|exclude> <tags> [key] [title]`; implicit tags participate; empty boundaries pruned; layout direction inherited from the base view |
 | Custom / image views | ✅ | ◐ | Parsed from DSL + JSON round-trip; not yet rendered in the webapp |
 | Per-type view fields (`enterpriseBoundaryVisible`, `externalSoftwareSystemBoundariesVisible`, `containerId`, `externalContainerBoundariesVisible`, `generatedKey`, `dimensions`, `mergeFromRemote`) | ✅ | ✅ | Held on the single `View` dataclass with structurizr-core's names and defaults, and round-tripped through workspace JSON. Java's nine typed view classes are deliberately not mirrored — see PP-36 |

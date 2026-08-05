@@ -10,6 +10,8 @@ from pystructurizr.diagnostics import Diagnostic, Severity
 from pystructurizr.generators.flowchart import FlowchartGenerator
 from pystructurizr.generators.mermaid import MermaidGenerator
 from pystructurizr.models import Workspace
+from pystructurizr.render import RenderError, render_view
+from pystructurizr.webapp.graph import is_supported
 from pystructurizr.webapp.loader import WorkspaceLoadError, load_workspace
 
 
@@ -91,6 +93,67 @@ def generate(
             out_path = output / f"{key}{ext}"
             out_path.write_text(content, encoding="utf-8")
             click.echo(f"Written: {out_path}")
+
+
+@cli.command("render")
+@click.argument("input_file", type=click.Path(exists=True, path_type=Path))
+@click.option(
+    "--output",
+    "-o",
+    type=click.Path(path_type=Path),
+    default=None,
+    help="Output directory (default: print to stdout).",
+)
+@click.option(
+    "--view",
+    "-v",
+    "view_key",
+    default=None,
+    help="Only render this view key.",
+)
+@click.option(
+    "--padding",
+    type=int,
+    default=24,
+    show_default=True,
+    help="Blank margin around the diagram, in pixels.",
+)
+def render(
+    input_file: Path, output: Path | None, view_key: str | None, padding: int
+) -> None:
+    """Render diagrams from INPUT_FILE as standalone SVG.
+
+    No browser and no server: the diagrams are laid out and painted by the
+    same code the web app runs, bundled for Node. This is the only command
+    that needs Node.js installed; set PYSTRUCTURIZR_NODE if it is not on
+    PATH. Views the renderer cannot draw (custom, image) are skipped.
+    """
+    workspace = _load_workspace(input_file)
+    views = [v for v in workspace.views if is_supported(v)]
+    if view_key:
+        views = [v for v in views if v.key == view_key]
+        if not views:
+            available = ", ".join(v.key for v in workspace.views if is_supported(v))
+            raise click.ClickException(
+                f"View '{view_key}' not found or not renderable. "
+                f"Available: {available or '(none)'}"
+            )
+    if not views:
+        raise click.ClickException("this workspace has no renderable views")
+
+    if output is not None:
+        output.mkdir(parents=True, exist_ok=True)
+    try:
+        for view in views:
+            svg = render_view(workspace, view, padding=padding)
+            if output is None:
+                click.echo(svg, nl=False)
+            else:
+                out_path = output / f"{view.key}.svg"
+                out_path.write_text(svg, encoding="utf-8")
+                click.echo(f"Written: {out_path}")
+    except RenderError as exc:
+        raise click.ClickException(str(exc)) from exc
 
 
 @cli.command("export")

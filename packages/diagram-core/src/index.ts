@@ -28,6 +28,13 @@ export {
 } from "./edgePaint";
 export { insertionIndex } from "./waypoints";
 export { exportDiagram, type ExportFormat } from "./export";
+export {
+  renderSvg,
+  type GraphPayload,
+  type GraphPayloadEdge,
+  type GraphPayloadNode,
+  type RenderOptions,
+} from "./svg";
 export { ElementNode, type ElementNodeData } from "./components/ElementNode";
 export { BoundaryNode, type BoundaryNodeData } from "./components/BoundaryNode";
 export { FloatingEdge, type FloatingEdgeData } from "./components/FloatingEdge";

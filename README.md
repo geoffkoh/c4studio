@@ -111,6 +111,26 @@ uv run pystructurizr generate architecture.dsl -f flowchart        # flowchart
 uv run pystructurizr generate architecture.dsl -f flowchart -o out # one .mmd per view
 ```
 
+## Headless SVG Rendering
+
+`pystructurizr render` draws diagrams as standalone SVG with no browser
+and no server — for CI, docs-as-code pipelines and static sites. Layout is
+the same code the web app runs, so positions match what you see in the
+viewer, including any layout you have saved for a view.
+
+```bash
+uv run pystructurizr render architecture.dsl -o diagrams/   # one .svg per view
+uv run pystructurizr render architecture.dsl -v Containers  # one view to stdout
+```
+
+The output is self-contained: no external fonts, stylesheets or images, so
+a file renders identically wherever it is opened.
+
+> **This is the only command that needs [Node.js](https://nodejs.org) 18+**
+> (the renderer is bundled into the wheel, so there is no `npm install`).
+> Set `PYSTRUCTURIZR_NODE` if `node` is not on your `PATH`. Parsing,
+> Mermaid generation, JSON export and the web app all work without it.
+
 ## Workspace JSON Export
 
 Export any workspace (DSL or JSON) back to Structurizr workspace JSON,
