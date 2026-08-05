@@ -40,7 +40,9 @@ features that assume a hosted multi-user deployment.
 | `src/pystructurizr/graph/` | `view_graph.py` — workspace + view → `{nodes, edges}` with C4 visibility, boundary nesting and endpoint lifting applied. The shared contract every renderer consumes; depends only on `models/` and `themes.py`. |
 | `src/pystructurizr/generators/` | `mermaid.py` (Mermaid C4 syntax) and `flowchart.py` (Mermaid `flowchart`/`subgraph`, covers every view type) — both render from `graph/`, sharing `mermaid_common.py`; `json_export.py` (Structurizr JSON round-trip). |
 | `src/pystructurizr/webapp/` | `server.py` (FastAPI), `loader.py` (load + live reload), `graph.py` / `model_graph.py` (React Flow reshape and full-model graph, both over `graph/view_graph`), `static/` (built SPA). |
-| `src/pystructurizr/cli/main.py` | click CLI: `generate`, `export`, `check`, `list-views`, `webapp`. |
+| `src/pystructurizr/cli/main.py` | click CLI: `generate`, `render`, `export`, `check`, `list-views`, `webapp`. |
+| `src/pystructurizr/render.py` | Headless SVG rendering: builds the same graph payload the web app serves and pipes it to the bundled Node renderer. The **only** thing in the project that needs Node at runtime. |
+| `src/pystructurizr/renderer/diagram-render.mjs` | **Committed build artefact** — `diagram-core` bundled for Node, so the wheel can render without npm. Rebuilt by the root `npm run build`; never edit by hand. |
 | `packages/diagram-core/` | The renderer-agnostic diagram layer: `layout.ts` (compound dagre, **async by contract** so the engine can be swapped), the React Flow node/edge components, `export.ts` (PNG/SVG) and `edgePaint.ts`. Knows nothing about the API or app state — that is what lets the headless renderer and the embedded surfaces reuse it. |
 | `editors/vscode/` | VS Code extension (TypeScript, esbuild, packaged as `.vsix`). |
 | `samples/` | Sample workspaces used for live verification. |
@@ -49,6 +51,8 @@ features that assume a hosted multi-user deployment.
 
 - **Install deps:** `uv sync`
 - **Run CLI:** `uv run pystructurizr --help`
+- **Render SVG:** `uv run pystructurizr render <file> -o out/` (needs Node; set
+  `PYSTRUCTURIZR_NODE` if it is not on `PATH`)
 - **Web app:** `uv run pystructurizr webapp <dir-or-file>` (FastAPI + React SPA
   on `127.0.0.1:8090`; loads DSL/JSON from disk, live-reloads on edits).
 - **Run tests:** `uv run pytest`

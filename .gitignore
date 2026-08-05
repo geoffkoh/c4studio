@@ -17,3 +17,6 @@ wheels/
 # ships a working UI); packages/diagram-core/dist is a build artefact and
 # is covered by the dist/ rule above.
 node_modules/
+
+# TypeScript incremental build state
+*.tsbuildinfo
