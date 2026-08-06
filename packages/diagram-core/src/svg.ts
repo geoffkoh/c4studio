@@ -12,13 +12,20 @@
  * only the painting: the CSS in `index.css` and the JSX in the node and
  * edge components, expressed as SVG.
  *
- * Deliberately self-contained: no external fonts, stylesheets or images,
- * so an exported file renders the same wherever it is opened.
+ * Deliberately self-contained: no external fonts or stylesheets, and theme
+ * icons arrive already embedded as `data:` URIs (the Python side fetches
+ * them), so an exported file renders the same wherever it is opened —
+ * offline, in a wiki, or attached to a ticket.
  */
 
 import type { Edge, Node } from "reactflow";
 
-import { layoutGraph, normalizeStoredPositions, type RankDirection } from "./layout";
+import {
+  ICON_ALLOWANCE,
+  layoutGraph,
+  normalizeStoredPositions,
+  type RankDirection,
+} from "./layout";
 
 // ---------------------------------------------------------------------------
 // The payload, matching what `webapp/graph.py` serves the SPA.
@@ -40,6 +47,8 @@ export interface GraphPayloadNode {
     shape?: string;
     boundaryLabel?: string;
     showMetadata?: boolean;
+    /** A `data:` URI — the Python side embeds theme icons before render. */
+    icon?: string;
   };
 }
 
@@ -79,6 +88,11 @@ const NODE_PAD_X = 12;
 const NODE_PAD_TOP = 10;
 const PERSON_PAD_TOP = 20;
 const PERSON_HEAD = 38;
+
+// `.node__icon`: 30px square above the label, with 2px/4px margins.
+const ICON_SIZE = 30;
+const ICON_MARGIN_TOP = 2;
+const ICON_MARGIN_BOTTOM = 4;
 
 const LABEL_SIZE = 13;
 const LABEL_LEADING = 16;
@@ -246,7 +260,10 @@ function place(nodes: Node[]): Map<string, Placed> {
       x,
       y,
       width: Number(node.style?.width ?? 200),
-      height: Number(node.style?.height ?? (isPerson ? 150 : 110)),
+      height: Number(
+        node.style?.height ??
+          (isPerson ? 150 : 110) + (data.icon ? ICON_ALLOWANCE : 0),
+      ),
       isBoundary,
       isPerson,
       data,
@@ -365,8 +382,20 @@ function paintNode(node: Placed): string {
 
   const centreX = node.x + node.width / 2;
   const innerWidth = node.width - 2 * NODE_PAD_X;
-  let cursor =
-    body.y + (node.isPerson ? PERSON_PAD_TOP : NODE_PAD_TOP) + LABEL_SIZE;
+  let cursor = body.y + (node.isPerson ? PERSON_PAD_TOP : NODE_PAD_TOP);
+
+  // Only `data:` URIs are drawn: a remote href would make the exported
+  // file depend on the network, which is the point of embedding them.
+  const icon = node.data.icon;
+  if (icon && icon.startsWith("data:")) {
+    parts.push(
+      `<image x="${round(centreX - ICON_SIZE / 2)}" y="${round(cursor + ICON_MARGIN_TOP)}" ` +
+        `width="${ICON_SIZE}" height="${ICON_SIZE}" preserveAspectRatio="xMidYMid meet" ` +
+        `href="${escapeXml(icon)}"/>`,
+    );
+    cursor += ICON_MARGIN_TOP + ICON_SIZE + ICON_MARGIN_BOTTOM;
+  }
+  cursor += LABEL_SIZE;
 
   for (const line of wrap(
     node.data.label ?? "",

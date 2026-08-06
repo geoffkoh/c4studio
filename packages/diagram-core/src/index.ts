@@ -18,6 +18,7 @@ export {
   normalizeStoredPositions,
   NODE_WIDTH,
   NODE_HEIGHT,
+  ICON_ALLOWANCE,
   type RankDirection,
 } from "./layout";
 export {
