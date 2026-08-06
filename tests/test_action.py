@@ -48,6 +48,10 @@ def _step_index(action: dict[str, Any], name: str) -> int:
     )
 
 
+def _version(text: str) -> tuple[int, ...]:
+    return tuple(int(part) for part in text.split("."))
+
+
 def _flags(command_name: str) -> set[str]:
     command = cli.commands[command_name]
     names: set[str] = set()
@@ -77,6 +81,38 @@ class TestActionMetadata:
     def test_exposes_the_output_directory(self, action: dict[str, Any]) -> None:
         assert "diagrams-path" in action["outputs"]
         assert "changed" in action["outputs"]
+
+
+class TestPythonSetup:
+    """The runner default is older than this package's floor (PP-95).
+
+    The first Actions run failed on exactly this: `pip install` refused
+    the package because the runner's python3 was 3.12 and requires-python
+    is >=3.13. The action now sets Python up itself, and these tests keep
+    the two versions in step.
+    """
+
+    def test_sets_up_python_before_installing(self, action: dict[str, Any]) -> None:
+        names = [step.get("name") for step in action["runs"]["steps"]]
+        assert names.index("Set up Python") < names.index("Install pystructurizr")
+
+    def test_setup_is_skippable(self, action: dict[str, Any]) -> None:
+        step = next(
+            s for s in action["runs"]["steps"] if s.get("name") == "Set up Python"
+        )
+        assert step["uses"].startswith("actions/setup-python@")
+        # An empty input lets a workflow that already prepared Python skip it.
+        assert step["if"] == "inputs.python-version != ''"
+
+    def test_default_python_satisfies_requires_python(self) -> None:
+        pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+        floor = re.search(r'requires-python = ">=([\d.]+)"', pyproject)
+        assert floor is not None
+        action_yaml = yaml.safe_load(ACTION.read_text(encoding="utf-8"))
+        default = str(action_yaml["inputs"]["python-version"]["default"])
+        assert _version(default) >= _version(floor.group(1)), (
+            f"action installs Python {default} but the package needs >={floor.group(1)}"
+        )
 
 
 class TestCliContract:

@@ -162,6 +162,7 @@ jobs:
 | `view` | *(all)* | Render a single view key |
 | `mode` | `render` | `render`, `commit` (push the files back when they change) or `comment` (comment on the PR) |
 | `version` | `pystructurizr-studio` | pip requirement to install; `local` uses the checkout |
+| `python-version` | `3.13` | Python to set up first — runners still default to an older one than this package needs. Empty string skips the step |
 
 The action checks the workspace before rendering, so a parse error fails
 the job with diagnostics rather than a traceback, and sets a `changed`
