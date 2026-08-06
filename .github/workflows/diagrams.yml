@@ -1,0 +1,44 @@
+name: Diagrams
+
+# Dogfoods the action this repository publishes: every push renders the
+# richest sample workspace, so the action is exercised here before anyone
+# else depends on it.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "samples/**"
+      - "src/**"
+      - "packages/**"
+      - "action.yml"
+      - ".github/workflows/diagrams.yml"
+  pull_request:
+    paths:
+      - "samples/**"
+      - "src/**"
+      - "packages/**"
+      - "action.yml"
+      - ".github/workflows/diagrams.yml"
+  workflow_dispatch:
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Render the hedge fund sample
+        uses: ./
+        id: diagrams
+        with:
+          workspace: samples/hedge_fund/workspace.dsl
+          output: diagrams
+          # Test the code in this checkout, not the last published wheel.
+          version: local
+
+      - name: Upload the diagrams
+        uses: actions/upload-artifact@v4
+        with:
+          name: diagrams
+          path: ${{ steps.diagrams.outputs.diagrams-path }}
+          if-no-files-found: error

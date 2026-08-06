@@ -59,4 +59,13 @@ asyncio_mode = "auto"
 dev = [
     "pytest-asyncio>=1.4.0",
     "httpx>=0.27",
+    # tests/test_action.py parses action.yml and the dogfood workflow.
+    # pyyaml is already present transitively (uvicorn[standard]), but the
+    # tests should not lean on another package's dependency tree.
+    "pyyaml>=6.0",
+    "types-PyYAML>=6.0",
+    # Declared so `uv run mypy .` runs inside the project environment. Left
+    # undeclared it resolved to an ephemeral install that could not see
+    # project-installed type stubs, and the version drifted per machine.
+    "mypy>=1.11",
 ]

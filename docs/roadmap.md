@@ -136,7 +136,7 @@ Mermaid generator, not just the web app.
 | **`SourceResolver` injection** | Med-High | M | `!include` (`dsl.py`), `docs.py` and `locations.py` reach for the filesystem. Replace `base_dir: Path` with a `read(name) -> str` protocol; filesystem impl stays the default, Confluence supplies its own. Good hygiene regardless — it makes the parser testable without temp dirs. |
 | **Pyodide bridge** | High | M-L | Loads Pyodide, installs the pure-Python wheel, typed `parse() -> graph JSON`. Shared by Confluence and github.dev. |
 | **Confluence Forge macro** | High | L | Macro + config panel, DSL in Forge storage (macro *parameters* have size limits real DSL will exceed), cached render, static SVG path first — it is the one that must work everywhere. |
-| **GitHub Action** | High | M | Render every view on push/PR, commit SVGs or upload artifacts, comment on the PR. Composite action using `uv`; runners already have Python. Becomes "diagram diff on PRs" once the model diff exists. |
+| ~~**GitHub Action**~~ **shipped, PP-95** | High | M | Renders every view on push/PR; `mode` selects artifact, commit or PR comment. Composite action installing the published wheel with pip — runners already have Python *and* Node, which `render` needs. `.github/workflows/diagrams.yml` dogfoods it against `samples/hedge_fund`. Becomes "diagram diff on PRs" once the model diff exists. |
 | **github.dev web extension** | Med-High | M | The existing extension bootstraps a Python backend via `uv` (PP-68), which cannot work in a browser tab. With the Pyodide bridge it becomes a web extension: press `.` on any GitHub repo, get interactive C4. |
 
 ### The defect this fixed (PP-88, resolved)
@@ -299,7 +299,7 @@ Python-free, so only the authoring path needs a different answer.
 
 ~~Mermaid-from-graph-model~~ (PP-88) → ~~flowchart target~~ (PP-89) →
 ~~`diagram-core` extraction~~ (PP-92) → ~~headless renderer~~ (PP-93) →
-GitHub Action (all useful to the local tool on their
+~~GitHub Action~~ (PP-95) (all useful to the local tool on their
 own merits, and none of them depend on Forge) → Pyodide spike →
 `SourceResolver` → Confluence macro → github.dev.
 
