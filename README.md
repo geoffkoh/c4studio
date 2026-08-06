@@ -123,8 +123,10 @@ uv run pystructurizr render architecture.dsl -o diagrams/   # one .svg per view
 uv run pystructurizr render architecture.dsl -v Containers  # one view to stdout
 ```
 
-The output is self-contained: no external fonts, stylesheets or images, so
-a file renders identically wherever it is opened.
+The output is self-contained: no external fonts or stylesheets, and theme
+icons (the AWS/Azure/GCP service logos) are fetched once and embedded as
+`data:` URIs, so a file renders identically wherever it is opened — even
+offline. An icon that cannot be fetched is simply left out.
 
 > **This is the only command that needs [Node.js](https://nodejs.org) 18+**
 > (the renderer is bundled into the wheel, so there is no `npm install`).

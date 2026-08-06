@@ -8,6 +8,8 @@ end-to-end renders skip when no ``node`` is available.
 
 from __future__ import annotations
 
+import base64
+import json
 import re
 from pathlib import Path
 
@@ -102,7 +104,8 @@ class TestRendering:
     def test_no_external_references(self, banking: Workspace) -> None:
         """A file that phones home renders differently offline."""
         svg = render_view(banking, _view(banking, "Containers"))
-        assert "<image" not in svg
+        # Images are allowed, but only as embedded data: URIs (PP-94).
+        assert 'href="http' not in svg
         assert "@import" not in svg
         assert "<link" not in svg
         # The only URL allowed is the SVG namespace itself.
@@ -159,6 +162,53 @@ class TestRendering:
         svg = render_view(workspace, _view(workspace, "cont"))
         assert "[Container: PostgreSQL]" not in svg
         assert "DB" in svg
+
+    def test_theme_icons_are_embedded(self, tmp_path: Path) -> None:
+        """A themed element's logo travels inside the file (PP-94)."""
+        icon = tmp_path / "lambda.png"
+        icon.write_bytes(
+            base64.b64decode(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8"
+                "BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+            )
+        )
+        theme = tmp_path / "theme.json"
+        theme.write_text(
+            json.dumps(
+                {
+                    "name": "Test",
+                    "elements": [{"tag": "Serverless", "icon": "lambda.png"}],
+                }
+            ),
+            encoding="utf-8",
+        )
+        source = tmp_path / "ws.dsl"
+        source.write_text(
+            f"""
+            workspace "W" {{
+                model {{
+                    u = person "User"
+                    s = softwareSystem "S" {{
+                        fn = container "Function" {{
+                            tags "Serverless"
+                        }}
+                    }}
+                    u -> fn "Calls"
+                }}
+                views {{
+                    container s "cont" {{ include * }}
+                    theme "{theme.as_uri()}"
+                }}
+            }}
+            """,
+            encoding="utf-8",
+        )
+        workspace = parse_dsl_file(source)
+        svg = render_view(workspace, _view(workspace, "cont"))
+        assert "<image" in svg
+        assert 'href="data:image/png;base64,' in svg
+        # Still nothing to fetch at view time.
+        assert 'href="file:' not in svg and 'href="http' not in svg
 
     @pytest.mark.parametrize(
         "key",

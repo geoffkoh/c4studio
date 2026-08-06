@@ -20,6 +20,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from pystructurizr.icons import inline_icons
 from pystructurizr.models import View, Workspace
 from pystructurizr.webapp.graph import react_flow_graph
 
@@ -77,6 +78,10 @@ def render_view(
     rendered positions come from the same layout code the browser runs —
     including any layout the user has saved for this view.
 
+    Theme icons are fetched once each and embedded as ``data:`` URIs, so
+    the result carries no external references; an icon that cannot be
+    fetched is dropped and its element renders without one.
+
     Args:
         workspace: The workspace the view belongs to.
         view: The view to render.
@@ -98,6 +103,9 @@ def render_view(
         )
 
     payload = react_flow_graph(workspace, view)
+    # Theme icons are remote URLs; embedding them here keeps the rendered
+    # file self-contained and keeps the Node side off the network.
+    inline_icons(payload)
     command = [node_executable(), str(script), "--padding", str(padding)]
     caption = title if title is not None else (view.title or view.key)
     if caption:

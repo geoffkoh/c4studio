@@ -15,6 +15,11 @@ const NODE_WIDTH = 200;
 const NODE_HEIGHT = 110;
 const PERSON_HEIGHT = 150;
 
+// An element with a theme icon needs room for it above the label, or the
+// description is squeezed out. Matches `.node__icon` (30px plus margins)
+// in the web app, where the box grows with its content.
+export const ICON_ALLOWANCE = 36;
+
 // Space between a boundary edge and its children; the bottom pad leaves
 // room for the boundary label.
 const BOUNDARY_PAD_X = 28;
@@ -32,11 +37,13 @@ interface Point {
 }
 
 function nodeSize(node: Node): Size {
-  const kind = (node.data as { kind?: string } | undefined)?.kind ?? "";
+  const data = node.data as { kind?: string; icon?: string } | undefined;
+  const kind = data?.kind ?? "";
+  const icon = data?.icon ? ICON_ALLOWANCE : 0;
   if (kind.startsWith("person")) {
-    return { width: NODE_WIDTH, height: PERSON_HEIGHT };
+    return { width: NODE_WIDTH, height: PERSON_HEIGHT + icon };
   }
-  return { width: NODE_WIDTH, height: NODE_HEIGHT };
+  return { width: NODE_WIDTH, height: NODE_HEIGHT + icon };
 }
 
 /**

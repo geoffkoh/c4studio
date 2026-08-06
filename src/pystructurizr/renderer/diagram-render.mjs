@@ -9105,13 +9105,16 @@ var BOUNDARY_PAD_X = 28;
 var BOUNDARY_PAD_TOP = 28;
 var BOUNDARY_PAD_BOTTOM = 56;
 function nodeSize(node) {
-	if ((node.data?.kind ?? "").startsWith("person")) return {
+	const data = node.data;
+	const kind = data?.kind ?? "";
+	const icon = data?.icon ? 36 : 0;
+	if (kind.startsWith("person")) return {
 		width: 200,
-		height: PERSON_HEIGHT
+		height: PERSON_HEIGHT + icon
 	};
 	return {
 		width: 200,
-		height: 110
+		height: 110 + icon
 	};
 }
 function dagreLevel(items, edges, direction) {
@@ -9340,6 +9343,8 @@ var PERSON_RADIUS = 18;
 var NODE_PAD_TOP = 10;
 var PERSON_PAD_TOP = 20;
 var PERSON_HEAD = 38;
+var ICON_SIZE = 30;
+var ICON_MARGIN_TOP = 2;
 var LABEL_SIZE = 13;
 var LABEL_LEADING = 16;
 var SMALL_SIZE = 10;
@@ -9443,7 +9448,7 @@ function place(nodes) {
 			x,
 			y,
 			width: Number(node.style?.width ?? 200),
-			height: Number(node.style?.height ?? (isPerson ? 150 : 110)),
+			height: Number(node.style?.height ?? (isPerson ? 150 : 110) + (data.icon ? 36 : 0)),
 			isBoundary,
 			isPerson,
 			data
@@ -9523,7 +9528,13 @@ function paintNode(node) {
 	parts.push(shapeMarkup(body, fill));
 	const centreX = node.x + node.width / 2;
 	const innerWidth = node.width - 24;
-	let cursor = body.y + (node.isPerson ? PERSON_PAD_TOP : NODE_PAD_TOP) + LABEL_SIZE;
+	let cursor = body.y + (node.isPerson ? PERSON_PAD_TOP : NODE_PAD_TOP);
+	const icon = node.data.icon;
+	if (icon && icon.startsWith("data:")) {
+		parts.push(`<image x="${round(centreX - ICON_SIZE / 2)}" y="${round(cursor + ICON_MARGIN_TOP)}" width="${ICON_SIZE}" height="${ICON_SIZE}" preserveAspectRatio="xMidYMid meet" href="${escapeXml(icon)}"/>`);
+		cursor += 36;
+	}
+	cursor += LABEL_SIZE;
 	for (const line of wrap(node.data.label ?? "", innerWidth, LABEL_SIZE, LABEL_MAX_LINES, true)) {
 		parts.push(textLine(line, centreX, cursor, LABEL_SIZE, colour, 1, 600));
 		cursor += LABEL_LEADING;
