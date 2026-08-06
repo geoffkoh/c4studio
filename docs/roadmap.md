@@ -320,11 +320,20 @@ Two findings that change the plan:
   faking one for every include is worse than injecting a `read()` — but it
   does mean the Confluence macro is not *blocked* on it.
 
-**What remains genuinely unknown is Forge Custom UI's CSP.** WASM
-instantiation typically needs `wasm-unsafe-eval`, and whether Forge
-permits it (via `permissions.content.scripts`) decides the whole design.
-That has to be verified against current Atlassian docs and then proved
-inside a real Forge app; nothing local can answer it.
+**What remains genuinely unknown is Forge Custom UI's CSP** (PP-98).
+Checking the docs narrowed it: Atlassian documents exactly five values for
+`permissions.content.scripts` — `unsafe-inline`, `unsafe-hashes`,
+`unsafe-eval`, `blob:` and script hashes. **`wasm-unsafe-eval`, the
+permission this section originally named, is not among them.**
+`unsafe-eval` is the CSP superset that also admits WASM compilation, so
+that is what to declare — but whether Forge's CSP behaves that way is
+exactly what must be measured rather than inferred.
+
+`spikes/forge-csp/` is a throwaway Forge app that answers it. Its first
+real step instantiates an **8-byte** WebAssembly module, which is what CSP
+actually gates, so the answer arrives in milliseconds rather than after
+~13 MB of Pyodide; loading Pyodide and installing the wheel follow only if
+that passes. Deploying it needs site-admin rights and the Forge CLI.
 
 If it fails, the damage is contained: view and export are already
 Python-free, so only the authoring path needs a different answer.

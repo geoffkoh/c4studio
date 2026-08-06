@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>pystructurizr CSP spike</title>
+    <style>
+      body {
+        font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Helvetica, Arial, sans-serif;
+        margin: 16px;
+        color: #172b4d;
+      }
+      h1 { font-size: 16px; margin: 0 0 12px; }
+      li { margin-bottom: 6px; }
+      .pass { color: #216e4e; font-weight: 600; }
+      .fail { color: #ae2e24; font-weight: 600; }
+      .pending { color: #626f86; }
+      pre {
+        background: #f1f2f4; padding: 8px; border-radius: 4px;
+        white-space: pre-wrap; word-break: break-word; font-size: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>pystructurizr CSP spike (PP-98)</h1>
+    <ol id="steps">
+      <li>WebAssembly present: <span id="s1" class="pending">…</span></li>
+      <li>Instantiate an 8-byte module: <span id="s2" class="pending">…</span></li>
+      <li>Load Pyodide from the CDN: <span id="s3" class="pending">…</span></li>
+      <li>Install the wheel + parse DSL: <span id="s4" class="pending">…</span></li>
+    </ol>
+    <pre id="log"></pre>
+
+    <script type="module">
+      // Step 2 is the real test and costs nothing: WebAssembly.instantiate
+      // is exactly what CSP gates. If it fails here, no amount of Pyodide
+      // downloading will help, and the answer arrives in milliseconds
+      // instead of after ~13 MB.
+      const log = (line) => {
+        document.getElementById("log").textContent += line + "\n";
+      };
+      const mark = (id, ok, detail) => {
+        const el = document.getElementById(id);
+        el.className = ok ? "pass" : "fail";
+        el.textContent = ok ? `yes${detail ? " — " + detail : ""}` : `NO — ${detail}`;
+      };
+
+      mark("s1", typeof WebAssembly !== "undefined", typeof WebAssembly);
+
+      // The smallest valid WebAssembly module: magic number + version.
+      const EMPTY_MODULE = new Uint8Array([0, 0x61, 0x73, 0x6d, 1, 0, 0, 0]);
+      try {
+        const t0 = performance.now();
+        await WebAssembly.instantiate(EMPTY_MODULE);
+        mark("s2", true, `${Math.round(performance.now() - t0)} ms`);
+        log("WASM instantiation is permitted under this CSP.");
+      } catch (error) {
+        mark("s2", false, String(error).slice(0, 160));
+        log("WASM instantiation BLOCKED. This is the answer PP-98 wants:");
+        log(String(error));
+        log("\nCheck the browser console for the CSP violation report — it");
+        log("names the directive that refused, which tells us whether");
+        log("`unsafe-eval` was insufficient or simply not applied.");
+      }
+
+      // Step 3+: only meaningful if step 2 passed.
+      if (document.getElementById("s2").className === "pass") {
+        try {
+          const t0 = performance.now();
+          const { loadPyodide } = await import(
+            "https://cdn.jsdelivr.net/pyodide/v0.28.0/full/pyodide.mjs"
+          );
+          const pyodide = await loadPyodide();
+          mark("s3", true, `${Math.round(performance.now() - t0)} ms`);
+          log("python: " + pyodide.runPython("import sys; sys.version"));
+
+          // The wheel is served from this app's own resource directory.
+          await pyodide.loadPackage("micropip");
+          const micropip = pyodide.pyimport("micropip");
+          const wheel = new URL("./pystructurizr_studio-0.1.0-py3-none-any.whl", import.meta.url);
+          const t1 = performance.now();
+          await micropip.install(wheel.href);
+          const result = pyodide.runPython(`
+import json
+from pystructurizr.parser.dsl import parse_dsl
+ws = parse_dsl('''
+workspace "Spike" {
+    model {
+        u = person "User"
+        s = softwareSystem "System"
+        u -> s "Uses"
+    }
+    views { systemContext s "ctx" { include * } }
+}
+''')
+json.dumps({"name": ws.name, "people": len(ws.people), "views": len(ws.views)})
+          `);
+          mark("s4", true, `${Math.round(performance.now() - t1)} ms`);
+          log("parsed: " + result);
+        } catch (error) {
+          const failed = document.getElementById("s3").className === "pending" ? "s3" : "s4";
+          mark(failed, false, String(error).slice(0, 160));
+          log(String(error));
+        }
+      } else {
+        for (const id of ["s3", "s4"]) {
+          document.getElementById(id).textContent = "skipped — WASM is blocked";
+        }
+      }
+    </script>
+  </body>
+</html>
