@@ -5,8 +5,21 @@ WebAssembly, and can it run Pyodide?** That decides whether Structurizr
 DSL can be parsed inside Confluence at all, and so whether the Confluence
 macro in `docs/roadmap.md` is buildable as designed.
 
-Throwaway. Delete it — or promote it into a real macro — once the answer
-is recorded in the roadmap.
+**Answered, August 2026: yes.** Deployed to `geoffkoh.atlassian.net` and
+run in a Confluence page:
+
+| Step | Result |
+| --- | --- |
+| Instantiate an 8-byte WebAssembly module | **yes — 2 ms** |
+| Load Pyodide 0.28 from jsDelivr | yes — 1,393 ms |
+| `micropip` the wheel and parse DSL | yes — 1,972 ms (`{"name": "Spike", "people": 1, "views": 1}`) |
+
+`unsafe-eval` admits WASM inside Custom UI. An author waits ~3.4 s on a
+cold macro edit, once — parsing happens at author time and the result is
+stored as workspace JSON, so view time stays Python-free.
+
+Throwaway now that it has served its purpose: delete it, or promote it
+into the real macro. The full write-up is in `docs/roadmap.md`.
 
 ## What it tests, in order
 
@@ -53,16 +66,31 @@ forge install --site geoffkoh.atlassian.net --product confluence
 Then add the **pystructurizr CSP spike** macro to any Confluence page and
 read the four lines it prints.
 
-## Recording the answer
+## What it cost to get here
 
-Whatever happens, put it in `docs/roadmap.md` — this is the item that can
-invalidate the Confluence design rather than merely cost time.
+Three things bit, none of them the CSP:
 
-- **If step 2 fails**, capture the CSP violation from the browser console.
-  It names the directive that refused, which distinguishes "`unsafe-eval`
-  was insufficient for WASM" from "the permission was not applied at all".
-  Damage is contained: view and export are already Python-free, so only
-  the authoring path needs a different answer.
-- **If it passes**, record the step 3 and 4 timings. They are what an
-  author waits for on a cold macro edit, and the Node measurements in
-  PP-96 (~1.1 s boot) are a floor, not a prediction.
+- `forge register --personal` is refused ("Personal apps are not allowed
+  in this developer space"); plain `forge register` into the space works.
+- The manifest schema requires `app.runtime` **even with no functions**.
+- Egress permissions want `- address: https://...`; the bare-string form
+  deploys but `forge lint` calls it deprecated.
+
+The CLI also warns it supports Node 22.x/24.x; everything here ran fine on
+Node 26.
+
+## The commands that worked
+
+```bash
+forge register "pystructurizr CSP spike" --accept-terms \
+  --developer-space-id <id from: forge developer-spaces list>
+(cd ../.. && uv build --wheel -o dist) && cp ../../dist/*.whl static/
+forge deploy --non-interactive
+forge install --site geoffkoh.atlassian.net --product confluence \
+  --environment development --non-interactive
+```
+
+Credentials come from `FORGE_EMAIL` / `FORGE_API_TOKEN` in the
+environment, so no token reaches `argv` or shell history. Note `forge
+login --non-interactive` insists on its own flags, but every other command
+honours the environment variables, so logging in is unnecessary.

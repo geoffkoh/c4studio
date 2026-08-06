@@ -22,21 +22,29 @@ resources:
     path: static
 
 app:
-  # `forge register` writes the real id here.
-  id: ari:cloud:ecosystem::app/REPLACE-WITH-FORGE-REGISTER
+  id: ari:cloud:ecosystem::app/ac82f26d-f568-484f-ab8f-f99a183deec4
+  # Required by the manifest schema even for an app with no functions:
+  # this spike is a static Custom UI resource and runs no backend code.
+  runtime:
+    name: nodejs22.x
 
 permissions:
   content:
     scripts:
-      # The grant under test. Pyodide also creates workers and object URLs.
-      - "unsafe-eval"
+      # PROVEN (PP-98): this is what admits WebAssembly. Forge does not
+      # offer `wasm-unsafe-eval`; `unsafe-eval` is the superset and it
+      # works — an 8-byte module instantiated in 2 ms inside the iframe.
+      - unsafe-eval
+      # Pyodide creates workers and object URLs.
       - "blob:"
   external:
     # Pyodide's runtime, wasm and package wheels all come from here. Both
-    # lists matter: `scripts` for loading pyodide.js, `fetch.client` for
-    # everything it then downloads itself.
+    # lists matter: `scripts` to load pyodide.mjs, `fetch.client` for
+    # everything it then downloads itself. The `- address:` object form is
+    # current; the bare-string form deploys but is deprecated.
     scripts:
-      - "https://cdn.jsdelivr.net"
+      - address: https://cdn.jsdelivr.net
     fetch:
       client:
-        - "https://cdn.jsdelivr.net"
+        - address: https://cdn.jsdelivr.net
+  scopes: []
