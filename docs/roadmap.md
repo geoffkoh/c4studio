@@ -273,26 +273,60 @@ auto-routing, not a fix for a defect.
   rewrites both sides, and the semantics — implied relationships,
   include/exclude resolution, view scoping, style cascade — stay
   duplicated. That is the expensive part.
+- **MicroPython instead of Pyodide.** Its WASM build is ~1.5 MB against
+  Pyodide's ~13 MB, which is genuinely tempting — and it cannot run this
+  code. Checked August 2026, three independent blockers: MicroPython's
+  `re` documents that named groups `(?P<name>...)` and counted
+  repetitions `{m,n}` are **not supported**, and 31 of the core's 38
+  patterns use named groups (the tokenizer is one alternation of them);
+  `dataclasses` does not exist in micropython-lib (`python-stdlib`,
+  `python-ecosys`, `micropython` and `unix-ffi` all checked) and the model
+  is 38 dataclasses; `enum` and `typing` are likewise absent, against 16
+  enum classes. Making 7,388 lines of core run there is the
+  port-the-parser cost in a less pleasant language. The size argument also
+  matters less than it looks: Pyodide loads once at *author* time, and
+  view time is already Python-free.
+
 - **A GitHub markdown plugin.** There is no third-party renderer API for
   github.com; Mermaid renders because GitHub ships it. Generated Mermaid
   is the integration.
 - **Interactive diagrams inline in GitHub markdown.** Sanitized — no JS,
   no scripted SVG. GitHub Pages and github.dev are the interactive routes.
 
-### Open risk to spike before committing
+### Open risk: Forge's CSP (the rest of the spike is done)
 
-Forge Custom UI's CSP: WASM instantiation typically needs
-`wasm-unsafe-eval`, and whether Forge permits it (via
-`permissions.content.scripts`) decides the whole design. Verify against
-current Atlassian docs, then prove it end to end — load Pyodide,
-`micropip` the wheel, parse `samples/internet_banking.dsl`, emit workspace
-JSON. Secondary: app bundle size (load the Pyodide runtime from its CDN —
-that fetches code, it does not send the DSL anywhere) and the CPython
-version Pyodide ships versus this project's `requires-python = ">=3.13"`
-floor, which looks like metadata rather than a real dependency (no PEP 695
-generics or other 3.13-only syntax in the core).
+**Everything that could be proved off Atlassian, has been** — run in Node
+against Pyodide 314.0.4, August 2026:
 
-If the spike fails, the damage is contained: view and export are already
+| Question | Answer |
+| --- | --- |
+| Does Pyodide's CPython satisfy `requires-python = ">=3.13"`? | **Yes** — Pyodide 314 ships CPython **3.14.2**. Not the blocker it looked like. |
+| Does our own wheel install under `micropip`? | **Yes**, with `deps=false` (see below). 36 ms. |
+| Does the parser actually run? | **Yes.** `samples/internet_banking.dsl` parses in **2 ms**; workspace JSON export and Mermaid generation both work. |
+| Does the *hard* sample work — `!include`, `!docs`, `!adrs`? | **Yes**, against Pyodide's virtual filesystem: `samples/hedge_fund` gives 10 systems, 20 containers, 13 views, 2 deployment nodes, 3 doc sections, 3 ADRs, no warnings, in **8 ms**. |
+| Cold start? | **~1.1 s** to boot Pyodide, plus 36 ms to install the wheel. The roadmap's "a one-off second or two" was right. |
+
+Two findings that change the plan:
+
+- **The wheel cannot install with its dependencies.** `uvicorn[standard]`
+  pulls `httptools`, `watchfiles` and `uvloop`, which are compiled and
+  have no pure-Python wheels, so `micropip` refuses. `deps=false` works
+  because the core genuinely is stdlib-only — but relying on that flag is
+  fragile. `click`/`pydantic`/`fastapi`/`uvicorn` should become optional
+  extras so the core wheel is dependency-free.
+- **`!include` works without `SourceResolver`** if the host writes the DSL
+  fragments into the virtual filesystem first. That does not retire the
+  `SourceResolver` item — Confluence storage is not a filesystem, and
+  faking one for every include is worse than injecting a `read()` — but it
+  does mean the Confluence macro is not *blocked* on it.
+
+**What remains genuinely unknown is Forge Custom UI's CSP.** WASM
+instantiation typically needs `wasm-unsafe-eval`, and whether Forge
+permits it (via `permissions.content.scripts`) decides the whole design.
+That has to be verified against current Atlassian docs and then proved
+inside a real Forge app; nothing local can answer it.
+
+If it fails, the damage is contained: view and export are already
 Python-free, so only the authoring path needs a different answer.
 
 ### Sequencing
@@ -300,12 +334,15 @@ Python-free, so only the authoring path needs a different answer.
 ~~Mermaid-from-graph-model~~ (PP-88) → ~~flowchart target~~ (PP-89) →
 ~~`diagram-core` extraction~~ (PP-92) → ~~headless renderer~~ (PP-93) →
 ~~GitHub Action~~ (PP-95) (all useful to the local tool on their
-own merits, and none of them depend on Forge) → Pyodide spike →
-`SourceResolver` → Confluence macro → github.dev.
+own merits, and none of them depend on Forge) → ~~Pyodide spike~~
+(PP-96, everything but the Forge CSP question) → dependency-free core
+wheel → Forge CSP verification → `SourceResolver` → Confluence macro →
+github.dev.
 
-**Next up: the headless SVG renderer**, which needs the `diagram-core`
-extraction first — and that is where the elkjs question below gets
-answered rather than deferred again.
+**Next up: the Forge CSP verification**, the one remaining item that can
+invalidate a design rather than merely cost time. Splitting the core's
+dependencies out of the wheel can proceed in parallel, since it is
+worthwhile on its own.
 
 ## Delivery conventions (unchanged)
 
