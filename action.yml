@@ -1,0 +1,146 @@
+name: "pystructurizr diagrams"
+description: >-
+  Render Structurizr DSL/JSON views as SVG on every push and pull request,
+  and optionally commit them or comment on the PR.
+author: "Geoffrey Koh"
+
+branding:
+  icon: layers
+  color: blue
+
+inputs:
+  workspace:
+    description: "Path to the .dsl or .json workspace file to render."
+    required: true
+  output:
+    description: "Directory the SVG files are written to (one per view)."
+    required: false
+    default: diagrams
+  view:
+    description: "Render only this view key. Renders every view when empty."
+    required: false
+    default: ""
+  mode:
+    description: >-
+      render: write the files and stop (upload them yourself).
+      commit: push the files back when they changed.
+      comment: leave a pull request comment listing the changed diagrams.
+    required: false
+    default: render
+  version:
+    description: >-
+      pip requirement for the renderer, e.g. "pystructurizr-studio==0.1.0".
+      Use "local" to install the checked-out repository instead, which is
+      how this repository dogfoods the action.
+    required: false
+    default: pystructurizr-studio
+  commit-message:
+    description: "Commit message used by mode: commit."
+    required: false
+    default: "chore: update rendered diagrams"
+  token:
+    description: "Token used by mode: comment. Needs pull-requests: write."
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  diagrams-path:
+    description: "Directory containing the rendered SVG files."
+    value: ${{ inputs.output }}
+  changed:
+    description: "true when the rendered files differ from what is committed."
+    value: ${{ steps.render.outputs.changed }}
+
+runs:
+  using: composite
+  steps:
+    # `render` shells out to Node, which every GitHub-hosted runner has.
+    # Checked explicitly so a self-hosted runner without it fails here,
+    # with an explanation, rather than inside the renderer.
+    - name: Check prerequisites
+      shell: bash
+      run: |
+        if ! command -v node >/dev/null 2>&1; then
+          echo "::error::pystructurizr render needs Node.js, which is not on PATH. GitHub-hosted runners include it; on a self-hosted runner add actions/setup-node before this step."
+          exit 1
+        fi
+        echo "node $(node --version), python $(python3 --version)"
+
+    - name: Install pystructurizr
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+      run: |
+        if [ "$VERSION" = "local" ]; then
+          spec="${{ github.action_path }}"
+        else
+          spec="$VERSION"
+        fi
+        echo "installing $spec"
+        python3 -m pip install --disable-pip-version-check --quiet "$spec"
+
+    # Parse errors are reported as diagnostics rather than a traceback, so
+    # a broken model reads like a normal CI failure.
+    - name: Check the workspace
+      shell: bash
+      run: |
+        if ! pystructurizr check "${{ inputs.workspace }}"; then
+          echo "::error file=${{ inputs.workspace }}::the workspace has errors; see the diagnostics above"
+          exit 1
+        fi
+
+    - name: Render
+      id: render
+      shell: bash
+      run: |
+        args=("${{ inputs.workspace }}" --output "${{ inputs.output }}")
+        if [ -n "${{ inputs.view }}" ]; then
+          args+=(--view "${{ inputs.view }}")
+        fi
+        pystructurizr render "${args[@]}"
+        # Rendering is deterministic, so anything git reports here is a
+        # real change to the model or its layout.
+        if [ -n "$(git status --porcelain -- "${{ inputs.output }}")" ]; then
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "changed=false" >> "$GITHUB_OUTPUT"
+        fi
+        {
+          echo "### Rendered diagrams"
+          echo
+          for file in "${{ inputs.output }}"/*.svg; do
+            [ -e "$file" ] || continue
+            echo "- \`$file\`"
+          done
+        } >> "$GITHUB_STEP_SUMMARY"
+
+    - name: Commit
+      if: inputs.mode == 'commit' && steps.render.outputs.changed == 'true'
+      shell: bash
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git add "${{ inputs.output }}"
+        git commit -m "${{ inputs.commit-message }}"
+        git push
+
+    - name: Comment
+      if: inputs.mode == 'comment' && github.event_name == 'pull_request'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+      run: |
+        if [ "${{ steps.render.outputs.changed }}" != "true" ]; then
+          echo "no diagram changes; skipping the comment"
+          exit 0
+        fi
+        {
+          echo "**Diagrams changed in this pull request**"
+          echo
+          git status --porcelain -- "${{ inputs.output }}" | while read -r status file; do
+            echo "- \`$file\` ($status)"
+          done
+          echo
+          echo "_Rendered by [pystructurizr](https://github.com/geoffkoh/pystructurizr)._"
+        } > /tmp/pystructurizr-comment.md
+        gh pr comment "${{ github.event.number }}" --body-file /tmp/pystructurizr-comment.md

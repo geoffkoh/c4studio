@@ -131,6 +131,43 @@ a file renders identically wherever it is opened.
 > Set `PYSTRUCTURIZR_NODE` if `node` is not on your `PATH`. Parsing,
 > Mermaid generation, JSON export and the web app all work without it.
 
+## GitHub Action
+
+Render the diagrams on every push and pull request, so reviewers see the
+architecture change alongside the code change:
+
+```yaml
+name: Diagrams
+on: [push, pull_request]
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: geoffkoh/pystructurizr@v1
+        id: diagrams
+        with:
+          workspace: docs/architecture.dsl
+      - uses: actions/upload-artifact@v4
+        with:
+          name: diagrams
+          path: ${{ steps.diagrams.outputs.diagrams-path }}
+```
+
+| Input | Default | What it does |
+| --- | --- | --- |
+| `workspace` | *required* | The `.dsl` or `.json` file to render |
+| `output` | `diagrams` | Directory for the SVGs, one per view |
+| `view` | *(all)* | Render a single view key |
+| `mode` | `render` | `render`, `commit` (push the files back when they change) or `comment` (comment on the PR) |
+| `version` | `pystructurizr-studio` | pip requirement to install; `local` uses the checkout |
+
+The action checks the workspace before rendering, so a parse error fails
+the job with diagnostics rather than a traceback, and sets a `changed`
+output. Because rendering is deterministic, `mode: commit` produces no
+diff when the model has not changed.
+
 ## Workspace JSON Export
 
 Export any workspace (DSL or JSON) back to Structurizr workspace JSON,
