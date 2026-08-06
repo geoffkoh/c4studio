@@ -335,8 +335,8 @@ Python-free, so only the authoring path needs a different answer.
 ~~`diagram-core` extraction~~ (PP-92) → ~~headless renderer~~ (PP-93) →
 ~~GitHub Action~~ (PP-95) (all useful to the local tool on their
 own merits, and none of them depend on Forge) → ~~Pyodide spike~~
-(PP-96, everything but the Forge CSP question) → dependency-free core
-wheel → Forge CSP verification → `SourceResolver` → Confluence macro →
+(PP-96, everything but the Forge CSP question) → ~~dependency-free core
+wheel~~ (PP-97) → Forge CSP verification → `SourceResolver` → Confluence macro →
 github.dev.
 
 **Next up: the Forge CSP verification**, the one remaining item that can

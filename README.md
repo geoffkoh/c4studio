@@ -9,14 +9,25 @@ belongs to an unrelated project); the import package and the CLI are
 still `pystructurizr`:
 
 ```bash
-pipx install pystructurizr-studio          # or: pip install pystructurizr-studio
+# The viewer and everything else:
+pipx install "pystructurizr-studio[webapp]"
 pystructurizr webapp my-architecture.dsl
 
 # or run without installing:
-uvx --from pystructurizr-studio pystructurizr webapp my-architecture.dsl
+uvx --from "pystructurizr-studio[webapp]" pystructurizr webapp my-architecture.dsl
 ```
 
 Requires Python 3.13+ (uv/uvx can provision it automatically).
+
+The **`webapp` extra** brings FastAPI, uvicorn and pydantic, which the
+local viewer needs. Without it you still get the full CLI — parsing,
+`generate`, `render`, `export`, `check` — and the base distribution then
+depends on nothing but `click`, which is what lets the same wheel run in
+a browser under Pyodide.
+
+```bash
+pip install pystructurizr-studio            # CLI only, no web stack
+```
 
 ## Quick Start
 
