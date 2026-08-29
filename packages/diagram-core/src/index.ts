@@ -16,6 +16,7 @@
 export {
   layoutGraph,
   normalizeStoredPositions,
+  chromePlacement,
   NODE_WIDTH,
   NODE_HEIGHT,
   ICON_ALLOWANCE,
@@ -40,3 +41,10 @@ export { ElementNode, type ElementNodeData } from "./components/ElementNode";
 export { BoundaryNode, type BoundaryNodeData } from "./components/BoundaryNode";
 export { FloatingEdge, type FloatingEdgeData } from "./components/FloatingEdge";
 export { ExportButtons } from "./components/ExportButtons";
+export {
+  ChromeNode,
+  CHROME_PREFIX,
+  isChromeNode,
+  type ChromeNodeData,
+  type LegendEntryData,
+} from "./components/ChromeNode";

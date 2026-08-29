@@ -115,7 +115,9 @@ class TestIncludeMode:
 class TestEdgeCases:
     def test_missing_base_view_yields_empty_graph(self, workspace: Workspace) -> None:
         data = build_view_graph(workspace, _view(workspace, "Broken"))
-        assert data == {"nodes": [], "edges": []}
+        # Every view type carries a legend key now (PP-99); an empty view
+        # simply has nothing to explain.
+        assert data == {"nodes": [], "edges": [], "legend": []}
 
     def test_rank_direction_inherited_from_base_view(
         self, workspace: Workspace

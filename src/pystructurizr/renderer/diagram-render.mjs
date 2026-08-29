@@ -9256,16 +9256,6 @@ async function layoutGraph(nodes, edges, direction = "TB") {
 		};
 	});
 }
-/**
-* Adapt stored (absolute) positions to React Flow's nested-node model.
-*
-* Stored layouts predate boundaries and are absolute; children of a
-* boundary must be positioned relative to it. Groups are re-derived from
-* their children's bounding boxes. Multi-level nesting (deployment views)
-* has no stored layouts in practice, so only one level is handled; deeper
-* graphs fall back to a fresh auto-layout — which is why this is async
-* too, despite doing no asynchronous work of its own.
-*/
 async function normalizeStoredPositions(nodes, edges) {
 	const { parentOf, childrenOf } = buildHierarchy(nodes);
 	if (nodes.some((n) => {
@@ -9360,6 +9350,16 @@ var BOUNDARY_FILL = "rgba(144,164,174,0.07)";
 var BOUNDARY_RADIUS = 10;
 var BOUNDARY_LABEL_SIZE = 12;
 var BOUNDARY_LABEL_COLOUR = "#546e7a";
+var TITLE_SIZE = 18;
+var TITLE_COLOUR = "#172b4d";
+var LEGEND_SWATCH = 14;
+var LEGEND_ROW = 22;
+var LEGEND_LABEL_SIZE = 11;
+var LEGEND_LABEL_COLOUR = "#44546f";
+var LEGEND_GAP = 24;
+var LEGEND_PAD = 12;
+var LEGEND_COLUMN_WIDTH = 220;
+var LEGEND_MAX_ROWS = 6;
 var EDGE_COLOUR = "#b1b1b7";
 var EDGE_WIDTH = 1;
 var ARROW = 10;
@@ -9597,6 +9597,58 @@ function paintEdge(edge, placed) {
 	const width = line.length * EDGE_LABEL_SIZE * CHAR_RATIO + 10;
 	return path + `<rect x="${round(cx - width / 2)}" y="${round(cy - 8)}" width="${round(width)}" height="16" rx="4" ry="4" fill="${EDGE_LABEL_BG}" stroke="${EDGE_LABEL_BORDER}"/>` + textLine(line, cx, cy + 3.5, EDGE_LABEL_SIZE, EDGE_LABEL_COLOUR);
 }
+/** A miniature of the node shape, so the swatch reads as what it explains. */
+function legendSwatch(entry, x, y) {
+	const size = LEGEND_SWATCH;
+	const half = size / 2;
+	const fill = entry.colour || FALLBACK_FILL;
+	const stroke = ` stroke="${NODE_STROKE}" stroke-width="1"`;
+	switch (entry.shape) {
+		case "Boundary": return `<rect x="${round(x)}" y="${round(y)}" width="${size}" height="${size}" rx="3" fill="none" stroke="${BOUNDARY_STROKE}" stroke-width="1.5" stroke-dasharray="3 2"/>`;
+		case "Person":
+		case "Robot": return `<circle cx="${round(x + half)}" cy="${round(y + 4)}" r="3.5" fill="${fill}"${stroke}/><rect x="${round(x)}" y="${round(y + 6)}" width="${size}" height="8" rx="3" fill="${fill}"${stroke}/>`;
+		case "Cylinder":
+		case "Bucket":
+		case "Pipe": return `<rect x="${round(x)}" y="${round(y + 3)}" width="${size}" height="8" fill="${fill}"${stroke}/><ellipse cx="${round(x + half)}" cy="${round(y + 3)}" rx="${half}" ry="3" fill="${fill}"${stroke}/>`;
+		case "Circle":
+		case "Ellipse": return `<circle cx="${round(x + half)}" cy="${round(y + half)}" r="${half}" fill="${fill}"${stroke}/>`;
+		case "Hexagon": return `<polygon points="${[
+			[x + 3, y],
+			[x + size - 3, y],
+			[x + size, y + half],
+			[x + size - 3, y + size],
+			[x + 3, y + size],
+			[x, y + half]
+		].map(([px, py]) => `${round(px)},${round(py)}`).join(" ")}" fill="${fill}"${stroke}/>`;
+		case "Box": return `<rect x="${round(x)}" y="${round(y)}" width="${size}" height="${size}" fill="${fill}"${stroke}/>`;
+		default: return `<rect x="${round(x)}" y="${round(y)}" width="${size}" height="${size}" rx="3" fill="${fill}"${stroke}/>`;
+	}
+}
+/**
+* Lay the legend out in columns of at most LEGEND_MAX_ROWS, so a themed
+* deployment view with a dozen service styles grows sideways instead of
+* doubling the height of the image.
+*/
+function paintLegend(entries, x, y) {
+	const rows = Math.min(entries.length, LEGEND_MAX_ROWS);
+	const width = Math.ceil(entries.length / LEGEND_MAX_ROWS) * LEGEND_COLUMN_WIDTH + 24;
+	const height = rows * LEGEND_ROW + 24;
+	const parts = [`<rect x="${round(x)}" y="${round(y)}" width="${round(width)}" height="${round(height)}" rx="6" fill="#ffffff" stroke="${EDGE_LABEL_BORDER}"/>`];
+	entries.forEach((entry, index) => {
+		const column = Math.floor(index / LEGEND_MAX_ROWS);
+		const row = index % LEGEND_MAX_ROWS;
+		const cellX = x + LEGEND_PAD + column * LEGEND_COLUMN_WIDTH;
+		const cellY = y + LEGEND_PAD + row * LEGEND_ROW;
+		parts.push(legendSwatch(entry, cellX, cellY + 3));
+		const [label] = wrap(entry.label, 186, LEGEND_LABEL_SIZE, 1);
+		parts.push(textLine(label ?? "", cellX + LEGEND_SWATCH + 8, cellY + LEGEND_SWATCH - 2, LEGEND_LABEL_SIZE, LEGEND_LABEL_COLOUR, 1, 400, "start"));
+	});
+	return {
+		markup: parts.join(""),
+		width,
+		height
+	};
+}
 /** Build the React Flow nodes/edges the layout expects, as the SPA does. */
 function toFlow(payload) {
 	return {
@@ -9638,9 +9690,16 @@ async function renderSvg(payload, options = {}) {
 	const minY = Math.min(...boxes.map((b) => b.y));
 	const maxX = Math.max(...boxes.map((b) => b.x + b.width));
 	const maxY = Math.max(...boxes.map((b) => b.y + b.height));
-	const width = round(maxX - minX + 2 * padding);
-	const height = round(maxY - minY + 2 * padding);
-	const shift = `translate(${round(padding - minX)},${round(padding - minY)})`;
+	const diagramWidth = maxX - minX;
+	const diagramHeight = maxY - minY;
+	const title = options.title ?? "";
+	const drawTitle = title !== "" && options.showTitle !== false;
+	const titleHeight = drawTitle ? 38 : 0;
+	const entries = payload.legend ?? [];
+	const legend = entries.length > 0 && options.showLegend !== false ? paintLegend(entries, padding, padding + titleHeight + diagramHeight + LEGEND_GAP) : null;
+	const width = round(Math.max(diagramWidth, legend ? legend.width : 0) + 2 * padding);
+	const height = round(titleHeight + diagramHeight + (legend ? LEGEND_GAP + legend.height : 0) + 2 * padding);
+	const shift = `translate(${round(padding - minX)},${round(padding + titleHeight - minY)})`;
 	const boundaries = boxes.filter((b) => b.isBoundary);
 	const leaves = boxes.filter((b) => !b.isBoundary);
 	const body = [
@@ -9648,9 +9707,10 @@ async function renderSvg(payload, options = {}) {
 		...payload.edges.map((edge) => paintEdge(edge, placed)),
 		...leaves.map(paintNode)
 	].join("");
+	const heading = drawTitle ? textLine(title, padding, padding + TITLE_SIZE, TITLE_SIZE, TITLE_COLOUR, 1, 600, "start") : "";
 	const background = options.background === null ? "" : `<rect width="100%" height="100%" fill="${options.background ?? "#ffffff"}"/>`;
-	const title = options.title ? `<title>${escapeXml(options.title)}</title>` : "";
-	return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" font-family="${FONT}">` + title + `<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="${ARROW}" markerHeight="${ARROW}" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="${EDGE_COLOUR}"/></marker></defs>` + background + `<g transform="${shift}">${body}</g></svg>\n`;
+	const titleTag = title ? `<title>${escapeXml(title)}</title>` : "";
+	return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" font-family="${FONT}">` + titleTag + `<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="${ARROW}" markerHeight="${ARROW}" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="${EDGE_COLOUR}"/></marker></defs>` + background + heading + `<g transform="${shift}">${body}</g>` + (legend ? legend.markup : "") + `</svg>\n`;
 }
 //#endregion
 //#region src/cli.ts

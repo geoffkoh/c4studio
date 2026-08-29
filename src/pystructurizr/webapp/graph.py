@@ -110,6 +110,9 @@ def react_flow_graph(
     return {
         "nodes": nodes,
         "edges": edges,
+        # Derived once in the graph layer so the viewer, the toolbar export
+        # and headless render all show the same legend (PP-99).
+        "legend": graph_data.get("legend", []),
         "rankDirection": direction,
         "rankSeparation": rank_separation,
         "nodeSeparation": node_separation,

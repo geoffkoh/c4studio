@@ -26,6 +26,11 @@ const BOUNDARY_PAD_X = 28;
 const BOUNDARY_PAD_TOP = 28;
 const BOUNDARY_PAD_BOTTOM = 56;
 
+// Clearance for the diagram's own title and legend, which sit outside the
+// laid-out bounds so they cannot collide with an element.
+const TITLE_OFFSET = 64;
+const LEGEND_OFFSET = 48;
+
 interface Size {
   width: number;
   height: number;
@@ -231,6 +236,35 @@ export async function layoutGraph(
  * graphs fall back to a fresh auto-layout — which is why this is async
  * too, despite doing no asynchronous work of its own.
  */
+/**
+ * Where the title and legend go: above and below the laid-out diagram.
+ *
+ * Computed from the real nodes only, then the chrome is appended — it must
+ * never take part in the layout it describes, nor be saved as if it were a
+ * model element.
+ */
+export function chromePlacement(nodes: Node[]): {
+  title: { x: number; y: number };
+  legend: { x: number; y: number };
+} {
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+  for (const node of nodes) {
+    const height = Number(node.style?.height ?? nodeSize(node).height);
+    minX = Math.min(minX, node.position.x);
+    minY = Math.min(minY, node.position.y);
+    maxY = Math.max(maxY, node.position.y + height);
+  }
+  if (!Number.isFinite(minX)) {
+    return { title: { x: 0, y: 0 }, legend: { x: 0, y: 0 } };
+  }
+  return {
+    title: { x: minX, y: minY - TITLE_OFFSET },
+    legend: { x: minX, y: maxY + LEGEND_OFFSET },
+  };
+}
+
 export async function normalizeStoredPositions(
   nodes: Node[],
   edges: Edge[],

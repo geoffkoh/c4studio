@@ -123,6 +123,9 @@ uv run pystructurizr render architecture.dsl -o diagrams/   # one .svg per view
 uv run pystructurizr render architecture.dsl -v Containers  # one view to stdout
 ```
 
+Each diagram carries its own title and a legend of the styles it actually
+uses, so an exported file explains itself to someone who did not build it.
+
 The output is self-contained: no external fonts or stylesheets, and theme
 icons (the AWS/Azure/GCP service logos) are fetched once and embedded as
 `data:` URIs, so a file renders identically wherever it is opened — even

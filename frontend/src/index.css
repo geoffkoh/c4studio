@@ -1357,3 +1357,73 @@ button {
   background: #fdecea;
   color: #c62828;
 }
+
+/* ---- Diagram title and legend (PP-99) ---- */
+/* These live inside the React Flow viewport, not in a Panel, so PNG/SVG
+   export captures them along with the nodes. */
+.diagram-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #172b4d;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.legend {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(6, auto);
+  gap: 6px 22px;
+  pointer-events: none;
+}
+
+.legend__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.legend__label {
+  font-size: 11px;
+  color: #44546f;
+  white-space: nowrap;
+}
+
+.legend__swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  flex-shrink: 0;
+}
+
+.legend__swatch--box { border-radius: 0; }
+.legend__swatch--circle { border-radius: 50%; }
+.legend__swatch--cylinder { border-radius: 50% / 22%; }
+.legend__swatch--hexagon {
+  clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
+}
+.legend__swatch--person {
+  border-radius: 3px 3px 3px 3px;
+  position: relative;
+}
+.legend__swatch--person::before {
+  content: "";
+  position: absolute;
+  top: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: inherit;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+}
+.legend__swatch--boundary {
+  background: none;
+  border: 1.5px dashed #90a4ae;
+}

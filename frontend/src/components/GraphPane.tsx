@@ -24,6 +24,10 @@ import "reactflow/dist/style.css";
 
 import {
   BoundaryNode,
+  ChromeNode,
+  CHROME_PREFIX,
+  chromePlacement,
+  isChromeNode,
   EDGE_PAINT,
   ElementNode,
   ExportButtons,
@@ -43,7 +47,11 @@ import {
 } from "./EdgeContextMenu";
 import { KeyboardShortcuts } from "./KeyboardShortcuts";
 
-const NODE_TYPES: NodeTypes = { element: ElementNode, boundary: BoundaryNode };
+const NODE_TYPES: NodeTypes = {
+  element: ElementNode,
+  boundary: BoundaryNode,
+  chrome: ChromeNode,
+};
 const EDGE_TYPES: EdgeTypes = { floating: FloatingEdge };
 
 /** Relationship line routing, rendered by the floating edge. */
@@ -219,7 +227,37 @@ async function toFlow(
   const positioned = anyMissingPosition
     ? await layoutGraph(nodes, edges, data.rankDirection)
     : await normalizeStoredPositions(nodes, edges);
-  return { nodes: positioned, edges };
+
+  // The diagram's own title and legend. Added after layout and excluded
+  // from saved layouts (see absolutePositions): they describe the diagram
+  // rather than belonging to it. They live inside the viewport, not in a
+  // Panel, so PNG/SVG export captures them.
+  const placement = chromePlacement(positioned);
+  const chrome: Node[] = [];
+  const title = view.title || view.key;
+  if (title) {
+    chrome.push({
+      id: `${CHROME_PREFIX}title`,
+      type: "chrome",
+      position: placement.title,
+      data: { kind: "title", title },
+      draggable: false,
+      selectable: false,
+      deletable: false,
+    });
+  }
+  if (data.legend && data.legend.length > 0) {
+    chrome.push({
+      id: `${CHROME_PREFIX}legend`,
+      type: "chrome",
+      position: placement.legend,
+      data: { kind: "legend", entries: data.legend },
+      draggable: false,
+      selectable: false,
+      deletable: false,
+    });
+  }
+  return { nodes: [...positioned, ...chrome], edges };
 }
 
 // Expand/collapse and re-layout transitions tween between the old and new
@@ -248,6 +286,9 @@ function absolutePositions(nodes: Node[]): Record<string, [number, number]> {
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const positions: Record<string, [number, number]> = {};
   for (const node of nodes) {
+    // The title and legend are not model elements; persisting them would
+    // put junk ids in the user's layout sidecar.
+    if (isChromeNode(node.id)) continue;
     let x = node.position.x;
     let y = node.position.y;
     let parent = node.parentNode ? byId.get(node.parentNode) : undefined;
