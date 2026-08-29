@@ -9,6 +9,11 @@ import type { AlignMode, DistributeMode } from "@pystructurizr/diagram-core";
  * React Flow gives multi-selection (Shift+drag, Cmd/Ctrl+click) and moves a
  * selection together, but offers nothing for tidying one up — which is the
  * main reason to select several nodes on a diagram.
+ *
+ * It takes a row of its own below the breadcrumb and the mouse/edge
+ * toolbar: those two already fill the top row on a narrow window, and this
+ * one is contextual, so a second row exists only while something is
+ * selected. Grouped with titles and dividers to match the toolbar above it.
  */
 
 interface SelectionToolsProps {
@@ -44,6 +49,8 @@ export function SelectionTools({
   return (
     <Panel position="top-center" className="selection-tools">
       <span className="selection-tools__count">{count} selected</span>
+      <span className="selection-tools__sep" />
+      <span className="selection-tools__title">Align</span>
       {ALIGNMENTS.map((item) => (
         <button
           key={item.mode}
@@ -56,6 +63,7 @@ export function SelectionTools({
         </button>
       ))}
       <span className="selection-tools__sep" />
+      <span className="selection-tools__title">Space</span>
       {DISTRIBUTIONS.map((item) => (
         <button
           key={item.mode}

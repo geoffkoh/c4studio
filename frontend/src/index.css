@@ -681,12 +681,24 @@ button {
   border-radius: 8px;
   padding: 4px 8px;
   box-shadow: var(--shadow);
+  /* A deep drill-down would otherwise run under the toolbar on the right,
+     which has no width limit of its own. Reserve that toolbar's width
+     (~470px with every group shown) plus the two 15px panel margins; the
+     crumb text ellipsises inside whatever is left. If the toolbar gains
+     controls, this number moves with it. */
+  max-width: calc(100% - 500px);
+  overflow: hidden;
 }
 
 .breadcrumb__item {
   display: inline-flex;
   align-items: center;
   gap: 2px;
+  /* Ellipsis inside a flex row needs the item allowed to shrink. */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .breadcrumb__crumb {
@@ -697,6 +709,13 @@ button {
   color: var(--accent);
   padding: 2px 5px;
   border-radius: 4px;
+  /* The crumb holds the text, so it is what must shrink and ellipsise;
+     min-width:0 overrides the flex default that refuses to shrink below
+     content size. */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .breadcrumb__crumb:hover {
@@ -1442,21 +1461,38 @@ button {
 /* ---- Align / distribute toolbar (PP-101) ---- */
 /* Appears only while several nodes are selected, so it costs no chrome
    the rest of the time. */
+/* Every React Flow panel gets `margin: 15px` at `top: 0`, so the top row
+   is one ~34px band shared by the breadcrumb (top-left) and the mouse/edge
+   toolbar (top-right). Both grow with content and would overlap a centred
+   panel on any window under ~1200px, so this one takes a second row. It is
+   contextual, so that row exists only while a selection does. */
+.react-flow__panel.selection-tools {
+  margin-top: 58px;
+}
+
 .selection-tools {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 4px 8px;
+  border-radius: 8px;
+  padding: 4px 6px;
   box-shadow: var(--shadow);
+}
+
+.selection-tools__title {
+  font-size: 11px;
+  color: var(--muted);
+  padding: 0 4px;
+  white-space: nowrap;
 }
 
 .selection-tools__count {
   font-size: 11px;
-  color: var(--muted);
-  margin-right: 4px;
+  font-weight: 600;
+  color: #44546f;
+  padding-left: 2px;
   white-space: nowrap;
 }
 
@@ -1487,4 +1523,5 @@ button {
   height: 16px;
   background: var(--border);
   margin: 0 4px;
+  flex-shrink: 0;
 }
