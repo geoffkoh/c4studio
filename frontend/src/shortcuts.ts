@@ -15,7 +15,7 @@ export function isTypingTarget(target: EventTarget | null): boolean {
 export const GESTURES: readonly { keys: string; action: string }[] = [
   { keys: "Drag", action: "Pan, or select in a box — whichever mode is on" },
   { keys: "Shift + drag", action: "Select in a box (either mode)" },
-  { keys: "⌘ + click", action: "Add / remove one node from the selection" },
+  { keys: "⌘ / Ctrl + click", action: "Add / remove one node from the selection" },
   { keys: "Middle drag", action: "Pan the diagram" },
   { keys: "Right-click edge", action: "Bend points menu for a relationship" },
   { keys: "Scroll", action: "Zoom in pan mode, pan in select mode" },
@@ -27,6 +27,8 @@ export const SHORTCUTS: readonly { keys: string; action: string }[] = [
   { keys: "j / k", action: "Next / previous view" },
   { keys: "u", action: "Up one level (breadcrumb)" },
   { keys: "f", action: "Fit diagram to window" },
+  { keys: "↑ ↓ ← →", action: "Nudge the selection by 1px" },
+  { keys: "Shift + arrows", action: "Nudge the selection by 10px" },
   { keys: "p", action: "Export diagram as PNG" },
   { keys: "s", action: "Export diagram as SVG" },
   { keys: "h", action: "Toggle hover emphasis" },
