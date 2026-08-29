@@ -125,13 +125,14 @@ export function saveLayout(
   positions: Record<string, [number, number]>,
   sizes: Record<string, [number, number]> = {},
   waypoints: Record<string, [number, number][]> = {},
+  labels: Record<string, [number, number]> = {},
 ): Promise<LayoutResult> {
   return request<LayoutResult>(
     `/api/views/${encodeURIComponent(key)}/layout`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ positions, sizes, waypoints }),
+      body: JSON.stringify({ positions, sizes, waypoints, labels }),
     },
   );
 }

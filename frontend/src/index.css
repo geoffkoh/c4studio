@@ -1427,3 +1427,14 @@ button {
   background: none;
   border: 1.5px dashed #90a4ae;
 }
+
+/* Draggable relationship labels. The grab cursor is the only affordance —
+   the label already looks interactive when hovered. */
+.edge-label--draggable {
+  cursor: grab;
+  user-select: none;
+}
+
+.edge-label--draggable:active {
+  cursor: grabbing;
+}

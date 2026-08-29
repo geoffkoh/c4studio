@@ -127,7 +127,8 @@ class TestEntries:
 
 class TestEveryViewType:
     @pytest.mark.parametrize(
-        "key", ["Landscape", "OmsContext", "OmsContainers", "PlaceOrder", "OmsProduction"]
+        "key",
+        ["Landscape", "OmsContext", "OmsContainers", "PlaceOrder", "OmsProduction"],
     )
     def test_all_view_types_carry_a_legend(self, key: str) -> None:
         """Deployment, dynamic and filtered views take the same path."""
@@ -140,13 +141,16 @@ class TestEveryViewType:
         workspace = parse_dsl_file(SAMPLES / "hedge_fund" / "workspace.dsl")
         labels = _labels(workspace, "OmsProduction")
         assert "Container Instance" in labels
-        assert "Infrastructure Node" in labels or any("Web Services" in x for x in labels)
+        assert "Infrastructure Node" in labels or any(
+            "Web Services" in x for x in labels
+        )
 
 
 class TestApi:
     def test_the_viewer_receives_the_same_entries(self) -> None:
         workspace = parse_dsl(WORKSPACE)
         view = _view(workspace, "cont")
-        assert react_flow_graph(workspace, view)["legend"] == (
-            build_view_graph(workspace, view)["legend"]
+        assert (
+            react_flow_graph(workspace, view)["legend"]
+            == (build_view_graph(workspace, view)["legend"])
         )
