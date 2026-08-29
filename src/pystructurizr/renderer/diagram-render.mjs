@@ -9722,12 +9722,15 @@ async function renderSvg(payload, options = {}) {
 * parsing and view semantics; this owns layout and painting, so neither
 * side re-implements the other.
 *
-* Usage: node diagram-render.mjs [--title "..."] [--padding 24] < graph.json
+* Usage: node diagram-render.mjs [--title "..."] [--padding 24]
+*                                 [--no-title] [--no-legend] < graph.json
 */
 function parseArgs(argv) {
 	const options = {};
 	for (let i = 0; i < argv.length; i++) if (argv[i] === "--title") options.title = argv[++i];
 	else if (argv[i] === "--padding") options.padding = Number(argv[++i]);
+	else if (argv[i] === "--no-title") options.showTitle = false;
+	else if (argv[i] === "--no-legend") options.showLegend = false;
 	return options;
 }
 async function readStdin() {

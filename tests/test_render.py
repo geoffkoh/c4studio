@@ -49,6 +49,12 @@ def banking() -> Workspace:
     return parse_dsl_file(SAMPLES / "internet_banking.dsl")
 
 
+def _height(svg: str) -> float:
+    match = re.search(r'height="([\d.]+)"', svg)
+    assert match is not None
+    return float(match.group(1))
+
+
 def _view(workspace: Workspace, key: str) -> View:
     return next(v for v in workspace.views if v.key == key)
 
@@ -210,6 +216,27 @@ class TestRendering:
         # Still nothing to fetch at view time.
         assert 'href="file:' not in svg and 'href="http' not in svg
 
+    def test_title_and_legend_can_be_switched_off(self, banking: Workspace) -> None:
+        """The switches existed in the TS options but nothing reached them."""
+        view = _view(banking, "Containers")
+        full = render_view(banking, view)
+        bare = render_view(banking, view, show_title=False, show_legend=False)
+        assert "Internet Banking – Containers</text>" in full
+        assert "Internet Banking – Containers</text>" not in bare
+        # The document <title> is metadata, not ink: it stays either way.
+        assert "<title>" in bare
+        # Dropping both shrinks the canvas, since they extend it.
+        assert _height(bare) < _height(full)
+
+    def test_each_switch_acts_alone(self, banking: Workspace) -> None:
+        view = _view(banking, "Containers")
+        full = _height(render_view(banking, view))
+        no_title = _height(render_view(banking, view, show_title=False))
+        no_legend = _height(render_view(banking, view, show_legend=False))
+        assert no_title < full
+        assert no_legend < full
+        assert no_legend < no_title  # the legend is the taller block
+
     @pytest.mark.parametrize(
         "key",
         ["Landscape", "OmsContext", "OmsContainers", "PlaceOrder", "OmsProduction"],
@@ -235,6 +262,14 @@ class TestRendering:
         written = sorted(p.name for p in tmp_path.glob("*.svg"))
         assert written == ["Containers.svg", "SystemContext.svg"]
         assert (tmp_path / "Containers.svg").read_text().startswith("<svg")
+
+    def test_cli_flags_reach_the_renderer(self) -> None:
+        runner = CliRunner()
+        base = ["render", str(SAMPLES / "internet_banking.dsl"), "-v", "Containers"]
+        full = runner.invoke(cli, base)
+        bare = runner.invoke(cli, [*base, "--no-title", "--no-legend"])
+        assert full.exit_code == 0 and bare.exit_code == 0, bare.output
+        assert _height(bare.output) < _height(full.output)
 
     def test_cli_prints_a_single_view_to_stdout(self) -> None:
         result = CliRunner().invoke(

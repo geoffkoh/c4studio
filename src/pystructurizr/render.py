@@ -71,6 +71,8 @@ def render_view(
     *,
     padding: int = 24,
     title: str | None = None,
+    show_title: bool = True,
+    show_legend: bool = True,
 ) -> str:
     """Render ``view`` as a standalone SVG document.
 
@@ -87,6 +89,10 @@ def render_view(
         view: The view to render.
         padding: Blank margin around the diagram bounds, in pixels.
         title: ``<title>`` for the document; defaults to the view's title.
+        show_title: Draw the title as a heading above the diagram. The
+            document ``<title>`` is written either way — it is metadata,
+            not ink.
+        show_legend: Draw the legend of styles used, when the view has any.
 
     Returns:
         A complete SVG document.
@@ -110,6 +116,10 @@ def render_view(
     caption = title if title is not None else (view.title or view.key)
     if caption:
         command += ["--title", caption]
+    if not show_title:
+        command.append("--no-title")
+    if not show_legend:
+        command.append("--no-legend")
 
     try:
         result = subprocess.run(

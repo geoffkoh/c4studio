@@ -6,16 +6,26 @@
  * parsing and view semantics; this owns layout and painting, so neither
  * side re-implements the other.
  *
- * Usage: node diagram-render.mjs [--title "..."] [--padding 24] < graph.json
+ * Usage: node diagram-render.mjs [--title "..."] [--padding 24]
+ *                                 [--no-title] [--no-legend] < graph.json
  */
 
 import { renderSvg, type GraphPayload } from "./svg";
 
-function parseArgs(argv: string[]): { title?: string; padding?: number } {
-  const options: { title?: string; padding?: number } = {};
+interface CliOptions {
+  title?: string;
+  padding?: number;
+  showTitle?: boolean;
+  showLegend?: boolean;
+}
+
+function parseArgs(argv: string[]): CliOptions {
+  const options: CliOptions = {};
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--title") options.title = argv[++i];
     else if (argv[i] === "--padding") options.padding = Number(argv[++i]);
+    else if (argv[i] === "--no-title") options.showTitle = false;
+    else if (argv[i] === "--no-legend") options.showLegend = false;
   }
   return options;
 }
