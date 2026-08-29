@@ -286,19 +286,8 @@ def webapp(path: Path, port: int, host: str, no_browser: bool) -> None:
 
     PATH may be a directory (browsed as the source root) or a single source
     file (loaded eagerly, with its parent directory as the root).
-
-    Needs the `webapp` extra: `pip install "pystructurizr-studio[webapp]"`.
     """
-    try:
-        from pystructurizr.webapp.server import run_server
-    except ImportError as exc:
-        # The web stack is an extra so the base wheel stays installable
-        # where compiled dependencies cannot go — a browser, chiefly.
-        raise click.ClickException(
-            "the web app needs extra packages that are not installed. "
-            'Install them with: pip install "pystructurizr-studio[webapp]"\n'
-            f"(missing: {exc.name})"
-        ) from exc
+    from pystructurizr.webapp.server import run_server
 
     if path.is_dir():
         root: Path = path

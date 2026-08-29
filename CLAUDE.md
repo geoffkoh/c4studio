@@ -49,11 +49,7 @@ features that assume a hosted multi-user deployment.
 
 ## Environment & Commands
 
-- **Install deps:** `uv sync` — the dev group self-references the `webapp`
-  extra, so the viewer's dependencies are present for its tests. The
-  published base distribution deliberately depends only on `click`
-  (PP-97), so the wheel installs under Pyodide; never add a compiled
-  dependency to `[project.dependencies]`.
+- **Install deps:** `uv sync`
 - **Run CLI:** `uv run pystructurizr --help`
 - **Render SVG:** `uv run pystructurizr render <file> -o out/` (needs Node; set
   `PYSTRUCTURIZR_NODE` if it is not on `PATH`)

@@ -15,11 +15,10 @@ solution-architect review of real workflows (solution reviews,
 governance boards, CABs, onboarding). Complexity: S ≤ 1 ticket,
 M = 1–2, L = 3+ / new subsystem.
 
-**Phase 5 changes the priority order.** Publishing to Confluence and
-GitHub turns out to consume the same two foundations as the enterprise
-features — headless rendering above all — so the Phase 3 items are now
-pulled by two independent demands. Read Phase 5 before scheduling Phase 2
-or 3.
+**Phase 5 reordered the priorities and has now delivered its GitHub
+half** (PP-88…PP-95): publishing consumed the same foundation as the
+enterprise features — headless rendering above all — so Phase 3's renderer
+was pulled forward and shipped. The Confluence half is parked; see Phase 5.
 
 The structural insight behind the ordering: the three genuinely
 differentiating features — **model lint in CI, diagram diff on PRs, and
@@ -35,14 +34,14 @@ governance and overlay features are UI/reporting work, not model work.
 |---|---|---|---|
 | **Public query layer + CLI** — `pystructurizr query` over elements/relationships/tags/properties, JSON/CSV out, transitive closure | High (enabler) | M | New `model/query.py`. Everything below consumes it; feeds scripts/CMDB sync. The filtered-view tag predicate (PP-62) is its seed. |
 | **Model lint/validation** — orphans, missing description/technology, duplicate relationships, naming conventions; configurable ruleset; CLI exit code for CI | High | M | `pystructurizr lint`; rules as small classes. How standards get enforced without review bottlenecks. |
-| **Full-model explorer + search** — whole-model graph page + element/relationship search across all `!include` fragments | High | M-L | Reuse React Flow + dagre (no new deps); jump from a result to the views containing the element. |
+| ~~**Full-model explorer + search**~~ **shipped, PP-69** — whole-model graph page + element/relationship search across all `!include` fragments | High | M-L | Reuse React Flow + dagre (no new deps); jump from a result to the views containing the element. |
 | **Governance inventory** — owner/team/lifecycle from element `properties` in the UI + CMDB/tech-radar report (HTML/CSV) | High | M | `pystructurizr inventory`; makes the model the system of record. |
 
 ## Phase 3 — Foundation B: headless rendering → docs-as-code
 
 | Feature | Value | Cx | Notes |
 |---|---|---|---|
-| **Headless CI rendering** — `pystructurizr render` → SVG/PNG/Mermaid for all views, no browser | High (enabler) | L | Server-side SVG reusing `graph/view_graph.py` semantics. **Now also pulled by Phase 5** (Confluence export, the GitHub Action, Pages), which settles the layout-engine question: dagre is pure JS and runs headless in Node, so layout stays in `diagram-core` with one implementation and no new Python dependency. |
+| ~~**Headless CI rendering**~~ **shipped, PP-93** — `pystructurizr render` → SVG for all views, no browser | High (enabler) | L | Server-side SVG reusing `graph/view_graph.py` semantics. **Now also pulled by Phase 5** (Confluence export, the GitHub Action, Pages), which settles the layout-engine question: dagre is pure JS and runs headless in Node, so layout stays in `diagram-core` with one implementation and no new Python dependency. |
 | **Static HTML site export** — self-contained site (diagrams + docs + ADRs + inventory) for any static host/Confluence | High | M-L | *The* sharing story for a local-first tool. Must embed fetched theme icons as data URIs. |
 | **Diagram diff** — two git revisions compared: added/removed/changed elements & relationships per view, visual overlay + text report | High | L | `pystructurizr diff rev1 rev2` for PR comments; model diff on the query layer, overlay via the renderer. |
 
@@ -71,59 +70,45 @@ them along with node positions.
 **Also shipped:** PP-50 — the vite/esbuild upgrade that cleared the
 frontend's npm audit advisories.
 
-## Phase 5 — Publishing surfaces: Confluence and GitHub
+## Phase 5 — Publishing surfaces: GitHub (Confluence parked)
 
-Take the diagrams to where the audience already reads: a Confluence Cloud
-macro that renders Structurizr DSL (interactive *and* as a static image),
-and GitHub rendering of models committed alongside the code.
+Take the diagrams to where the audience already reads. **The GitHub half
+shipped** (PP-88, PP-89, PP-93, PP-95): Mermaid rendered from the graph
+model, a `flowchart`/`subgraph` target covering every view type, headless
+SVG, and an Action that renders on push and PR.
 
-### Fixed constraints
+**The Confluence half is parked (August 2026)** — the integration proved
+more complex than this plan assumed, and other approaches will be
+considered later. What that removes: the Forge macro, the Pyodide bridge
+and the github.dev web extension.
 
-Two user constraints rule out most of the obvious designs, and everything
-below follows from them:
+### What the Confluence attempt established
 
-1. **No additional service to run.** Nothing that requires hosting,
-   uptime or an on-call rota.
-2. **The DSL stays inside Atlassian.** Data governance; model source must
-   not be shipped to a third-party backend.
+Kept deliberately, so a future attempt starts informed rather than
+re-deriving it. The two original constraints — no service to run, and the
+DSL must not leave Atlassian — pointed at running the real parser in the
+browser under Pyodide/WASM. That much works:
 
-### The architecture
+- **Forge Custom UI does run WebAssembly.** Forge offers no
+  `wasm-unsafe-eval`; `unsafe-eval` is the superset and admits WASM. Proved
+  on a real site: an 8-byte module instantiated in 2 ms, Pyodide 0.28
+  loaded from jsDelivr in 1,393 ms, and `micropip` installing the wheel
+  plus parsing DSL took 1,972 ms — roughly 3.4 s for an author on a cold
+  macro edit, once.
+- **The parser runs unmodified under Pyodide**, including `!include`,
+  `!docs` and `!adrs` against the virtual filesystem.
+- **The wheel's dependencies are the obstacle**, not the parser.
+  `uvicorn[standard]` pulls compiled packages with no pure-Python wheels,
+  so `micropip` refuses the wheel unless the web stack is split into an
+  extra — a breaking change for every existing user, which is not worth
+  making for a parked feature. Reverted with the rest of this track.
+- **MicroPython is not an alternative** — see the rejected options below.
 
-The Python core (`models/`, `parser/`, `generators/`) is **stdlib-only** —
-`pydantic` appears once in the whole tree, in `webapp/server.py`, and
-`click`/`fastapi`/`uvicorn` are CLI and webapp only. No compiled wheels
-means the real parser runs under **Pyodide/WASM**, so nothing is ported
-and nothing is hosted. `parse_dsl(source, base_dir=None)` already takes a
-string, which is the entry point the browser needs.
-
-Parsing is split by *when* it happens:
-
-- **Author time** (macro editor, in the iframe): Pyodide runs
-  pystructurizr, produces **workspace JSON**, stores it next to the DSL in
-  Forge storage with a hash for staleness. Costs a one-off second or two.
-- **View time** (every page load): no Python. The shared TypeScript
-  package renders the stored JSON.
-- **Export time** (PDF/Word/email/mobile, where iframes do not render):
-  the Forge resolver is Node and the renderer is pure JS, so static SVG is
-  produced there.
-
-Two packages carry every surface. Python owns
-`DSL → Workspace → graph JSON → Mermaid text`; TypeScript (`diagram-core`)
-owns `graph JSON → layout → React Flow canvas | headless SVG`. The graph
-JSON emitted by `graph/view_graph.py` is the contract between them, and
-each renderer exists exactly once. PP-88 moved that module out of
-`webapp/` for exactly this reason — it is consumed by the CLI and the
-Mermaid generator, not just the web app.
-
-| Surface | New code beyond the two packages |
-|---|---|
-| Studio SPA | none — consumes `diagram-core` |
-| Confluence macro | macro + Forge storage + Pyodide host |
-| GitHub markdown | none — generated Mermaid, rendered natively |
-| GitHub Action | `action.yml` + thin wrapper over `pystructurizr render` |
-| GitHub Pages | site template around `diagram-core` |
-| VS Code desktop | already shipped (PP-64…PP-68) |
-| github.dev / vscode.dev | swap the backend call for the Pyodide bridge |
+The complexity that parked it is not any single blocker; it is the number
+of moving parts a working macro needs at once: Forge storage for DSL that
+exceeds macro parameter limits, staleness hashing, a Pyodide bridge, a
+`SourceResolver` so `!include` resolves against Confluence rather than a
+filesystem, and an export path for PDF/email where iframes do not render.
 
 ### Items
 
@@ -132,12 +117,9 @@ Mermaid generator, not just the web app.
 | ~~**Mermaid renders from the graph model**~~ **shipped, PP-88** | High (correctness) | S-M | Fixed the defect below and collapsed the duplicate C4 semantics. `systemLandscape` came along nearly free; dynamic, deployment and filtered views still emit the unsupported comment and are the flowchart target's job. |
 | ~~**`flowchart`/`subgraph` Mermaid target**~~ **shipped, PP-89** | Med-High | S | Mermaid's `C4Context`/`C4Container` types are experimental upstream, lay out poorly on dense models, and GitHub pins its own Mermaid version. Same graph model in, more reliable rendering out — and it took the view types the C4 target skips (dynamic, deployment, filtered), so every view now renders. `generate -f flowchart`; the C4 target stays the default. |
 | ~~**Headless SVG renderer**~~ **shipped, PP-93** | High (enabler) | L | This was Phase 3's headless-rendering item. Serves Confluence export, the GitHub Action and Pages — and answers Phase 3's open "Python dagre-equivalent vs small Node script" question: dagre is pure JS and runs headless in Node, so layout stays in one implementation. |
-| **`diagram-core` extraction** | High (enabler) | M-L | Move `frontend/src/layout.ts`, the node/edge components and export out of the SPA into a package. `GraphPane` currently imports `api.ts` and saves layout itself; that coupling must be lifted into props before it can embed anywhere. Also carries the settled layout-engine decision below: migrate to `@dagrejs/dagre` and give layout an async interface. |
-| **`SourceResolver` injection** | Med-High | M | `!include` (`dsl.py`), `docs.py` and `locations.py` reach for the filesystem. Replace `base_dir: Path` with a `read(name) -> str` protocol; filesystem impl stays the default, Confluence supplies its own. Good hygiene regardless — it makes the parser testable without temp dirs. |
-| **Pyodide bridge** | High | M-L | Loads Pyodide, installs the pure-Python wheel, typed `parse() -> graph JSON`. Shared by Confluence and github.dev. |
-| **Confluence Forge macro** | High | L | Macro + config panel, DSL in Forge storage (macro *parameters* have size limits real DSL will exceed), cached render, static SVG path first — it is the one that must work everywhere. |
+| ~~**`diagram-core` extraction**~~ **shipped, PP-92** | High (enabler) | M-L | Move `frontend/src/layout.ts`, the node/edge components and export out of the SPA into a package. `GraphPane` currently imports `api.ts` and saves layout itself; that coupling must be lifted into props before it can embed anywhere. Also carries the settled layout-engine decision below: migrate to `@dagrejs/dagre` and give layout an async interface. |
+| **`SourceResolver` injection** | Med | M | `!include` (`dsl.py`), `docs.py` and `locations.py` reach for the filesystem. Replace `base_dir: Path` with a `read(name) -> str` protocol. Kept after the Confluence parking because it stands on its own: it makes the parser testable without temp dirs. |
 | ~~**GitHub Action**~~ **shipped, PP-95** | High | M | Renders every view on push/PR; `mode` selects artifact, commit or PR comment. Composite action installing the published wheel with pip — runners already have Python *and* Node, which `render` needs. `.github/workflows/diagrams.yml` dogfoods it against `samples/hedge_fund`. Becomes "diagram diff on PRs" once the model diff exists. |
-| **github.dev web extension** | Med-High | M | The existing extension bootstraps a Python backend via `uv` (PP-68), which cannot work in a browser tab. With the Pyodide bridge it becomes a web extension: press `.` on any GitHub repo, get interactive C4. |
 
 ### The defect this fixed (PP-88, resolved)
 
@@ -184,8 +166,10 @@ would be nicer:
 
 - someone asks for orthogonal auto-routing;
 - a real model lays out visibly badly under recursive dagre;
-- the Confluence macro or github.dev surfaces ship — those pages already
-  load a Pyodide runtime, next to which elk's weight stops mattering.
+- a browser-hosted surface ships that already carries a large runtime, next
+  to which elk's weight stops mattering. (This trigger originally named the
+  Confluence macro and github.dev; both are parked, so it cannot fire
+  today.)
 
 #### What the numbers actually are
 
@@ -293,41 +277,22 @@ auto-routing, not a fix for a defect.
 - **Interactive diagrams inline in GitHub markdown.** Sanitized — no JS,
   no scripted SVG. GitHub Pages and github.dev are the interactive routes.
 
-### Open risk: Forge's CSP (the rest of the spike is done)
+### The Pyodide measurements, for whoever revisits this
 
-**Everything that could be proved off Atlassian, has been** — run in Node
-against Pyodide 314.0.4, August 2026:
+Run August 2026 against Pyodide 314.0.4 in Node, and repeated inside a
+real Forge Custom UI iframe (see the parked-track summary above):
 
-| Question | Answer |
-| --- | --- |
-| Does Pyodide's CPython satisfy `requires-python = ">=3.13"`? | **Yes** — Pyodide 314 ships CPython **3.14.2**. Not the blocker it looked like. |
-| Does our own wheel install under `micropip`? | **Yes**, with `deps=false` (see below). 36 ms. |
-| Does the parser actually run? | **Yes.** `samples/internet_banking.dsl` parses in **2 ms**; workspace JSON export and Mermaid generation both work. |
-| Does the *hard* sample work — `!include`, `!docs`, `!adrs`? | **Yes**, against Pyodide's virtual filesystem: `samples/hedge_fund` gives 10 systems, 20 containers, 13 views, 2 deployment nodes, 3 doc sections, 3 ADRs, no warnings, in **8 ms**. |
-| Cold start? | **~1.1 s** to boot Pyodide, plus 36 ms to install the wheel. The roadmap's "a one-off second or two" was right. |
+| | Node | Forge iframe |
+| --- | --- | --- |
+| Cold start | ~1.1 s | 1,393 ms (CDN) |
+| Wheel install | 36 ms | — |
+| Install + parse | — | 1,972 ms |
+| `internet_banking.dsl` parse | 2 ms | — |
+| `hedge_fund` with `!include`/`!docs`/`!adrs` | 8 ms | — |
 
-Two findings that change the plan:
-
-- **The wheel cannot install with its dependencies.** `uvicorn[standard]`
-  pulls `httptools`, `watchfiles` and `uvloop`, which are compiled and
-  have no pure-Python wheels, so `micropip` refuses. `deps=false` works
-  because the core genuinely is stdlib-only — but relying on that flag is
-  fragile. `click`/`pydantic`/`fastapi`/`uvicorn` should become optional
-  extras so the core wheel is dependency-free.
-- **`!include` works without `SourceResolver`** if the host writes the DSL
-  fragments into the virtual filesystem first. That does not retire the
-  `SourceResolver` item — Confluence storage is not a filesystem, and
-  faking one for every include is worse than injecting a `read()` — but it
-  does mean the Confluence macro is not *blocked* on it.
-
-**What remains genuinely unknown is Forge Custom UI's CSP.** WASM
-instantiation typically needs `wasm-unsafe-eval`, and whether Forge
-permits it (via `permissions.content.scripts`) decides the whole design.
-That has to be verified against current Atlassian docs and then proved
-inside a real Forge app; nothing local can answer it.
-
-If it fails, the damage is contained: view and export are already
-Python-free, so only the authoring path needs a different answer.
+Pyodide 314 ships CPython 3.14.2 and `pyodide@0.28` on the CDN ships
+3.13.2 — both clear the `requires-python = ">=3.13"` floor, but the pin
+decides which.
 
 ### Sequencing
 
@@ -335,8 +300,8 @@ Python-free, so only the authoring path needs a different answer.
 ~~`diagram-core` extraction~~ (PP-92) → ~~headless renderer~~ (PP-93) →
 ~~GitHub Action~~ (PP-95) (all useful to the local tool on their
 own merits, and none of them depend on Forge) → ~~Pyodide spike~~
-(PP-96, everything but the Forge CSP question) → ~~dependency-free core
-wheel~~ (PP-97) → Forge CSP verification → `SourceResolver` → Confluence macro →
+(PP-96, everything but the Forge CSP question) → dependency-free core
+wheel → Forge CSP verification → `SourceResolver` → Confluence macro →
 github.dev.
 
 **Next up: the Forge CSP verification**, the one remaining item that can
