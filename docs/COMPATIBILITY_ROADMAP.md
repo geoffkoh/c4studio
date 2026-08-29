@@ -18,7 +18,7 @@
 
 ## Executive Summary
 
-pystructurizr needs to implement missing Structurizr Java data model fields to achieve full compatibility. The analysis identified 36 missing/mismatched fields across static structure, views, deployment, and configuration models.
+c4studio needs to implement missing Structurizr Java data model fields to achieve full compatibility. The analysis identified 36 missing/mismatched fields across static structure, views, deployment, and configuration models.
 
 This roadmap breaks the work into 4 phases, each increasing compatibility:
 - **Phase 1:** Critical fixes → 90% compatibility (4-6 hours)
@@ -37,7 +37,7 @@ Fixes blocking issues that break JSON round-trip compatibility and core function
 
 #### 1.1 Fix DeploymentNode.instances Type
 **Priority:** CRITICAL  
-**File:** `src/pystructurizr/models.py`  
+**File:** `src/c4studio/models.py`  
 **Change:**
 ```python
 # Before
@@ -72,7 +72,7 @@ class DeploymentNode:
 
 #### 1.3 Add Missing Parent References
 **Priority:** CRITICAL  
-**Files:** `src/pystructurizr/models.py`
+**Files:** `src/c4studio/models.py`
 
 **Changes needed:**
 
@@ -131,7 +131,7 @@ class InfrastructureNode:
 
 #### 1.4 Fix AutomaticLayout Default Values
 **Priority:** HIGH  
-**File:** `src/pystructurizr/models.py`  
+**File:** `src/c4studio/models.py`  
 **Change:**
 ```python
 # Before
@@ -169,7 +169,7 @@ class AutomaticLayout:
 
 #### 1.5 Add Perspective.title Field
 **Priority:** HIGH  
-**File:** `src/pystructurizr/models.py`  
+**File:** `src/c4studio/models.py`  
 **Change:**
 ```python
 # Before
@@ -225,7 +225,7 @@ Adds significant missing functionality for workspace metadata and enhanced view 
 
 #### 2.1 Add Workspace Metadata Fields
 **Priority:** HIGH  
-**File:** `src/pystructurizr/models.py`  
+**File:** `src/c4studio/models.py`  
 **Change:**
 ```python
 @dataclass
@@ -259,7 +259,7 @@ class Workspace:
 
 #### 2.2 Add View Element and Relationship Customization Fields
 **Priority:** HIGH  
-**File:** `src/pystructurizr/models.py`  
+**File:** `src/c4studio/models.py`  
 **Changes:**
 
 ```python
@@ -307,7 +307,7 @@ class RelationshipView:
 
 #### 2.3 Add View Control Fields
 **Priority:** MEDIUM  
-**File:** `src/pystructurizr/models.py`  
+**File:** `src/c4studio/models.py`  
 **Change:**
 ```python
 @dataclass
@@ -347,7 +347,7 @@ class View:
 
 #### 2.4 Add Terminology Default Values
 **Priority:** MEDIUM  
-**File:** `src/pystructurizr/models.py`  
+**File:** `src/c4studio/models.py`  
 **Change:**
 ```python
 # Before
@@ -392,7 +392,7 @@ class Terminology:
 
 #### 2.5 Add Deployment Node Icon Support
 **Priority:** MEDIUM  
-**File:** `src/pystructurizr/models.py`  
+**File:** `src/c4studio/models.py`  
 **Changes:**
 
 ```python
@@ -435,7 +435,7 @@ class InfrastructureNode:
 ## Phase 3: Structural Refactoring (6-8 hours) → **98% Compatibility**
 
 ### Why This Phase
-Aligns pystructurizr's structure with official Structurizr Java implementation by separating Model and ViewSet concerns.
+Aligns c4studio's structure with official Structurizr Java implementation by separating Model and ViewSet concerns.
 
 ### Current vs Target Structure
 
@@ -473,7 +473,7 @@ Workspace
 
 #### 3.1 Create Model Dataclass
 **Priority:** HIGH  
-**File:** `src/pystructurizr/models.py`  
+**File:** `src/c4studio/models.py`  
 **Change:**
 ```python
 @dataclass
@@ -513,7 +513,7 @@ class Model:
 
 #### 3.2 Create ViewSet Dataclass
 **Priority:** HIGH  
-**File:** `src/pystructurizr/models.py`  
+**File:** `src/c4studio/models.py`  
 **Change:**
 ```python
 @dataclass
@@ -559,7 +559,7 @@ class ViewSet:
 
 #### 3.3 Refactor Workspace to Use Model and ViewSet
 **Priority:** HIGH  
-**File:** `src/pystructurizr/models.py`  
+**File:** `src/c4studio/models.py`  
 **Change:**
 ```python
 @dataclass
@@ -605,7 +605,7 @@ class Workspace:
 
 #### 3.4 Update JSON Parser for New Structure
 **Priority:** HIGH  
-**File:** `src/pystructurizr/parser/json_parser.py`  
+**File:** `src/c4studio/parser/json_parser.py`  
 **Change:**
 ```python
 def _parse_json_dict(data: dict[str, Any]) -> Workspace:
@@ -650,7 +650,7 @@ def _parse_json_dict(data: dict[str, Any]) -> Workspace:
 
 #### 3.5 Update DSL Parser for New Structure
 **Priority:** MEDIUM  
-**File:** `src/pystructurizr/parser/dsl.py`
+**File:** `src/c4studio/parser/dsl.py`
 
 **Changes:** Similar to JSON parser, create Model and ViewSet during parsing
 
@@ -686,7 +686,7 @@ def _parse_json_dict(data: dict[str, Any]) -> Workspace:
 
 #### 4.1 Add CustomElement Icon and Metadata
 **Priority:** LOW  
-**File:** `src/pystructurizr/models.py`  
+**File:** `src/c4studio/models.py`  
 **Change:**
 ```python
 # Update existing field (already present)
@@ -704,7 +704,7 @@ class CustomElement:
 
 #### 4.2 Add Configuration Branding and Export Support
 **Priority:** LOW  
-**File:** `src/pystructurizr/models.py`  
+**File:** `src/c4studio/models.py`  
 **Change:**
 ```python
 @dataclass
@@ -742,7 +742,7 @@ class Configuration:
 
 #### 4.3 Add Advanced Metadata Support
 **Priority:** LOW  
-**File:** `src/pystructurizr/models.py`  
+**File:** `src/c4studio/models.py`  
 **Changes:**
 
 ```python
@@ -899,7 +899,7 @@ class View:
 
 ## Success Criteria
 
-- ✅ All 249 fields implemented in pystructurizr
+- ✅ All 249 fields implemented in c4studio
 - ✅ 100% type compatibility with Structurizr Java
 - ✅ Perfect JSON round-trip fidelity
 - ✅ Test coverage > 90%

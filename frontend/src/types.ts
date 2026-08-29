@@ -1,5 +1,5 @@
 // Type definitions mirroring the FastAPI backend contract exactly.
-// The backend (src/pystructurizr/webapp/server.py + graph.py) is the source
+// The backend (src/c4studio/webapp/server.py + graph.py) is the source
 // of truth; keep these shapes in sync with it.
 
 /** One entry from GET /api/views. */

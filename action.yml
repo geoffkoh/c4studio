@@ -36,11 +36,11 @@ inputs:
     default: "3.13"
   version:
     description: >-
-      pip requirement for the renderer, e.g. "pystructurizr-studio==0.1.0".
+      pip requirement for the renderer, e.g. "c4studio==0.1.0".
       Use "local" to install the checked-out repository instead, which is
       how this repository dogfoods the action.
     required: false
-    default: pystructurizr-studio
+    default: c4studio
   commit-message:
     description: "Commit message used by mode: commit."
     required: false
@@ -68,7 +68,7 @@ runs:
       shell: bash
       run: |
         if ! command -v node >/dev/null 2>&1; then
-          echo "::error::pystructurizr render needs Node.js, which is not on PATH. GitHub-hosted runners include it; on a self-hosted runner add actions/setup-node before this step."
+          echo "::error::c4 render needs Node.js, which is not on PATH. GitHub-hosted runners include it; on a self-hosted runner add actions/setup-node before this step."
           exit 1
         fi
         echo "node $(node --version), python $(python3 --version)"
@@ -83,7 +83,7 @@ runs:
       with:
         python-version: ${{ inputs.python-version }}
 
-    - name: Install pystructurizr
+    - name: Install c4studio
       shell: bash
       env:
         VERSION: ${{ inputs.version }}
@@ -101,7 +101,7 @@ runs:
     - name: Check the workspace
       shell: bash
       run: |
-        if ! pystructurizr check "${{ inputs.workspace }}"; then
+        if ! c4 check "${{ inputs.workspace }}"; then
           echo "::error file=${{ inputs.workspace }}::the workspace has errors; see the diagnostics above"
           exit 1
         fi
@@ -114,7 +114,7 @@ runs:
         if [ -n "${{ inputs.view }}" ]; then
           args+=(--view "${{ inputs.view }}")
         fi
-        pystructurizr render "${args[@]}"
+        c4 render "${args[@]}"
         # Rendering is deterministic, so anything git reports here is a
         # real change to the model or its layout.
         if [ -n "$(git status --porcelain -- "${{ inputs.output }}")" ]; then

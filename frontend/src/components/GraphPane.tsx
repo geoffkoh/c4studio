@@ -44,7 +44,7 @@ import {
   normalizeStoredPositions,
   type ElementNodeData,
   type FloatingEdgeData,
-} from "@pystructurizr/diagram-core";
+} from "@c4studio/diagram-core";
 import { buildTrail, crumbLabel, drillTarget } from "../navigation";
 import { isTypingTarget } from "../shortcuts";
 import type { GraphData, ViewInfo, Workspace } from "../types";
@@ -73,10 +73,10 @@ const EDGE_STYLES: { value: EdgeStyle; label: string }[] = [
   { value: "smoothstep", label: "Smooth step" },
 ];
 
-const EDGE_STYLE_STORAGE_KEY = "pystructurizr.edgeStyle";
-const HOVER_EMPHASIS_STORAGE_KEY = "pystructurizr.hoverEmphasis";
-const SNAP_TO_GRID_STORAGE_KEY = "pystructurizr.snapToGrid";
-const INTERACTION_STORAGE_KEY = "pystructurizr.interaction";
+const EDGE_STYLE_STORAGE_KEY = "c4studio.edgeStyle";
+const HOVER_EMPHASIS_STORAGE_KEY = "c4studio.hoverEmphasis";
+const SNAP_TO_GRID_STORAGE_KEY = "c4studio.snapToGrid";
+const INTERACTION_STORAGE_KEY = "c4studio.interaction";
 
 // Drag snapping step. Matches the Background dot spacing so the dots read
 // as the grid being snapped to rather than as unrelated decoration.
@@ -130,7 +130,7 @@ interface GraphPaneProps {
   onNavigate: (view: ViewInfo) => void;
   /**
    * How to reach the backend. Injected rather than imported so the pane
-   * can be embedded where there is no pystructurizr API to call — a
+   * can be embedded where there is no c4studio API to call — a
    * Confluence macro reading Forge storage, or github.dev talking to the
    * Pyodide bridge.
    */

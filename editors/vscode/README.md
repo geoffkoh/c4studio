@@ -1,7 +1,7 @@
-# pystructurizr for VS Code
+# c4studio for VS Code
 
 Structurizr DSL support in VS Code, powered by
-[pystructurizr](https://github.com/geoffkoh/pystructurizr).
+[c4studio](https://github.com/geoffkoh/c4studio).
 
 ## Features
 
@@ -16,17 +16,17 @@ Structurizr DSL support in VS Code, powered by
 - **Problem reporting**: parse errors and skipped constructs appear as
   squiggles and in the Problems panel. A syntax grammar cannot validate
   anything, so these come from the parser itself via
-  `pystructurizr check --json` — the same backend the preview uses, so
+  `c4 check --json` — the same backend the preview uses, so
   there is one implementation of the language's rules. Problems inside an
   `!include`-ed fragment are reported against the fragment, not the file
   that included it. Checking happens as you type (debounced) as well as on
   open and save: the buffer is piped to the checker, so unsaved edits are
   checked as written. `!include`-ed fragments are still read from disk, so
   a problem introduced in an unsaved fragment appears once it is saved.
-  Disable with `pystructurizr.diagnostics.enabled`.
+  Disable with `c4studio.diagnostics.enabled`.
 - **Interactive C4 diagram preview**: the "Pystructurizr: Open Diagram
   Preview" command (also a button in the editor title bar of DSL files)
-  opens the full pystructurizr React Flow app beside your editor — view
+  opens the full c4studio React Flow app beside your editor — view
   sidebar, drag layouts, in-place expansion, themes and cloud-provider
   icons, filtered views, dynamic-view animation, keyboard shortcuts.
   Saving the DSL file (or any `!include` fragment) refreshes the preview
@@ -34,21 +34,21 @@ Structurizr DSL support in VS Code, powered by
 
 ## How the preview works
 
-The extension spawns a local `pystructurizr webapp` server for the file
+The extension spawns a local `c4studio webapp` server for the file
 (bound to `127.0.0.1` on a free port) and embeds it in a webview. The
 server is killed when the preview panel closes. Its logs go to the
-"pystructurizr" output channel.
+"c4studio" output channel.
 
 **No setup is required.** The backend is resolved automatically, first
 match wins (each attempt is logged to the output channel):
 
-1. the `pystructurizr.serverCommand` setting, when set — always wins;
-2. `pystructurizr` already on your PATH (`pipx install
-   pystructurizr-studio`);
+1. the `c4studio.serverCommand` setting, when set — always wins;
+2. `c4studio` already on your PATH (`pipx install
+   c4studio-studio`);
 3. your workspace's own environment via `uv run` (when the folder has a
    `pyproject.toml`/`uv.lock` and uv is installed);
 4. `uv tool run` installing
-   [`pystructurizr-studio`](https://pypi.org/project/pystructurizr-studio/)
+   [`c4studio`](https://pypi.org/project/c4studio-studio/)
    from PyPI;
 5. as a last resort, a one-time, checksum-verified download of the
    [uv](https://github.com/astral-sh/uv) binary into the extension's
@@ -58,8 +58,8 @@ The first run of rungs 4–5 downloads uv, a managed CPython and the
 wheel (tens of MB, network required) behind a progress notification;
 afterwards everything is cached and startup is fast. On proxied or
 air-gapped machines, install the backend yourself and use rung 1
-(`pystructurizr.serverCommand`) or 2. The
-`pystructurizr.backendSpec` setting overrides which package version the
+(`c4studio.serverCommand`) or 2. The
+`c4studio.backendSpec` setting overrides which package version the
 uv rungs install.
 
 ## Install
@@ -69,8 +69,8 @@ Build and install the extension locally (Node 18+):
 ```bash
 cd editors/vscode
 npm install
-npm run package                     # -> pystructurizr-vscode-<version>.vsix
-code --install-extension pystructurizr-vscode-*.vsix
+npm run package                     # -> c4studio-vscode-<version>.vsix
+code --install-extension c4studio-vscode-*.vsix
 ```
 
 Then reload VS Code. (The extension is not on the Marketplace; local

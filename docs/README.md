@@ -1,18 +1,18 @@
-# pystructurizr Documentation
+# c4studio Documentation
 
-Welcome to the pystructurizr documentation. This directory contains guides and references for working with Structurizr architecture models in Python.
+Welcome to the c4studio documentation. This directory contains guides and references for working with Structurizr architecture models in Python.
 
 ## Guides
 
 - **[Data Models](./data-models.md)** - Comprehensive reference for all Structurizr data models, including static structure elements, relationships, views, deployment infrastructure, and styling configuration.
-- **[Feature Parity](./structurizr-parity.md)** - Where pystructurizr stands against the Java Structurizr UI, feature by feature. The closest thing to a status page; kept current as work lands.
+- **[Feature Parity](./structurizr-parity.md)** - Where c4studio stands against the Java Structurizr UI, feature by feature. The closest thing to a status page; kept current as work lands.
 - **[Roadmap](./roadmap.md)** - The staged forward plan (query layer, headless rendering, differentiators) and the delivery conventions.
 - **[Migration Guide](./MIGRATION.md)** - Breaking changes from the Structurizr Java compatibility work and how to adapt.
 - **[Compatibility Roadmap](./COMPATIBILITY_ROADMAP.md)** - Historical record of that compatibility work, now complete.
 
 ## Quick Start
 
-The main entry point for pystructurizr is the `Workspace` model, which contains:
+The main entry point for c4studio is the `Workspace` model, which contains:
 
 - **People & Systems**: Define actors and software systems
 - **Containers & Components**: Decompose systems into logical parts
@@ -36,9 +36,9 @@ See [Data Models](./data-models.md) for detailed documentation on each model and
 
 ## Parsing & Generation
 
-- **DSL Parser** (`pystructurizr.parser.dsl`): Parse Structurizr DSL files
-- **JSON Parser** (`pystructurizr.parser.json_parser`): Parse Structurizr JSON exports
-- **Mermaid Generator** (`pystructurizr.generators.mermaid`): Generate Mermaid C4 diagrams
+- **DSL Parser** (`c4studio.parser.dsl`): Parse Structurizr DSL files
+- **JSON Parser** (`c4studio.parser.json_parser`): Parse Structurizr JSON exports
+- **Mermaid Generator** (`c4studio.generators.mermaid`): Generate Mermaid C4 diagrams
 
 ## Common Patterns
 

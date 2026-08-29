@@ -1,6 +1,6 @@
 """Tests for the unified element body parser (Phase 0 of DSL parity)."""
 
-from pystructurizr.parser.dsl import parse_dsl
+from c4studio.parser.dsl import parse_dsl
 
 
 def test_person_body_metadata_and_no_leak() -> None:

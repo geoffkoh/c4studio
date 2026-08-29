@@ -1,5 +1,5 @@
 /**
- * The Node entry point `pystructurizr render` drives.
+ * The Node entry point `c4 render` drives.
  *
  * Reads a view graph payload as JSON on stdin and writes an SVG document
  * to stdout — one process per diagram, no server, no browser. Python owns

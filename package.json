@@ -1,5 +1,5 @@
 {
-  "name": "pystructurizr-workspace",
+  "name": "c4studio-workspace",
   "private": true,
   "version": "0.1.0",
   "workspaces": [
@@ -7,6 +7,6 @@
     "frontend"
   ],
   "scripts": {
-    "build": "npm run build --workspace @pystructurizr/diagram-core && npm run build --workspace pystructurizr-frontend"
+    "build": "npm run build --workspace @c4studio/diagram-core && npm run build --workspace c4studio-frontend"
   }
 }

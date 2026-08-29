@@ -1,6 +1,6 @@
 # Enterprise roadmap
 
-The staged plan for making pystructurizr an enterprise-grade,
+The staged plan for making c4studio an enterprise-grade,
 **local-first** solution-architect toolset (no multi-user server/auth;
 team sharing happens via git and generated artifacts). Phase 1 shipped in
 July 2026 — Jira PP-60…PP-63, PRs #38–#41: workspace JSON export with
@@ -32,18 +32,18 @@ governance and overlay features are UI/reporting work, not model work.
 
 | Feature | Value | Cx | Notes |
 |---|---|---|---|
-| **Public query layer + CLI** — `pystructurizr query` over elements/relationships/tags/properties, JSON/CSV out, transitive closure | High (enabler) | M | New `model/query.py`. Everything below consumes it; feeds scripts/CMDB sync. The filtered-view tag predicate (PP-62) is its seed. |
-| **Model lint/validation** — orphans, missing description/technology, duplicate relationships, naming conventions; configurable ruleset; CLI exit code for CI | High | M | `pystructurizr lint`; rules as small classes. How standards get enforced without review bottlenecks. |
+| **Public query layer + CLI** — `c4studio query` over elements/relationships/tags/properties, JSON/CSV out, transitive closure | High (enabler) | M | New `model/query.py`. Everything below consumes it; feeds scripts/CMDB sync. The filtered-view tag predicate (PP-62) is its seed. |
+| **Model lint/validation** — orphans, missing description/technology, duplicate relationships, naming conventions; configurable ruleset; CLI exit code for CI | High | M | `c4studio lint`; rules as small classes. How standards get enforced without review bottlenecks. |
 | ~~**Full-model explorer + search**~~ **shipped, PP-69** — whole-model graph page + element/relationship search across all `!include` fragments | High | M-L | Reuse React Flow + dagre (no new deps); jump from a result to the views containing the element. |
-| **Governance inventory** — owner/team/lifecycle from element `properties` in the UI + CMDB/tech-radar report (HTML/CSV) | High | M | `pystructurizr inventory`; makes the model the system of record. |
+| **Governance inventory** — owner/team/lifecycle from element `properties` in the UI + CMDB/tech-radar report (HTML/CSV) | High | M | `c4studio inventory`; makes the model the system of record. |
 
 ## Phase 3 — Foundation B: headless rendering → docs-as-code
 
 | Feature | Value | Cx | Notes |
 |---|---|---|---|
-| ~~**Headless CI rendering**~~ **shipped, PP-93** — `pystructurizr render` → SVG for all views, no browser | High (enabler) | L | Server-side SVG reusing `graph/view_graph.py` semantics. **Now also pulled by Phase 5** (Confluence export, the GitHub Action, Pages), which settles the layout-engine question: dagre is pure JS and runs headless in Node, so layout stays in `diagram-core` with one implementation and no new Python dependency. |
+| ~~**Headless CI rendering**~~ **shipped, PP-93** — `c4 render` → SVG for all views, no browser | High (enabler) | L | Server-side SVG reusing `graph/view_graph.py` semantics. **Now also pulled by Phase 5** (Confluence export, the GitHub Action, Pages), which settles the layout-engine question: dagre is pure JS and runs headless in Node, so layout stays in `diagram-core` with one implementation and no new Python dependency. |
 | **Static HTML site export** — self-contained site (diagrams + docs + ADRs + inventory) for any static host/Confluence | High | M-L | *The* sharing story for a local-first tool. Must embed fetched theme icons as data URIs. |
-| **Diagram diff** — two git revisions compared: added/removed/changed elements & relationships per view, visual overlay + text report | High | L | `pystructurizr diff rev1 rev2` for PR comments; model diff on the query layer, overlay via the renderer. |
+| **Diagram diff** — two git revisions compared: added/removed/changed elements & relationships per view, visual overlay + text report | High | L | `c4studio diff rev1 rev2` for PR comments; model diff on the query layer, overlay via the renderer. |
 
 ## Phase 4 — Differentiators & authoring depth
 
@@ -54,7 +54,7 @@ governance and overlay features are UI/reporting work, not model work.
 | **Workspace composition / landscape roll-up** — stitch per-team workspaces (`extends`/federation) into one enterprise landscape | High | L | The real "enterprise" scope gap; align DSL semantics with upstream `extends`. |
 | **ADR workflow tooling** — CLI create/supersede, ADR↔element links, status dashboard | Med | M | Templates + git already cover much; links add traceability. |
 | **In-browser DSL editor** — diagnostics + element-id autocomplete | Med | L | Live reload + external editor already tight; needs an editor component dep (ask first). |
-| **Scaffolding** — `pystructurizr init` org templates; deterministic diff-friendly layout sidecars | Med | S-M | Onboarding ergonomics. |
+| **Scaffolding** — `c4studio init` org templates; deterministic diff-friendly layout sidecars | Med | S-M | Onboarding ergonomics. |
 
 **Previously parked, now shipped:** manual edge vertices (PP-76). The
 original reasoning — auto-layout plus curve separation already solve edge

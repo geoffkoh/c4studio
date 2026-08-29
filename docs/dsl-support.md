@@ -1,6 +1,6 @@
 # Structurizr DSL: language support
 
-Which parts of the Structurizr DSL pystructurizr understands, keyword by
+Which parts of the Structurizr DSL c4studio understands, keyword by
 keyword.
 
 **Reference:** the published language reference at
@@ -11,7 +11,7 @@ settles it — each parser there declares a literal `GRAMMAR` string.
 **How the support column was established:** by parsing a minimal snippet
 for each keyword and inspecting the resulting model, not by reading the
 parser. Verified August 2026 against the parser in
-`src/pystructurizr/parser/dsl.py`.
+`src/c4studio/parser/dsl.py`.
 
 | | Meaning |
 | --- | --- |
@@ -23,7 +23,7 @@ parser. Verified August 2026 against the parser in
 
 Anything marked ⛔ follows the parser's fail-soft contract: the construct
 and any `{ … }` body are skipped whole, never half-applied, and recorded in
-`Workspace.diagnostics` (and `parse_warnings`), which `pystructurizr check`
+`Workspace.diagnostics` (and `parse_warnings`), which `c4 check`
 prints. A skipped construct never consumes its enclosing scope.
 
 ## Workspace
@@ -128,7 +128,7 @@ prints. A skipped construct never consumes its enclosing scope.
 | --- | --- | --- |
 | `scope` | ✅ | |
 | `visibility` | ✅ | |
-| `users { … }` | ✅ | Parsed and round-tripped. pystructurizr is local-first: there is no auth to apply it to |
+| `users { … }` | ✅ | Parsed and round-tripped. c4studio is local-first: there is no auth to apply it to |
 
 ## The gaps worth knowing about
 
@@ -139,13 +139,13 @@ They are the worst kind of gap, because nothing tells you:
 - `!relationship <alias> { … }`
 - `!relationships` with wildcard expressions
 
-Everything else that is unsupported announces itself: `pystructurizr check`
+Everything else that is unsupported announces itself: `c4 check`
 lists it, and the webapp surfaces it. If a construct you rely on is missing
 here and does *not* appear in `check` output, that is a bug worth filing.
 
 ## What will not be supported
 
 `!script` and `!plugin` execute arbitrary code — Groovy, Kotlin, Ruby or a
-JVM class — named by the file being parsed. pystructurizr parses untrusted
+JVM class — named by the file being parsed. c4studio parses untrusted
 DSL in a CLI, a web app and (potentially) a browser, so it skips both and
 says so. This is a deliberate boundary, not a missing feature.

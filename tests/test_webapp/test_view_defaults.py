@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from pystructurizr.parser.dsl import parse_dsl
-from pystructurizr.webapp.graph import react_flow_graph
-from pystructurizr.webapp.server import _views_index
+from c4studio.parser.dsl import parse_dsl
+from c4studio.webapp.graph import react_flow_graph
+from c4studio.webapp.server import _views_index
 
 
 DSL = """

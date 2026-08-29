@@ -2,8 +2,8 @@
 
 import pytest
 
-from pystructurizr.generators.json_export import workspace_to_json
-from pystructurizr.parser.dsl import UnsupportedFeatureWarning, parse_dsl
+from c4studio.generators.json_export import workspace_to_json
+from c4studio.parser.dsl import UnsupportedFeatureWarning, parse_dsl
 
 
 def test_identifiers_directive_is_consumed_silently() -> None:

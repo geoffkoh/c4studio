@@ -1,7 +1,7 @@
 """Tests for group boundaries in Mermaid output (Phase 2 of DSL parity)."""
 
-from pystructurizr.generators.mermaid import MermaidGenerator
-from pystructurizr.parser.dsl import parse_dsl
+from c4studio.generators.mermaid import MermaidGenerator
+from c4studio.parser.dsl import parse_dsl
 
 
 GROUPED_DSL = """

@@ -7,7 +7,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const previews = new PreviewManager(context.globalStorageUri.fsPath);
   context.subscriptions.push(previews);
 
-  const output = vscode.window.createOutputChannel("pystructurizr");
+  const output = vscode.window.createOutputChannel("c4studio");
   context.subscriptions.push(output);
 
   const diagnostics = new DiagnosticsManager(
@@ -18,7 +18,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const enabled = (): boolean =>
     vscode.workspace
-      .getConfiguration("pystructurizr")
+      .getConfiguration("c4studio")
       .get<boolean>("diagnostics.enabled", true);
 
   // Check what is already open, then on open, save and edit. Editing is
@@ -46,28 +46,28 @@ export function activate(context: vscode.ExtensionContext): void {
       diagnostics.clear(document);
     }),
     vscode.workspace.onDidChangeConfiguration((event) => {
-      if (!event.affectsConfiguration("pystructurizr")) return;
+      if (!event.affectsConfiguration("c4studio")) return;
       if (enabled()) checkAll();
     }),
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("pystructurizr.openPreview", async () => {
+    vscode.commands.registerCommand("c4studio.openPreview", async () => {
       const document = vscode.window.activeTextEditor?.document;
       if (!document || document.languageId !== "structurizr-dsl") {
         void vscode.window.showInformationMessage(
-          "pystructurizr: open a Structurizr DSL file (.dsl) first.",
+          "c4studio: open a Structurizr DSL file (.dsl) first.",
         );
         return;
       }
       if (document.isDirty) await document.save();
       await previews.open(document);
     }),
-    vscode.commands.registerCommand("pystructurizr.checkFile", async () => {
+    vscode.commands.registerCommand("c4studio.checkFile", async () => {
       const document = vscode.window.activeTextEditor?.document;
       if (!document || document.languageId !== "structurizr-dsl") {
         void vscode.window.showInformationMessage(
-          "pystructurizr: open a Structurizr DSL file (.dsl) first.",
+          "c4studio: open a Structurizr DSL file (.dsl) first.",
         );
         return;
       }

@@ -4,7 +4,7 @@ Structurizr hides an element's metadata line with the ``metadata`` element
 style property and its description with ``description``; relationship
 styles carry the same pair. All three were parsed and then ignored.
 
-The rule lives in :mod:`pystructurizr.graph.view_graph` — suppressed text
+The rule lives in :mod:`c4studio.graph.view_graph` — suppressed text
 is blanked there, so every renderer drops it without knowing the rule. The
 one exception is the ``[Kind: Technology]`` line, which renderers compose
 from the element kind, so the graph also emits ``showMetadata``.
@@ -16,12 +16,12 @@ from pathlib import Path
 
 import pytest
 
-from pystructurizr.generators.flowchart import FlowchartGenerator
-from pystructurizr.generators.mermaid import MermaidGenerator
-from pystructurizr.graph.view_graph import build_view_graph
-from pystructurizr.models import Styles, View, Workspace
-from pystructurizr.parser.dsl import parse_dsl, parse_dsl_file
-from pystructurizr.webapp.graph import react_flow_graph
+from c4studio.generators.flowchart import FlowchartGenerator
+from c4studio.generators.mermaid import MermaidGenerator
+from c4studio.graph.view_graph import build_view_graph
+from c4studio.models import Styles, View, Workspace
+from c4studio.parser.dsl import parse_dsl, parse_dsl_file
+from c4studio.webapp.graph import react_flow_graph
 
 SAMPLES = Path(__file__).parent.parent.parent / "samples"
 
@@ -218,7 +218,7 @@ class TestNoRegression:
     ) -> None:
         """No sample sets these properties, so nothing may be suppressed."""
         monkeypatch.setattr(
-            "pystructurizr.graph.view_graph.theme_styles", lambda workspace: Styles()
+            "c4studio.graph.view_graph.theme_styles", lambda workspace: Styles()
         )
         workspace = parse_dsl_file(path)
         for view in workspace.views:

@@ -9,9 +9,9 @@ from __future__ import annotations
 
 import pytest
 
-from pystructurizr.models import AutomaticLayout, RankDirection, View, Workspace
-from pystructurizr.parser.dsl import parse_dsl
-from pystructurizr.webapp.graph import (
+from c4studio.models import AutomaticLayout, RankDirection, View, Workspace
+from c4studio.parser.dsl import parse_dsl
+from c4studio.webapp.graph import (
     DEFAULT_NODE_SEPARATION,
     DEFAULT_RANK_SEPARATION,
     react_flow_graph,
@@ -118,7 +118,7 @@ def test_every_sample_view_carries_spacing() -> None:
     """The payload contract: these keys are always present."""
     from pathlib import Path
 
-    from pystructurizr.parser.dsl import parse_dsl_file
+    from c4studio.parser.dsl import parse_dsl_file
 
     samples = Path(__file__).parent.parent / "samples"
     workspace: Workspace = parse_dsl_file(samples / "internet_banking.dsl")

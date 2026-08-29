@@ -1,6 +1,6 @@
 import { Panel } from "reactflow";
 
-import type { AlignMode, DistributeMode } from "@pystructurizr/diagram-core";
+import type { AlignMode, DistributeMode } from "@c4studio/diagram-core";
 
 /**
  * Align and distribute controls, shown only while several nodes are

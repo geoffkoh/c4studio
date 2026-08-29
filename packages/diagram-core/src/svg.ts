@@ -4,7 +4,7 @@
  * The SPA draws a diagram as HTML in a React Flow canvas; `export.ts`
  * rasterises that live canvas with html-to-image, which needs a browser.
  * This module draws the same diagram as pure SVG markup from the graph
- * payload alone, so `pystructurizr render` works in CI, in a Forge
+ * payload alone, so `c4 render` works in CI, in a Forge
  * resolver, or anywhere else with no DOM.
  *
  * Layout is the *same* code the SPA runs (`layout.ts`), so node positions

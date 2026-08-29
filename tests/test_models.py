@@ -1,6 +1,6 @@
 """Tests for all new and updated model dataclasses."""
 
-from pystructurizr.models import (
+from c4studio.models import (
     Animation,
     AutomaticLayout,
     Component,

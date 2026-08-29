@@ -58,7 +58,7 @@ async function waitForServer(
   return false;
 }
 
-/** Webview shell: a full-bleed iframe onto the local pystructurizr server. */
+/** Webview shell: a full-bleed iframe onto the local c4studio server. */
 function iframeHtml(port: number): string {
   const origin = `http://127.0.0.1:${port}`;
   return `<!DOCTYPE html>
@@ -79,7 +79,7 @@ function iframeHtml(port: number): string {
 }
 
 /**
- * Owns the preview webview and the pystructurizr server behind it.
+ * Owns the preview webview and the c4studio server behind it.
  *
  * One server + one panel at a time: previewing the same file reveals the
  * existing panel; previewing a different file restarts the server against
@@ -96,7 +96,7 @@ export class PreviewManager implements vscode.Disposable {
   private readonly storageDir: string;
 
   constructor(storageDir: string) {
-    this.output = vscode.window.createOutputChannel("pystructurizr");
+    this.output = vscode.window.createOutputChannel("c4studio");
     this.storageDir = storageDir;
   }
 
@@ -115,7 +115,7 @@ export class PreviewManager implements vscode.Disposable {
       port = await freePort();
     } catch (error) {
       void vscode.window.showErrorMessage(
-        `pystructurizr: could not allocate a port: ${String(error)}`,
+        `c4studio: could not allocate a port: ${String(error)}`,
       );
       return;
     }
@@ -127,9 +127,9 @@ export class PreviewManager implements vscode.Disposable {
     if (!command) {
       void vscode.window
         .showErrorMessage(
-          "pystructurizr: no way to run the backend was found. " +
-            "Install it (pipx install pystructurizr-studio) or set " +
-            "pystructurizr.serverCommand.",
+          "c4studio: no way to run the backend was found. " +
+            "Install it (pipx install c4studio) or set " +
+            "c4studio.serverCommand.",
           "Open Logs",
         )
         .then((choice) => {
@@ -161,8 +161,8 @@ export class PreviewManager implements vscode.Disposable {
       this.output.appendLine(`[preview] spawn failed: ${error.message}`);
       void vscode.window
         .showErrorMessage(
-          `pystructurizr: could not start "${command.join(" ")}". ` +
-            "Install pystructurizr (e.g. via uv) or set pystructurizr.serverCommand.",
+          `c4studio: could not start "${command.join(" ")}". ` +
+            "Install c4studio (e.g. via uv) or set c4studio.serverCommand.",
           "Open Logs",
         )
         .then((choice) => {
@@ -179,7 +179,7 @@ export class PreviewManager implements vscode.Disposable {
       this.stopServer();
       void vscode.window
         .showErrorMessage(
-          "pystructurizr: the preview server did not become ready.",
+          "c4studio: the preview server did not become ready.",
           "Open Logs",
         )
         .then((choice) => {
@@ -190,8 +190,8 @@ export class PreviewManager implements vscode.Disposable {
 
     if (!this.panel) {
       this.panel = vscode.window.createWebviewPanel(
-        "pystructurizrPreview",
-        "pystructurizr",
+        "c4studioPreview",
+        "c4studio",
         { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
         { enableScripts: true, retainContextWhenHidden: true },
       );

@@ -1,11 +1,11 @@
 ---
 name: run-webapp
-description: Launch the pystructurizr viewer (FastAPI + React SPA) against a sample workspace and exercise it over the API, for manual checks or live verification of a change. Use when the user wants to run, demo, screenshot, or verify the web app.
+description: Launch the c4studio viewer (FastAPI + React SPA) against a sample workspace and exercise it over the API, for manual checks or live verification of a change. Use when the user wants to run, demo, screenshot, or verify the web app.
 disable-model-invocation: false
 argument-hint: "[sample-name] [--port N] [--rebuild-frontend]"
 ---
 
-# Run the pystructurizr Viewer
+# Run the c4studio Viewer
 
 Live verification against `samples/` is required before opening a PR for any
 webapp or parser change — tests alone do not catch rendering regressions.
@@ -24,7 +24,7 @@ picker and switch between workspaces in the UI.
 
 ## 2. Rebuild the frontend first — only if you changed it
 
-`src/pystructurizr/webapp/static/` is a committed build artifact. Python-only
+`src/c4studio/webapp/static/` is a committed build artifact. Python-only
 changes do not need a rebuild. If you touched `frontend/`:
 
 ```bash
@@ -33,14 +33,14 @@ conda run -n pystructurizr --no-capture-output npm install
 conda run -n pystructurizr --no-capture-output npm run build
 ```
 
-The build writes into `src/pystructurizr/webapp/static/` — commit that output
+The build writes into `src/c4studio/webapp/static/` — commit that output
 with the change.
 
 ## 3. Launch
 
 ```bash
 uv sync
-uv run pystructurizr webapp samples/ --port 8090 --no-browser
+uv run c4 webapp samples/ --port 8090 --no-browser
 ```
 
 Run it in the background so you can drive the API in the same session, and use a

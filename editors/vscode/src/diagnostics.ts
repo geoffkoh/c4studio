@@ -4,7 +4,7 @@ import * as vscode from "vscode";
 
 import { resolveServerCommand } from "./resolve";
 
-/** One record emitted by `pystructurizr check --json`. */
+/** One record emitted by `c4 check --json`. */
 interface CheckRecord {
   path: string | null;
   line: number | null;
@@ -45,7 +45,7 @@ function rangeOf(record: CheckRecord): vscode.Range {
  *
  * Diagnostics come from the parser itself rather than the TextMate grammar,
  * which is a stateless tokeniser and cannot tell whether a construct is
- * valid. The extension shells out to `pystructurizr check --json` through
+ * valid. The extension shells out to `c4 check --json` through
  * the same backend the preview resolves, so there is one implementation of
  * the language's rules.
  *
@@ -64,7 +64,7 @@ function rangeOf(record: CheckRecord): vscode.Range {
  */
 export class DiagnosticsManager implements vscode.Disposable {
   private readonly collection =
-    vscode.languages.createDiagnosticCollection("pystructurizr");
+    vscode.languages.createDiagnosticCollection("c4studio");
   private readonly timers = new Map<string, NodeJS.Timeout>();
   /** Files this document's last run put diagnostics on, so they can be cleared. */
   private readonly owned = new Map<string, string[]>();
@@ -190,7 +190,7 @@ export class DiagnosticsManager implements vscode.Disposable {
         record.message,
         severityOf(record),
       );
-      diagnostic.source = "pystructurizr";
+      diagnostic.source = "c4studio";
       if (record.code) diagnostic.code = record.code;
       const list = byFile.get(target) ?? [];
       list.push(diagnostic);

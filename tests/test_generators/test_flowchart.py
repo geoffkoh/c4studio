@@ -14,10 +14,10 @@ from pathlib import Path
 
 import pytest
 
-from pystructurizr.generators.flowchart import FlowchartGenerator
-from pystructurizr.models import Styles, View, ViewType, Workspace
-from pystructurizr.parser.dsl import parse_dsl, parse_dsl_file
-from pystructurizr.parser.json_parser import parse_json
+from c4studio.generators.flowchart import FlowchartGenerator
+from c4studio.models import Styles, View, ViewType, Workspace
+from c4studio.parser.dsl import parse_dsl, parse_dsl_file
+from c4studio.parser.json_parser import parse_json
 
 SAMPLES = Path(__file__).parent.parent.parent / "samples"
 
@@ -32,7 +32,7 @@ _EDGE = re.compile(r"^\s*(\w+) -->(?:\|\"(.*)\"\|)? (\w+)$")
 def _no_remote_themes(monkeypatch: pytest.MonkeyPatch) -> None:
     """Keep sample-based tests offline (hedge_fund references a remote theme)."""
     monkeypatch.setattr(
-        "pystructurizr.graph.view_graph.theme_styles", lambda workspace: Styles()
+        "c4studio.graph.view_graph.theme_styles", lambda workspace: Styles()
     )
 
 

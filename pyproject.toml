@@ -1,7 +1,9 @@
 [project]
-# Published as "pystructurizr-studio" (the PyPI name "pystructurizr" is an
-# unrelated project); the import package and CLI are still "pystructurizr".
-name = "pystructurizr-studio"
+# Renamed from "pystructurizr-studio" in PP-106: the old name was a
+# mouthful, and "pystructurizr" itself belongs to an unrelated PyPI
+# project. C4 is the notation, not a vendor's product, so the name stays
+# honest even if support broadens beyond Structurizr DSL.
+name = "c4studio"
 version = "0.1.0"
 description = "Parse Structurizr DSL/JSON and generate C4 diagrams in Mermaid, with a CLI and a React web app"
 readme = "README.md"
@@ -35,15 +37,15 @@ dev = [
 ]
 
 [project.scripts]
-pystructurizr = "pystructurizr.cli.main:cli"
+# Short on purpose: this is the thing typed daily.
+c4 = "c4studio.cli.main:cli"
 
 [build-system]
 requires = ["uv_build>=0.11.8,<0.12.0"]
 build-backend = "uv_build"
 
 [tool.uv.build-backend]
-# The distribution is pystructurizr-studio but the module stays pystructurizr.
-module-name = "pystructurizr"
+module-name = "c4studio"
 
 [tool.mypy]
 # Strict by default, so `uv run mypy .` — the command in CLAUDE.md and the

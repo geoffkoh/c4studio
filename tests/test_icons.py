@@ -14,8 +14,8 @@ import pytest
 
 from urllib.request import urlopen
 
-from pystructurizr import icons
-from pystructurizr.icons import MAX_ICON_BYTES, data_uri, inline_icons
+from c4studio import icons
+from c4studio.icons import MAX_ICON_BYTES, data_uri, inline_icons
 
 # A one-pixel PNG, small enough to inline in the test.
 PNG_BYTES = base64.b64decode(

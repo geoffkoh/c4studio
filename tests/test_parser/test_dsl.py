@@ -1,6 +1,6 @@
 from pathlib import Path
 import pytest
-from pystructurizr.parser.dsl import ParseError, parse_dsl, parse_dsl_file
+from c4studio.parser.dsl import ParseError, parse_dsl, parse_dsl_file
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"
 
@@ -251,7 +251,7 @@ def test_docs_directive_without_file_context_raises() -> None:
 
 
 def test_docs_files_are_watched_for_live_reload(tmp_path: Path) -> None:
-    from pystructurizr.parser.dsl import collect_source_files
+    from c4studio.parser.dsl import collect_source_files
 
     docs = tmp_path / "docs"
     docs.mkdir()

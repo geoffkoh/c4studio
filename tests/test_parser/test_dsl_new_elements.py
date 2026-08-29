@@ -1,7 +1,7 @@
 """Tests for new DSL parser features: deployment elements, enterprise, autolayout params."""
 
-from pystructurizr.models import AutomaticLayout, Location, RankDirection, ViewType
-from pystructurizr.parser.dsl import parse_dsl
+from c4studio.models import AutomaticLayout, Location, RankDirection, ViewType
+from c4studio.parser.dsl import parse_dsl
 
 
 def test_parse_enterprise() -> None:

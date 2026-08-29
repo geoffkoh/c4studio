@@ -16,10 +16,11 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
-from pystructurizr.cli.main import cli
-from pystructurizr.models import View, Workspace
-from pystructurizr.parser.dsl import parse_dsl_file
-from pystructurizr.render import (
+from c4studio.cli.main import cli
+from c4studio.models import View, Workspace
+from c4studio.parser.dsl import parse_dsl_file
+from c4studio.render import (
+    LEGACY_NODE_ENV_VAR,
     NODE_ENV_VAR,
     RenderError,
     node_executable,
@@ -70,7 +71,8 @@ class TestWithoutNode:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.delenv(NODE_ENV_VAR, raising=False)
-        monkeypatch.setattr("pystructurizr.render.shutil.which", lambda _: None)
+        monkeypatch.delenv(LEGACY_NODE_ENV_VAR, raising=False)
+        monkeypatch.setattr("c4studio.render.shutil.which", lambda _: None)
         with pytest.raises(RenderError) as excinfo:
             node_executable()
         message = str(excinfo.value)
@@ -86,11 +88,30 @@ class TestWithoutNode:
         with pytest.raises(RenderError, match="does not exist"):
             node_executable()
 
+    def test_the_pre_rename_variable_still_works(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """PYSTRUCTURIZR_NODE usually lives in CI config (PP-106)."""
+        monkeypatch.delenv(NODE_ENV_VAR, raising=False)
+        monkeypatch.setenv(LEGACY_NODE_ENV_VAR, str(tmp_path / "nope"))
+        with pytest.raises(RenderError, match="does not exist"):
+            node_executable()
+
+    def test_the_current_variable_wins_over_the_legacy_one(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        node = tmp_path / "node"
+        node.write_text("")
+        monkeypatch.setenv(NODE_ENV_VAR, str(node))
+        monkeypatch.setenv(LEGACY_NODE_ENV_VAR, str(tmp_path / "nope"))
+        assert node_executable() == str(node)
+
     def test_unknown_view_is_rejected_before_node_is_needed(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.delenv(NODE_ENV_VAR, raising=False)
-        monkeypatch.setattr("pystructurizr.render.shutil.which", lambda _: None)
+        monkeypatch.delenv(LEGACY_NODE_ENV_VAR, raising=False)
+        monkeypatch.setattr("c4studio.render.shutil.which", lambda _: None)
         result = CliRunner().invoke(
             cli, ["render", str(SAMPLES / "internet_banking.dsl"), "-v", "Nope"]
         )

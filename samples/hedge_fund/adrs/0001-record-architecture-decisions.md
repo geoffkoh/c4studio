@@ -20,4 +20,4 @@ Nygard, kept in `adrs/` next to the workspace model.
 ## Consequences
 
 Decisions are versioned with the model and rendered in the
-pystructurizr web app alongside the diagrams.
+c4studio web app alongside the diagrams.

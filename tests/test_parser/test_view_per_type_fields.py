@@ -11,16 +11,16 @@ from __future__ import annotations
 import json
 from typing import Any, cast
 
-from pystructurizr.generators.json_export import export_json
-from pystructurizr.models import Dimensions, View, ViewType
-from pystructurizr.parser.json_parser import parse_json
+from c4studio.generators.json_export import export_json
+from c4studio.models import Dimensions, View, ViewType
+from c4studio.parser.json_parser import parse_json
 
 JsonDict = dict[str, Any]
 
 
 def _round_trip(view: View) -> View:
     """Export a workspace holding ``view`` and parse it back."""
-    from pystructurizr.models import Workspace
+    from c4studio.models import Workspace
 
     workspace = Workspace(name="T")
     workspace.views.append(view)
@@ -28,7 +28,7 @@ def _round_trip(view: View) -> View:
 
 
 def _exported_view(view: View) -> JsonDict:
-    from pystructurizr.models import Workspace
+    from c4studio.models import Workspace
 
     workspace = Workspace(name="T")
     workspace.views.append(view)

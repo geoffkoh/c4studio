@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pystructurizr.parser.dsl import parse_dsl
+from c4studio.parser.dsl import parse_dsl
 
 DEFAULT_THEME_URL = "https://static.structurizr.com/themes/default/theme.json"
 

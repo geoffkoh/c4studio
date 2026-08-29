@@ -9,7 +9,7 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from pystructurizr.webapp.server import create_app
+from c4studio.webapp.server import create_app
 
 FIXTURE = Path(__file__).parent.parent / "fixtures" / "example.dsl"
 
