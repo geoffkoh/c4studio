@@ -21,6 +21,7 @@ export {
   NODE_HEIGHT,
   ICON_ALLOWANCE,
   type RankDirection,
+  type Spacing,
 } from "./layout";
 export {
   EDGE_PAINT,

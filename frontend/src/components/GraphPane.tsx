@@ -236,7 +236,10 @@ async function toFlow(
   // If any node lacks a stored position, run a fresh auto-layout; otherwise
   // adapt the stored absolute positions to the nested-node model.
   const positioned = anyMissingPosition
-    ? await layoutGraph(nodes, edges, data.rankDirection)
+    ? await layoutGraph(nodes, edges, data.rankDirection, {
+        rankSeparation: data.rankSeparation,
+        nodeSeparation: data.nodeSeparation,
+      })
     : await normalizeStoredPositions(nodes, edges);
 
   // The diagram's own title and legend. Added after layout and excluded

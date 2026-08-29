@@ -56,5 +56,8 @@ def test_graph_payload_defaults_without_autolayout() -> None:
     ws = parse_dsl(DSL)
     view = next(v for v in ws.views if v.key == "land")
     payload = react_flow_graph(ws, view)
-    assert payload["rankSeparation"] == 100
-    assert payload["nodeSeparation"] == 100
+    # A view that declares no autoLayout keeps the viewer's own spacing, so
+    # diagrams that never asked for anything do not move (PP-102). Declared
+    # spacing is covered in tests/test_layout_spacing.py.
+    assert payload["rankSeparation"] == 90
+    assert payload["nodeSeparation"] == 60

@@ -113,10 +113,16 @@ def test_http_health_check_defaults() -> None:
 
 
 def test_automatic_layout_defaults() -> None:
+    """Mirrors structurizr-core's AutomaticLayout.DEFAULT_* (100/50/50).
+
+    `node_separation` was 100 and `edge_separation` 0 here, matching
+    nothing upstream, until PP-102 checked the Java constants.
+    """
     al = AutomaticLayout()
     assert al.rank_direction == RankDirection.TOP_BOTTOM
     assert al.rank_separation == 100
-    assert al.node_separation == 100
+    assert al.node_separation == 50
+    assert al.edge_separation == 50
     assert al.vertices is False
 
 

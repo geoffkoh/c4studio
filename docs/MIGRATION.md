@@ -226,6 +226,19 @@ workspace.views.configuration.styles.element_styles.append(
 )
 ```
 
+## `AutomaticLayout` defaults corrected (PP-102)
+
+`node_separation` was 100 and `edge_separation` 0; structurizr-core's
+`AutomaticLayout.DEFAULT_*` constants are **100 / 50 / 50**. Ours now
+match.
+
+This is visible: a view declaring `autoLayout` previously laid out with a
+hardcoded 90/60 because the separations never reached the renderer at all.
+It now uses what the view declares, so such diagrams re-layout once —
+ranks slightly further apart, nodes slightly closer. Views that declare no
+`autoLayout` are unchanged, and any view with a saved layout sidecar keeps
+its stored positions regardless.
+
 ## Field mapping reference
 
 | Phase | Class | Field | Type | Default |

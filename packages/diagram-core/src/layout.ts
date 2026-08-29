@@ -26,6 +26,11 @@ const BOUNDARY_PAD_X = 28;
 const BOUNDARY_PAD_TOP = 28;
 const BOUNDARY_PAD_BOTTOM = 56;
 
+// Used when a caller passes no spacing. A view that declares `autoLayout`
+// carries its own; these keep everything else looking as it always has.
+const DEFAULT_RANK_SEPARATION = 90;
+const DEFAULT_NODE_SEPARATION = 60;
+
 // Clearance for the diagram's own title and legend, which sit outside the
 // laid-out bounds so they cannot collide with an element.
 const TITLE_OFFSET = 64;
@@ -59,14 +64,26 @@ function nodeSize(node: Node): Size {
  */
 export type RankDirection = "TB" | "BT" | "LR" | "RL";
 
+export interface Spacing {
+  /** Distance between ranks, i.e. along the layout direction. */
+  rankSeparation?: number;
+  /** Distance between nodes within a rank. */
+  nodeSeparation?: number;
+}
+
 function dagreLevel(
   items: { id: string; size: Size }[],
   edges: { source: string; target: string }[],
   direction: RankDirection,
+  spacing?: Spacing,
 ): Map<string, Point> {
   const g = new dagre.graphlib.Graph();
   g.setDefaultEdgeLabel(() => ({}));
-  g.setGraph({ rankdir: direction, nodesep: 60, ranksep: 90 });
+  g.setGraph({
+    rankdir: direction,
+    nodesep: spacing?.nodeSeparation ?? DEFAULT_NODE_SEPARATION,
+    ranksep: spacing?.rankSeparation ?? DEFAULT_RANK_SEPARATION,
+  });
 
   for (const item of items) {
     g.setNode(item.id, { ...item.size });
@@ -143,6 +160,7 @@ export async function layoutGraph(
   nodes: Node[],
   edges: Edge[],
   direction: RankDirection = "TB",
+  spacing?: Spacing,
 ): Promise<Node[]> {
   const { parentOf, childrenOf } = buildHierarchy(nodes);
   const positions = new Map<string, Point>();
@@ -181,6 +199,7 @@ export async function layoutGraph(
       children.map((c) => ({ id: c.id, size: sizeOf(c) })),
       edgesAtLevel(parentId),
       direction,
+      spacing,
     );
 
     let maxX = 0;

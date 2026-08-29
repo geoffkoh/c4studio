@@ -19,6 +19,12 @@ from pystructurizr.graph.view_graph import (
 )
 
 
+#: What the frontend laid out with before spacing was plumbed through, and
+#: still the look of any view that declares no autoLayout.
+DEFAULT_RANK_SEPARATION = 90
+DEFAULT_NODE_SEPARATION = 60
+
+
 ReactFlowNode = dict[str, Any]
 ReactFlowEdge = dict[str, Any]
 ReactFlowData = dict[str, Any]
@@ -102,10 +108,17 @@ def react_flow_graph(
         edges.append(edge)
 
     # Filtered views carry no layout of their own; inherit the base view's.
+    # Spacing a view declares is honoured; a view that declares no
+    # autoLayout keeps the viewer's own defaults, so diagrams that never
+    # asked for anything do not shift (PP-102).
     layout = effective_layout(workspace, view)
     direction = rank_direction(workspace, view)
-    rank_separation = layout.rank_separation if layout is not None else 100
-    node_separation = layout.node_separation if layout is not None else 100
+    rank_separation = (
+        layout.rank_separation if layout is not None else DEFAULT_RANK_SEPARATION
+    )
+    node_separation = (
+        layout.node_separation if layout is not None else DEFAULT_NODE_SEPARATION
+    )
 
     return {
         "nodes": nodes,

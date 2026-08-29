@@ -9104,6 +9104,8 @@ var PERSON_HEIGHT = 150;
 var BOUNDARY_PAD_X = 28;
 var BOUNDARY_PAD_TOP = 28;
 var BOUNDARY_PAD_BOTTOM = 56;
+var DEFAULT_RANK_SEPARATION = 90;
+var DEFAULT_NODE_SEPARATION = 60;
 function nodeSize(node) {
 	const data = node.data;
 	const kind = data?.kind ?? "";
@@ -9117,13 +9119,13 @@ function nodeSize(node) {
 		height: 110 + icon
 	};
 }
-function dagreLevel(items, edges, direction) {
+function dagreLevel(items, edges, direction, spacing) {
 	const g = new import_dagre.default.graphlib.Graph();
 	g.setDefaultEdgeLabel(() => ({}));
 	g.setGraph({
 		rankdir: direction,
-		nodesep: 60,
-		ranksep: 90
+		nodesep: spacing?.nodeSeparation ?? DEFAULT_NODE_SEPARATION,
+		ranksep: spacing?.rankSeparation ?? DEFAULT_RANK_SEPARATION
 	});
 	for (const item of items) g.setNode(item.id, { ...item.size });
 	for (const edge of edges) g.setEdge(edge.source, edge.target);
@@ -9183,7 +9185,7 @@ function ancestorAtLevel(id, parentId, parentOf) {
 * decision to take on its own merits, not a side effect of a dependency
 * upgrade.
 */
-async function layoutGraph(nodes, edges, direction = "TB") {
+async function layoutGraph(nodes, edges, direction = "TB", spacing) {
 	const { parentOf, childrenOf } = buildHierarchy(nodes);
 	const positions = /* @__PURE__ */ new Map();
 	const groupSizes = /* @__PURE__ */ new Map();
@@ -9212,7 +9214,7 @@ async function layoutGraph(nodes, edges, direction = "TB") {
 		const laidOut = dagreLevel(children.map((c) => ({
 			id: c.id,
 			size: sizeOf(c)
-		})), edgesAtLevel(parentId), direction);
+		})), edgesAtLevel(parentId), direction, spacing);
 		let maxX = 0;
 		let maxY = 0;
 		let minX = Number.POSITIVE_INFINITY;
@@ -9683,7 +9685,10 @@ function toFlow(payload) {
 async function renderSvg(payload, options = {}) {
 	const padding = options.padding ?? 24;
 	const { nodes, edges } = toFlow(payload);
-	const placed = place(payload.nodes.some((n) => !n.position) ? await layoutGraph(nodes, edges, payload.rankDirection ?? "TB") : await normalizeStoredPositions(nodes, edges));
+	const placed = place(payload.nodes.some((n) => !n.position) ? await layoutGraph(nodes, edges, payload.rankDirection ?? "TB", {
+		rankSeparation: payload.rankSeparation,
+		nodeSeparation: payload.nodeSeparation
+	}) : await normalizeStoredPositions(nodes, edges));
 	const boxes = [...placed.values()];
 	if (boxes.length === 0) return `<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0"/>`;
 	const minX = Math.min(...boxes.map((b) => b.x));

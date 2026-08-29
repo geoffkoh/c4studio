@@ -31,9 +31,12 @@ class AutomaticLayout:
     """Automatic layout configuration for a view."""
 
     rank_direction: RankDirection = RankDirection.TOP_BOTTOM
+    #: structurizr-core's AutomaticLayout.DEFAULT_* constants: 100/50/50.
+    #: `node_separation` and `edge_separation` were 100 and 0 here, which
+    #: matched nothing upstream (PP-102).
     rank_separation: int = 100
-    node_separation: int = 100
-    edge_separation: int = 0
+    node_separation: int = 50
+    edge_separation: int = 50
     vertices: bool = False
 
 
