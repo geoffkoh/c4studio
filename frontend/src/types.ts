@@ -82,6 +82,8 @@ export interface GraphData {
   edges: GEdge[];
   /** dagre rank direction from the view's autoLayout: TB, BT, LR or RL. */
   rankDirection: "TB" | "BT" | "LR" | "RL";
+  /** Distinct element styles used by this view, for the legend. */
+  legend?: { label: string; colour: string; shape: string }[];
 }
 
 /** Response body from POST /api/views/{key}/layout. */

@@ -60,13 +60,25 @@ export interface GraphPayloadEdge {
   waypoints?: [number, number][];
 }
 
+export interface LegendEntry {
+  label: string;
+  colour: string;
+  shape: string;
+}
+
 export interface GraphPayload {
   nodes: GraphPayloadNode[];
   edges: GraphPayloadEdge[];
   rankDirection?: RankDirection;
+  /** Distinct styles used by this view, derived in the graph layer. */
+  legend?: LegendEntry[];
 }
 
 export interface RenderOptions {
+  /** Draw the title as a heading above the diagram (default: true). */
+  showTitle?: boolean;
+  /** Draw the legend below the diagram (default: true when entries exist). */
+  showLegend?: boolean;
   /** Blank margin around the diagram bounds. */
   padding?: number;
   /** Page background; `null` leaves it transparent. */
@@ -113,6 +125,20 @@ const BOUNDARY_RADIUS = 10;
 // `.boundary__label`: bottom-left, the type italicised beside the name.
 const BOUNDARY_LABEL_SIZE = 12;
 const BOUNDARY_LABEL_COLOUR = "#546e7a";
+
+// Title band and legend. Both sit outside the diagram bounds, so they
+// extend the canvas rather than overlapping any element.
+const TITLE_SIZE = 18;
+const TITLE_COLOUR = "#172b4d";
+const TITLE_GAP = 20;
+const LEGEND_SWATCH = 14;
+const LEGEND_ROW = 22;
+const LEGEND_LABEL_SIZE = 11;
+const LEGEND_LABEL_COLOUR = "#44546f";
+const LEGEND_GAP = 24;
+const LEGEND_PAD = 12;
+const LEGEND_COLUMN_WIDTH = 220;
+const LEGEND_MAX_ROWS = 6;
 
 const EDGE_COLOUR = "#b1b1b7";
 const EDGE_WIDTH = 1;
@@ -500,6 +526,101 @@ function paintEdge(
   );
 }
 
+/** A miniature of the node shape, so the swatch reads as what it explains. */
+function legendSwatch(entry: LegendEntry, x: number, y: number): string {
+  const size = LEGEND_SWATCH;
+  const half = size / 2;
+  const fill = entry.colour || FALLBACK_FILL;
+  const stroke = ` stroke="${NODE_STROKE}" stroke-width="1"`;
+  switch (entry.shape) {
+    case "Boundary":
+      // The one entry that explains an outline rather than a fill.
+      return (
+        `<rect x="${round(x)}" y="${round(y)}" width="${size}" height="${size}" ` +
+        `rx="3" fill="none" stroke="${BOUNDARY_STROKE}" stroke-width="1.5" ` +
+        `stroke-dasharray="3 2"/>`
+      );
+    case "Person":
+    case "Robot":
+      return (
+        `<circle cx="${round(x + half)}" cy="${round(y + 4)}" r="3.5" fill="${fill}"${stroke}/>` +
+        `<rect x="${round(x)}" y="${round(y + 6)}" width="${size}" height="${size - 6}" ` +
+        `rx="3" fill="${fill}"${stroke}/>`
+      );
+    case "Cylinder":
+    case "Bucket":
+    case "Pipe":
+      return (
+        `<rect x="${round(x)}" y="${round(y + 3)}" width="${size}" height="${size - 6}" fill="${fill}"${stroke}/>` +
+        `<ellipse cx="${round(x + half)}" cy="${round(y + 3)}" rx="${half}" ry="3" fill="${fill}"${stroke}/>`
+      );
+    case "Circle":
+    case "Ellipse":
+      return `<circle cx="${round(x + half)}" cy="${round(y + half)}" r="${half}" fill="${fill}"${stroke}/>`;
+    case "Hexagon": {
+      const points = [
+        [x + 3, y], [x + size - 3, y], [x + size, y + half],
+        [x + size - 3, y + size], [x + 3, y + size], [x, y + half],
+      ].map(([px, py]) => `${round(px)},${round(py)}`).join(" ");
+      return `<polygon points="${points}" fill="${fill}"${stroke}/>`;
+    }
+    case "Box":
+      return `<rect x="${round(x)}" y="${round(y)}" width="${size}" height="${size}" fill="${fill}"${stroke}/>`;
+    default:
+      return (
+        `<rect x="${round(x)}" y="${round(y)}" width="${size}" height="${size}" ` +
+        `rx="3" fill="${fill}"${stroke}/>`
+      );
+  }
+}
+
+/**
+ * Lay the legend out in columns of at most LEGEND_MAX_ROWS, so a themed
+ * deployment view with a dozen service styles grows sideways instead of
+ * doubling the height of the image.
+ */
+function paintLegend(
+  entries: LegendEntry[],
+  x: number,
+  y: number,
+): { markup: string; width: number; height: number } {
+  const rows = Math.min(entries.length, LEGEND_MAX_ROWS);
+  const columns = Math.ceil(entries.length / LEGEND_MAX_ROWS);
+  const width = columns * LEGEND_COLUMN_WIDTH + 2 * LEGEND_PAD;
+  const height = rows * LEGEND_ROW + 2 * LEGEND_PAD;
+
+  const parts = [
+    `<rect x="${round(x)}" y="${round(y)}" width="${round(width)}" height="${round(height)}" ` +
+      `rx="6" fill="#ffffff" stroke="${EDGE_LABEL_BORDER}"/>`,
+  ];
+  entries.forEach((entry, index) => {
+    const column = Math.floor(index / LEGEND_MAX_ROWS);
+    const row = index % LEGEND_MAX_ROWS;
+    const cellX = x + LEGEND_PAD + column * LEGEND_COLUMN_WIDTH;
+    const cellY = y + LEGEND_PAD + row * LEGEND_ROW;
+    parts.push(legendSwatch(entry, cellX, cellY + 3));
+    const [label] = wrap(
+      entry.label,
+      LEGEND_COLUMN_WIDTH - LEGEND_SWATCH - 20,
+      LEGEND_LABEL_SIZE,
+      1,
+    );
+    parts.push(
+      textLine(
+        label ?? "",
+        cellX + LEGEND_SWATCH + 8,
+        cellY + LEGEND_SWATCH - 2,
+        LEGEND_LABEL_SIZE,
+        LEGEND_LABEL_COLOUR,
+        1,
+        400,
+        "start",
+      ),
+    );
+  });
+  return { markup: parts.join(""), width, height };
+}
+
 // ---------------------------------------------------------------------------
 // Entry point
 // ---------------------------------------------------------------------------
@@ -551,9 +672,31 @@ export async function renderSvg(
   const minY = Math.min(...boxes.map((b) => b.y));
   const maxX = Math.max(...boxes.map((b) => b.x + b.width));
   const maxY = Math.max(...boxes.map((b) => b.y + b.height));
-  const width = round(maxX - minX + 2 * padding);
-  const height = round(maxY - minY + 2 * padding);
-  const shift = `translate(${round(padding - minX)},${round(padding - minY)})`;
+  const diagramWidth = maxX - minX;
+  const diagramHeight = maxY - minY;
+
+  // Title and legend sit outside the diagram bounds and extend the canvas,
+  // so neither can overlap an element however dense the graph is.
+  const title = options.title ?? "";
+  const drawTitle = title !== "" && options.showTitle !== false;
+  const titleHeight = drawTitle ? TITLE_SIZE + TITLE_GAP : 0;
+
+  const entries = payload.legend ?? [];
+  const drawLegend = entries.length > 0 && options.showLegend !== false;
+  const legend = drawLegend
+    ? paintLegend(entries, padding, padding + titleHeight + diagramHeight + LEGEND_GAP)
+    : null;
+
+  const width = round(
+    Math.max(diagramWidth, legend ? legend.width : 0) + 2 * padding,
+  );
+  const height = round(
+    titleHeight +
+      diagramHeight +
+      (legend ? LEGEND_GAP + legend.height : 0) +
+      2 * padding,
+  );
+  const shift = `translate(${round(padding - minX)},${round(padding + titleHeight - minY)})`;
 
   // Boundaries first so they sit behind their children, then edges, then
   // the leaf nodes — the SPA's stacking order.
@@ -566,24 +709,37 @@ export async function renderSvg(
     ...leaves.map(paintNode),
   ].join("");
 
+  const heading = drawTitle
+    ? textLine(
+        title,
+        padding,
+        padding + TITLE_SIZE,
+        TITLE_SIZE,
+        TITLE_COLOUR,
+        1,
+        600,
+        "start",
+      )
+    : "";
+
   const background =
     options.background === null
       ? ""
       : `<rect width="100%" height="100%" fill="${options.background ?? "#ffffff"}"/>`;
-  const title = options.title
-    ? `<title>${escapeXml(options.title)}</title>`
-    : "";
+  const titleTag = title ? `<title>${escapeXml(title)}</title>` : "";
 
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" ` +
     `viewBox="0 0 ${width} ${height}" font-family="${FONT}">` +
-    title +
+    titleTag +
     `<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" ` +
     `markerWidth="${ARROW}" markerHeight="${ARROW}" markerUnits="userSpaceOnUse" ` +
     `orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="${EDGE_COLOUR}"/>` +
     `</marker></defs>` +
     background +
+    heading +
     `<g transform="${shift}">${body}</g>` +
+    (legend ? legend.markup : "") +
     `</svg>\n`
   );
 }

@@ -414,6 +414,11 @@ def _apply_styles(workspace: Workspace, nodes: list[GraphNode]) -> None:
         for style in styles:
             if style.tag not in tags:
                 continue
+            # Remember the most specific rule that matched, so the legend
+            # can name the style ("Datastore") rather than the C4 kind
+            # ("Container"). `Element` is the catch-all and names nothing.
+            if style.tag != "Element":
+                data["styleTag"] = style.tag
             if style.background:
                 data["background"] = style.background
             if style.color:
@@ -431,6 +436,70 @@ def _apply_styles(workspace: Workspace, nodes: list[GraphNode]) -> None:
             data["technology"] = ""
         if not show_description:
             data["description"] = ""
+
+
+#: Human-readable name per element kind, for legend entries that no
+#: tag-based style claimed. Externals are called out because they carry a
+#: different colour and would otherwise duplicate the internal entry.
+_KIND_NAMES: dict[str, str] = {
+    "person": "Person",
+    "person-external": "Person (external)",
+    "system": "Software System",
+    "system-external": "Software System (external)",
+    "container": "Container",
+    "component": "Component",
+    "infrastructure": "Infrastructure Node",
+    "container-instance": "Container Instance",
+    "system-instance": "Software System Instance",
+}
+
+#: What a boundary looks like, for the one entry that explains the dashed
+#: outline rather than a fill colour.
+BOUNDARY_LEGEND: dict[str, str] = {
+    "label": "Boundary",
+    "colour": KIND_COLOURS["boundary"],
+    "shape": "Boundary",
+}
+
+
+def legend_entries(nodes: list[GraphNode]) -> list[dict[str, str]]:
+    """Distinct element styles used by ``nodes``, in first-appearance order.
+
+    One entry per visually distinct combination, labelled by the style tag
+    that produced it when there was one and by the C4 kind otherwise. Order
+    follows the node list rather than a set, so repeated renders stay
+    byte-identical — committed diagrams must not churn.
+
+    Args:
+        nodes: Graph nodes, after styles have been applied.
+
+    Returns:
+        Entries of ``label``, ``colour`` and ``shape``; a single boundary
+        entry is appended when the view draws any.
+    """
+    entries: list[dict[str, str]] = []
+    seen: set[tuple[str, str, str]] = set()
+    has_boundary = False
+    for node in nodes:
+        data = node["data"]
+        kind = str(data.get("kind", ""))
+        if kind == "boundary":
+            has_boundary = True
+            continue
+        if kind not in _KIND_NAMES:
+            continue
+        label = str(data.get("styleTag") or _KIND_NAMES[kind])
+        colour = str(data.get("background") or KIND_COLOURS.get(kind, ""))
+        default_shape = "Person" if kind.startswith("person") else "RoundedBox"
+        shape = str(data.get("shape") or default_shape)
+        key = (label, colour, shape)
+        if key in seen:
+            continue
+        seen.add(key)
+        entries.append({"label": label, "colour": colour, "shape": shape})
+    if has_boundary:
+        entries.append(dict(BOUNDARY_LEGEND))
+    return entries
 
 
 def _relationship_styles(workspace: Workspace) -> list[RelationshipStyle]:
@@ -847,11 +916,11 @@ def build_view_graph(
             inside an expanded system can itself be expanded.
     """
     if view.type == ViewType.DEPLOYMENT:
-        return _deployment_data(workspace, view)
+        return _with_legend(_deployment_data(workspace, view))
     if view.type == ViewType.DYNAMIC:
-        return _dynamic_data(workspace, view)
+        return _with_legend(_dynamic_data(workspace, view))
     if view.type == ViewType.FILTERED:
-        return _filtered_data(workspace, view, expand)
+        return _with_legend(_filtered_data(workspace, view, expand))
 
     parents = _parent_ids(workspace)
     visible = _visible_ids(workspace, view)
@@ -985,12 +1054,20 @@ def build_view_graph(
     nodes = _insert_group_boundaries(workspace, nodes)
     _apply_styles(workspace, nodes)
     _attach_stored_sizes(view, nodes)
-    return {
-        "nodes": nodes,
-        "edges": _edges(
-            workspace, visible, parents, set(view.excluded_relationship_ids)
-        ),
-    }
+    return _with_legend(
+        {
+            "nodes": nodes,
+            "edges": _edges(
+                workspace, visible, parents, set(view.excluded_relationship_ids)
+            ),
+        }
+    )
+
+
+def _with_legend(data: GraphData) -> GraphData:
+    """Attach legend entries to finished graph data, in place."""
+    data["legend"] = legend_entries(data["nodes"])
+    return data
 
 
 def _insert_group_boundaries(
