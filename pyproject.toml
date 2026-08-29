@@ -28,7 +28,7 @@ dependencies = [
 ]
 
 [project.urls]
-Repository = "https://github.com/geoffkoh/pystructurizr"
+Repository = "https://github.com/geoffkoh/c4studio"
 
 [project.optional-dependencies]
 dev = [

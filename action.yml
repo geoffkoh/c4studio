@@ -158,6 +158,6 @@ runs:
             echo "- \`$file\` ($status)"
           done
           echo
-          echo "_Rendered by [pystructurizr](https://github.com/geoffkoh/pystructurizr)._"
-        } > /tmp/pystructurizr-comment.md
-        gh pr comment "${{ github.event.number }}" --body-file /tmp/pystructurizr-comment.md
+          echo "_Rendered by [c4studio](https://github.com/geoffkoh/c4studio)._"
+        } > /tmp/c4studio-comment.md
+        gh pr comment "${{ github.event.number }}" --body-file /tmp/c4studio-comment.md
