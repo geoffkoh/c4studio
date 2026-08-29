@@ -156,7 +156,7 @@ the finding in the code or docs so the answer survives without it.
   open a PR, merge the PR, and wait for the merge before starting the next
   ticket.
 - **`gh` is not installed on this machine.** Create and merge PRs through the
-  GitHub REST API (`https://api.github.com/repos/geoffkoh/pystructurizr/pulls`)
+  GitHub REST API (`https://api.github.com/repos/geoffkoh/c4studio/pulls`)
   with `curl`, not the `gh` CLI.
 
 ## Documentation Upkeep

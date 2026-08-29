@@ -151,7 +151,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: geoffkoh/pystructurizr@v1
+      - uses: geoffkoh/c4studio@v0.2.0
         id: diagrams
         with:
           workspace: docs/architecture.dsl

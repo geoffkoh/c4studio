@@ -31,13 +31,17 @@ Then rewrite `import pystructurizr` → `import c4studio` and any scripted
 input now defaults to `c4studio`; a workflow pinning `pystructurizr-studio`
 must be repointed.
 
-Two things did **not** change: the git repository stays at
-`geoffkoh/pystructurizr`, and the DSL and layout-sidecar formats are
-untouched, so existing `.dsl` files and `*.layout.json` sidecars load as they
-are. `PYSTRUCTURIZR_NODE` is still honoured as a fallback — it usually lives
-in CI configuration — but `C4STUDIO_NODE` wins when both are set. Browser-held
-UI preferences (edge style, snap-to-grid, interaction mode, explorer level)
-are keyed by name and reset once to their defaults.
+The git repository moved to `geoffkoh/c4studio` as well. GitHub redirects the
+old path, so existing clones, links and `uses:` references keep working — but
+repoint them, because the redirect stops the day anything else claims the old
+name.
+
+The DSL and layout-sidecar formats are untouched, so existing `.dsl` files and
+`*.layout.json` sidecars load as they are. `PYSTRUCTURIZR_NODE` is still
+honoured as a fallback — it usually lives in CI configuration — but
+`C4STUDIO_NODE` wins when both are set. Browser-held UI preferences (edge
+style, snap-to-grid, interaction mode, explorer level) are keyed by name and
+reset once to their defaults.
 
 ---
 
