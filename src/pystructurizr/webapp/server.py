@@ -56,6 +56,13 @@ class AppState:
             ``{view_key: {edge_id: [[x, y], ...]}}``. Held here rather than
             on the workspace because deployment and dynamic views synthesise
             edges that have no RelationshipView to hang vertices on.
+        labels: Dragged edge-label offsets, as
+            ``{view_key: {edge_id: [dx, dy]}}``, relative to where the label
+            would otherwise sit. Held here for the same reason as waypoints,
+            and additionally because Structurizr has no per-view label
+            position to store it in — upstream places labels with the
+            ``position`` relationship style (0-100 along the line), so a
+            free 2-D offset is ours alone and belongs in per-user UI state.
     """
 
     root: Path
@@ -68,6 +75,7 @@ class AppState:
     load_error: str = ""
     source_cache: dict[str, Any] | None = None
     waypoints: dict[str, dict[str, list[list[int]]]] = field(default_factory=dict)
+    labels: dict[str, dict[str, list[int]]] = field(default_factory=dict)
 
 
 class LoadRequest(BaseModel):
@@ -85,6 +93,9 @@ class LayoutRequest(BaseModel):
     # Relationship bend points, keyed by edge id. An edge present with an
     # empty list has had its waypoints cleared.
     waypoints: dict[str, list[tuple[int, int]]] = {}
+    # Dragged label offsets, keyed by edge id. An edge present with a zero
+    # offset has been dragged back to its default place.
+    labels: dict[str, tuple[int, int]] = {}
 
 
 def _get_state(request: Request) -> AppState:
@@ -274,17 +285,44 @@ def _read_layout_waypoints(source: Path) -> dict[str, dict[str, list[list[int]]]
     return cleaned
 
 
+def _read_layout_labels(source: Path) -> dict[str, dict[str, list[int]]]:
+    """Read the sidecar's ``{view_key: {edge_id: [dx, dy]}}`` mapping.
+
+    Its own top-level section for the same reason as ``edges``: sidecars
+    written before label dragging existed have no ``labels`` key and load
+    unchanged.
+    """
+    labels = _read_sidecar_data(source).get("labels")
+    if not isinstance(labels, dict):
+        return {}
+    cleaned: dict[str, dict[str, list[int]]] = {}
+    for key, by_edge in labels.items():
+        if not isinstance(by_edge, dict):
+            continue
+        offsets = {
+            edge_id: [int(offset[0]), int(offset[1])]
+            for edge_id, offset in by_edge.items()
+            if isinstance(offset, list) and len(offset) == 2
+        }
+        if offsets:
+            cleaned[key] = offsets
+    return cleaned
+
+
 def _write_layout_sidecar(
     source: Path,
     views: dict[str, dict[str, list[int]]],
     waypoints: dict[str, dict[str, list[list[int]]]],
+    labels: dict[str, dict[str, list[int]]] | None = None,
 ) -> Path:
-    """Write both sidecar sections, removing the file when nothing is left."""
+    """Write every sidecar section, removing the file when nothing is left."""
     sidecar = _layout_sidecar(source)
     document: dict[str, Any] = {"version": 1, "views": views}
     if waypoints:
         document["edges"] = waypoints
-    if not views and not waypoints:
+    if labels:
+        document["labels"] = labels
+    if not views and not waypoints and not labels:
         sidecar.unlink(missing_ok=True)
         return sidecar
     sidecar.write_text(json.dumps(document, indent=2, sort_keys=True), encoding="utf-8")
@@ -308,6 +346,21 @@ def _attach_waypoints(
             edge["waypoints"] = [[int(x), int(y)] for x, y in points]
 
 
+def _attach_labels(data: dict[str, Any], labels: dict[str, list[int]]) -> None:
+    """Add saved label offsets onto matching edges of a graph payload.
+
+    Stale ids are skipped exactly as waypoints are: the entry stays in the
+    sidecar until that view's layout is saved again, and never reaches the
+    client.
+    """
+    if not labels:
+        return
+    for edge in data.get("edges", []):
+        offset = labels.get(edge.get("id", ""))
+        if offset:
+            edge["labelOffset"] = [int(offset[0]), int(offset[1])]
+
+
 def _apply_saved_layout(state: AppState) -> None:
     """Apply sidecar positions onto the loaded workspace's views."""
     if state.workspace is None or state.current_path is None:
@@ -315,6 +368,7 @@ def _apply_saved_layout(state: AppState) -> None:
     # Waypoints stay on the state: they are keyed by edge id, and synthesised
     # deployment/dynamic edges have no RelationshipView to hold them.
     state.waypoints = _read_layout_waypoints(state.current_path)
+    state.labels = _read_layout_labels(state.current_path)
     saved = _read_layout_sidecar(state.current_path)
     if not saved:
         return
@@ -519,6 +573,7 @@ def create_app(
         view = _find_view(workspace, key)
         data = graph.react_flow_graph(workspace, view, expand_ids or None)
         _attach_waypoints(data, state.waypoints.get(key, {}))
+        _attach_labels(data, state.labels.get(key, {}))
         state.diagrams[cache_key] = data
         return data
 
@@ -567,7 +622,23 @@ def create_app(
             all_waypoints.pop(key, None)
         state.waypoints = all_waypoints
 
-        sidecar = _write_layout_sidecar(state.current_path, saved, all_waypoints)
+        # A zero offset means "dragged back to default", so it is dropped
+        # rather than stored — the sidecar records deviations only.
+        offsets = {
+            edge_id: [int(dx), int(dy)]
+            for edge_id, (dx, dy) in body.labels.items()
+            if dx or dy
+        }
+        all_labels = _read_layout_labels(state.current_path)
+        if offsets:
+            all_labels[key] = offsets
+        else:
+            all_labels.pop(key, None)
+        state.labels = all_labels
+
+        sidecar = _write_layout_sidecar(
+            state.current_path, saved, all_waypoints, all_labels
+        )
         return {"saved": str(sidecar)}
 
     @app.delete("/api/views/{key}/layout")
@@ -588,12 +659,16 @@ def create_app(
 
         saved = _read_layout_sidecar(state.current_path)
         all_waypoints = _read_layout_waypoints(state.current_path)
-        # Reset means back to auto-layout, which includes straight edges.
-        if key in saved or key in all_waypoints:
+        all_labels = _read_layout_labels(state.current_path)
+        # Reset means back to auto-layout: straight edges and labels at
+        # their default place on the line.
+        if key in saved or key in all_waypoints or key in all_labels:
             saved.pop(key, None)
             all_waypoints.pop(key, None)
+            all_labels.pop(key, None)
             state.waypoints = all_waypoints
-            _write_layout_sidecar(state.current_path, saved, all_waypoints)
+            state.labels = all_labels
+            _write_layout_sidecar(state.current_path, saved, all_waypoints, all_labels)
         return {"reset": key}
 
     _mount_static(app, static_dir)

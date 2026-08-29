@@ -384,6 +384,87 @@ def test_layout_persists_edge_waypoints(client: TestClient, root: Path) -> None:
     assert by_id["customer__bank__0"]["waypoints"] == points
 
 
+def test_layout_persists_dragged_label_offsets(client: TestClient, root: Path) -> None:
+    """Label offsets take the same route as waypoints (PP-100)."""
+    _load(client)
+    response = client.post(
+        "/api/views/SystemContext/layout",
+        json={
+            "positions": {"customer": [10, 20]},
+            "labels": {"customer__bank__0": [40, -25]},
+        },
+    )
+    assert response.status_code == 200
+
+    sidecar = json.loads((root / "example.layout.json").read_text(encoding="utf-8"))
+    assert sidecar["labels"]["SystemContext"]["customer__bank__0"] == [40, -25]
+
+    graph = client.get("/api/views/SystemContext/graph").json()
+    by_id = {e["id"]: e for e in graph["edges"]}
+    assert by_id["customer__bank__0"]["labelOffset"] == [40, -25]
+    assert "labelOffset" not in by_id["bank__email__0"]
+
+    # ...and to a fresh session loading the same source.
+    fresh = TestClient(create_app(root=root))
+    fresh.post("/api/load", json={"path": "example.dsl"})
+    graph = fresh.get("/api/views/SystemContext/graph").json()
+    assert {e["id"]: e for e in graph["edges"]}["customer__bank__0"]["labelOffset"] == [
+        40,
+        -25,
+    ]
+
+
+def test_label_dragged_back_to_default_is_not_persisted(
+    client: TestClient, root: Path
+) -> None:
+    """The sidecar records deviations, not zeroes."""
+    _load(client)
+    client.post(
+        "/api/views/SystemContext/layout",
+        json={"positions": {}, "labels": {"customer__bank__0": [40, -25]}},
+    )
+    client.post(
+        "/api/views/SystemContext/layout",
+        json={"positions": {}, "labels": {"customer__bank__0": [0, 0]}},
+    )
+    sidecar_path = root / "example.layout.json"
+    if sidecar_path.exists():
+        sidecar = json.loads(sidecar_path.read_text(encoding="utf-8"))
+        assert "SystemContext" not in sidecar.get("labels", {})
+    graph = client.get("/api/views/SystemContext/graph").json()
+    assert all("labelOffset" not in e for e in graph["edges"])
+
+
+def test_delete_layout_clears_label_offsets(client: TestClient, root: Path) -> None:
+    _load(client)
+    client.post(
+        "/api/views/SystemContext/layout",
+        json={
+            "positions": {"customer": [1, 2]},
+            "labels": {"customer__bank__0": [8, 9]},
+        },
+    )
+    assert client.delete("/api/views/SystemContext/layout").status_code == 200
+    graph = client.get("/api/views/SystemContext/graph").json()
+    assert all("labelOffset" not in e for e in graph["edges"])
+
+
+def test_sidecars_without_a_labels_section_still_load(
+    client: TestClient, root: Path
+) -> None:
+    """Sidecars written before label dragging existed must keep working."""
+    _load(client)
+    (root / "example.layout.json").write_text(
+        json.dumps({"version": 1, "views": {"SystemContext": {"customer": [5, 6]}}}),
+        encoding="utf-8",
+    )
+    fresh = TestClient(create_app(root=root))
+    fresh.post("/api/load", json={"path": "example.dsl"})
+    graph = fresh.get("/api/views/SystemContext/graph").json()
+    assert graph["nodes"]
+    assert all("labelOffset" not in e for e in graph["edges"])
+
+
 def test_clearing_waypoints_drops_them_from_the_sidecar(
     client: TestClient, root: Path
 ) -> None:

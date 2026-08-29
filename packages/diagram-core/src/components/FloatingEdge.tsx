@@ -12,6 +12,12 @@ import {
 } from "reactflow";
 
 export interface FloatingEdgeData {
+  /** Dragged offset from the label's computed place, in flow units. */
+  labelOffset?: [number, number];
+  /** Live drag updates; absent when labels are not draggable. */
+  onLabelDrag?: (edgeId: string, dx: number, dy: number) => void;
+  /** End of gesture, for persisting to the layout sidecar. */
+  onLabelDragEnd?: () => void;
   label?: string;
   /** Which path renderer to use; anchoring is floating in all cases. */
   pathStyle?: "default" | "straight" | "step" | "smoothstep";
@@ -180,6 +186,108 @@ function WaypointHandle({
  * the renderer (bezier, straight, step, smooth step); a `curveOffset`
  * bows the edge sideways so overlapping relationships fan apart.
  */
+interface EdgeLabelProps {
+  id: string;
+  text: string;
+  x: number;
+  y: number;
+  offset?: [number, number];
+  animState?: string;
+  hovered: boolean;
+  onHoverChange?: (edgeId: string | null) => void;
+  onDrag?: (edgeId: string, dx: number, dy: number) => void;
+  onDragEnd?: () => void;
+}
+
+/**
+ * The relationship label, draggable away from the point on the line where
+ * it would otherwise sit.
+ *
+ * The gesture mirrors WaypointHandle: pointer capture so it survives the
+ * pointer leaving the small target, and screen deltas divided by the
+ * viewport zoom so it tracks the cursor at any scale. The offset is stored
+ * relative to the computed position, not absolutely, so a re-layout or a
+ * dragged endpoint carries the label along with its line.
+ *
+ * Upstream Structurizr places labels with the `position` relationship
+ * style (0-100 along the line); a free 2-D offset is ours, and lives in
+ * the layout sidecar as per-user UI state.
+ */
+function EdgeLabel({
+  id,
+  text,
+  x,
+  y,
+  offset,
+  animState,
+  hovered,
+  onHoverChange,
+  onDrag,
+  onDragEnd,
+}: EdgeLabelProps) {
+  const zoom = useStore((store) => store.transform[2]);
+  const origin = useRef<{ px: number; py: number; dx: number; dy: number } | null>(
+    null,
+  );
+  const draggable = Boolean(onDrag);
+
+  return (
+    <div
+      className={
+        "edge-label nodrag nopan" +
+        (animState === "active" ? " edge-label--active" : "") +
+        (animState === "future" ? " edge-label--future" : "") +
+        (hovered ? " edge-label--hovered" : "") +
+        (draggable ? " edge-label--draggable" : "")
+      }
+      style={{
+        transform: `translate(-50%, -50%) translate(${x}px, ${y}px)`,
+        pointerEvents: "all",
+        zIndex: hovered ? 1000 : undefined,
+      }}
+      onMouseEnter={() => onHoverChange?.(id)}
+      onMouseLeave={() => onHoverChange?.(null)}
+      onPointerDown={(event) => {
+        if (!onDrag || event.button !== 0) return;
+        event.stopPropagation();
+        origin.current = {
+          px: event.clientX,
+          py: event.clientY,
+          dx: offset?.[0] ?? 0,
+          dy: offset?.[1] ?? 0,
+        };
+        event.currentTarget.setPointerCapture(event.pointerId);
+      }}
+      onPointerMove={(event) => {
+        const start = origin.current;
+        if (!start || !onDrag) return;
+        onDrag(
+          id,
+          start.dx + (event.clientX - start.px) / zoom,
+          start.dy + (event.clientY - start.py) / zoom,
+        );
+      }}
+      onPointerUp={(event) => {
+        if (!origin.current) return;
+        origin.current = null;
+        event.currentTarget.releasePointerCapture(event.pointerId);
+        onDragEnd?.();
+      }}
+      onDoubleClick={(event) => {
+        // Double-click returns the label to the line, the same affordance
+        // the waypoint context menu offers for bend points.
+        if (!onDrag) return;
+        event.stopPropagation();
+        onDrag(id, 0, 0);
+        onDragEnd?.();
+      }}
+      title={draggable ? "Drag to move; double-click to reset" : undefined}
+    >
+      {text}
+    </div>
+  );
+}
+
 export function FloatingEdge({
   id,
   source,
@@ -319,23 +427,18 @@ export function FloatingEdge({
         : null}
       {data?.label ? (
         <EdgeLabelRenderer>
-          <div
-            className={
-              "edge-label nodrag nopan" +
-              (animState === "active" ? " edge-label--active" : "") +
-              (animState === "future" ? " edge-label--future" : "") +
-              (hovered ? " edge-label--hovered" : "")
-            }
-            style={{
-              transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
-              pointerEvents: "all",
-              zIndex: hovered ? 1000 : undefined,
-            }}
-            onMouseEnter={() => data.onHoverChange?.(id)}
-            onMouseLeave={() => data.onHoverChange?.(null)}
-          >
-            {data.label}
-          </div>
+          <EdgeLabel
+            id={id}
+            text={data.label}
+            x={labelX + (data.labelOffset?.[0] ?? 0)}
+            y={labelY + (data.labelOffset?.[1] ?? 0)}
+            offset={data.labelOffset}
+            animState={animState}
+            hovered={hovered}
+            onHoverChange={data.onHoverChange}
+            onDrag={data.onLabelDrag}
+            onDragEnd={data.onLabelDragEnd}
+          />
         </EdgeLabelRenderer>
       ) : null}
     </>

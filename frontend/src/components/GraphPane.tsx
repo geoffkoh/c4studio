@@ -131,6 +131,7 @@ interface GraphPaneProps {
     positions: Record<string, [number, number]>,
     sizes: Record<string, [number, number]>,
     waypoints: Record<string, [number, number][]>,
+    labels: Record<string, [number, number]>,
   ) => Promise<unknown>;
   resetLayout: (key: string) => Promise<unknown>;
 }
@@ -217,6 +218,7 @@ async function toFlow(
         order: e.order,
         curveOffset,
         waypoints: e.waypoints,
+        labelOffset: e.labelOffset,
       },
       ...EDGE_PAINT,
     };
@@ -542,6 +544,21 @@ export function GraphPane({
     [],
   );
 
+  /** Dragged label offsets, keyed by edge id, for the layout sidecar. */
+  const collectLabelOffsets = useCallback(
+    (edges: Edge[]): Record<string, [number, number]> => {
+      const offsets: Record<string, [number, number]> = {};
+      for (const edge of edges) {
+        const offset = (edge.data as FloatingEdgeData | undefined)?.labelOffset;
+        if (offset && (offset[0] || offset[1])) {
+          offsets[edge.id] = [Math.round(offset[0]), Math.round(offset[1])];
+        }
+      }
+      return offsets;
+    },
+    [],
+  );
+
   const saveCurrentLayout = useCallback(
     (edgeOverride?: Edge[]) => {
     if (!view) return;
@@ -560,6 +577,7 @@ export function GraphPane({
       absolutePositions(current),
       sizes,
       collectWaypoints(edgeOverride ?? edgesRef.current),
+      collectLabelOffsets(edgeOverride ?? edgesRef.current),
     )
       .then(() => {
         setLayoutState("saved");
@@ -567,8 +585,26 @@ export function GraphPane({
       })
       .catch(() => setLayoutState("failed"));
     },
-    [view, collectWaypoints, saveLayout],
+    [view, collectWaypoints, collectLabelOffsets, saveLayout],
   );
+
+  /** Move one edge's label, then persist on drag end. */
+  const handleLabelDrag = useCallback(
+    (edgeId: string, dx: number, dy: number) => {
+      const updated = edgesRef.current.map((edge) =>
+        edge.id === edgeId
+          ? { ...edge, data: { ...edge.data, labelOffset: [dx, dy] } }
+          : edge,
+      );
+      edgesRef.current = updated;
+      setEdges(updated);
+    },
+    [setEdges],
+  );
+
+  const handleLabelDragEnd = useCallback(() => {
+    saveCurrentLayout(edgesRef.current);
+  }, [saveCurrentLayout]);
 
   /** Replace one edge's bend points, then persist the whole layout. */
   const updateWaypoints = useCallback(
@@ -745,6 +781,8 @@ export function GraphPane({
           hoverState: hovered ? ("hovered" as const) : undefined,
           onHoverChange: hoverEmphasis ? setHoveredEdgeId : undefined,
           onWaypointDrag: handleWaypointDrag,
+          onLabelDrag: handleLabelDrag,
+          onLabelDragEnd: handleLabelDragEnd,
           onWaypointDragEnd: handleWaypointDragEnd,
           onWaypointMenu: handleWaypointMenu,
         },

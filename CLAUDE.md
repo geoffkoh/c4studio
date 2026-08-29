@@ -103,7 +103,11 @@ workspace (`packages/*`, `frontend/`) and `editors/vscode/` alike.
   for existing callers), which the CLI prints to stderr. Keep that contract: a
   skipped construct must never consume its enclosing scope.
 - **Layout sidecars** (`*.layout.json`) are per-user UI state, gitignored, and
-  written next to the source file. Never commit one.
+  written next to the source file. Never commit one. Sections are top-level
+  and additive — `views` (element positions/sizes), `edges` (waypoints),
+  `labels` (dragged label offsets) — so a sidecar written by an older
+  version still loads. Add new state as a new section, never by changing
+  an existing one's shape.
 
 ## Verification
 

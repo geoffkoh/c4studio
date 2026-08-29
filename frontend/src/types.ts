@@ -74,6 +74,8 @@ export interface GEdge {
   order?: number;
   /** Manual bend points in flow coordinates, from the layout sidecar. */
   waypoints?: [number, number][];
+  /** Dragged label offset from its default place, from the sidecar. */
+  labelOffset?: [number, number];
 }
 
 /** Response body from GET /api/views/{key}/graph. */
