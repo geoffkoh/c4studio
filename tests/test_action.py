@@ -14,7 +14,7 @@ from typing import Any
 import pytest
 import yaml
 
-from pystructurizr.cli.main import cli
+from c4studio.cli.main import cli
 
 ROOT = Path(__file__).parent.parent
 ACTION = ROOT / "action.yml"
@@ -94,7 +94,7 @@ class TestPythonSetup:
 
     def test_sets_up_python_before_installing(self, action: dict[str, Any]) -> None:
         names = [step.get("name") for step in action["runs"]["steps"]]
-        assert names.index("Set up Python") < names.index("Install pystructurizr")
+        assert names.index("Set up Python") < names.index("Install c4studio")
 
     def test_setup_is_skippable(self, action: dict[str, Any]) -> None:
         step = next(
@@ -131,7 +131,7 @@ class TestCliContract:
         assert used <= _flags("render"), used - _flags("render")
 
     def test_render_and_check_are_real_commands(self, steps: str) -> None:
-        invoked = set(re.findall(r"pystructurizr (\w+)", steps))
+        invoked = set(re.findall(r"\bc4 (\w+)", steps))
         assert invoked <= set(cli.commands), invoked - set(cli.commands)
         assert {"render", "check"} <= invoked
 
@@ -140,13 +140,13 @@ class TestCliContract:
 
         Compared by step order, not by position in the concatenated
         scripts: the prerequisite step's error message mentions
-        `pystructurizr render` too.
+        `c4 render` too.
         """
         assert _step_index(action, "Check the workspace") < _step_index(
             action, "Render"
         )
-        assert "pystructurizr check" in _script(action, "Check the workspace")
-        assert "pystructurizr render" in _script(action, "Render")
+        assert "c4 check" in _script(action, "Check the workspace")
+        assert "c4 render" in _script(action, "Render")
 
     def test_node_is_verified_with_an_explanation(self, steps: str) -> None:
         assert "command -v node" in steps

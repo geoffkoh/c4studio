@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useReactFlow } from "reactflow";
 
-import { exportDiagram } from "@pystructurizr/diagram-core";
+import { exportDiagram } from "@c4studio/diagram-core";
 import { isTypingTarget } from "../shortcuts";
 
 interface KeyboardShortcutsProps {

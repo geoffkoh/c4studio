@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from pystructurizr.models import (
+from c4studio.models import (
     Component,
     Container,
     Person,
@@ -16,8 +16,8 @@ from pystructurizr.models import (
     ViewType,
     Workspace,
 )
-from pystructurizr.parser.dsl import parse_dsl_file
-from pystructurizr.graph.view_graph import apply_positions, build_view_graph
+from c4studio.parser.dsl import parse_dsl_file
+from c4studio.graph.view_graph import apply_positions, build_view_graph
 from typing import Any, cast
 
 JsonDict = dict[str, Any]
@@ -396,7 +396,7 @@ class TestTagBasedStyles:
     def test_view_graph_prefers_style_background_over_palette(
         self, styled_workspace: Workspace
     ) -> None:
-        from pystructurizr.webapp.graph import react_flow_graph
+        from c4studio.webapp.graph import react_flow_graph
 
         data = react_flow_graph(styled_workspace, styled_workspace.views[0])
         by_id = {n["id"]: n for n in data["nodes"]}
@@ -645,13 +645,13 @@ class TestGeneralizedExpansion:
 
 class TestRankDirection:
     def test_defaults_to_top_bottom(self, workspace: Workspace) -> None:
-        from pystructurizr.webapp.graph import react_flow_graph
+        from c4studio.webapp.graph import react_flow_graph
 
         data = react_flow_graph(workspace, workspace.views[0])
         assert data["rankDirection"] == "TB"
 
     def test_honours_autolayout_direction(self, tmp_path: Path) -> None:
-        from pystructurizr.webapp.graph import react_flow_graph
+        from c4studio.webapp.graph import react_flow_graph
 
         dsl = """
         workspace {

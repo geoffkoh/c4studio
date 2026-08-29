@@ -4,7 +4,7 @@ The generator used to filter *elements* by view visibility but emit
 relationships raw, so a diagram could reference aliases it never declared.
 These tests pin the contract that made that impossible: every ``Rel()``
 endpoint is an entity the same diagram declares, because both come from
-:func:`pystructurizr.graph.view_graph.build_view_graph`.
+:func:`c4studio.graph.view_graph.build_view_graph`.
 """
 
 from __future__ import annotations
@@ -14,9 +14,9 @@ from pathlib import Path
 
 import pytest
 
-from pystructurizr.generators.mermaid import MermaidGenerator
-from pystructurizr.models import Styles, Workspace
-from pystructurizr.parser.dsl import parse_dsl, parse_dsl_file
+from c4studio.generators.mermaid import MermaidGenerator
+from c4studio.models import Styles, Workspace
+from c4studio.parser.dsl import parse_dsl, parse_dsl_file
 
 SAMPLES = Path(__file__).parent.parent.parent / "samples"
 FIXTURES = Path(__file__).parent.parent / "fixtures"
@@ -36,7 +36,7 @@ def _no_remote_themes(monkeypatch: pytest.MonkeyPatch) -> None:
     styling, so stubbing the fetch changes nothing being asserted.
     """
     monkeypatch.setattr(
-        "pystructurizr.graph.view_graph.theme_styles", lambda workspace: Styles()
+        "c4studio.graph.view_graph.theme_styles", lambda workspace: Styles()
     )
 
 

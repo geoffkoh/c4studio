@@ -1,4 +1,4 @@
-// Centralized, typed API client for the pystructurizr backend.
+// Centralized, typed API client for the c4studio backend.
 // All network access goes through these wrappers so error handling and the
 // URL scheme live in exactly one place. In dev, "/api" is proxied to the
 // FastAPI server (see vite.config.ts); in production the SPA is served from

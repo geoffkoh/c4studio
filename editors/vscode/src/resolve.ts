@@ -4,8 +4,8 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as vscode from "vscode";
 
-/** Backend installed by the uv rungs; overridable via pystructurizr.backendSpec. */
-export const DEFAULT_BACKEND_SPEC = "pystructurizr-studio==0.1.0";
+/** Backend installed by the uv rungs; overridable via c4studio.backendSpec. */
+export const DEFAULT_BACKEND_SPEC = "c4studio==0.1.0";
 
 const PROBE_TIMEOUT_MS = 5_000;
 /** First `uv tool run` downloads CPython + the wheel; allow minutes, not seconds. */
@@ -119,23 +119,23 @@ export async function bootstrapUv(
 
 function backendSpec(): string {
   const configured = vscode.workspace
-    .getConfiguration("pystructurizr")
+    .getConfiguration("c4studio")
     .get<string>("backendSpec");
   return configured && configured.trim() !== "" ? configured : DEFAULT_BACKEND_SPEC;
 }
 
 function toolRunCommand(uvPath: string): string[] {
-  return [uvPath, "tool", "run", "--from", backendSpec(), "pystructurizr"];
+  return [uvPath, "tool", "run", "--from", backendSpec(), "c4"];
 }
 
 /**
- * Find a command that runs the pystructurizr CLI, first match wins:
+ * Find a command that runs the c4 CLI, first match wins:
  *
- * 1. the `pystructurizr.serverCommand` setting, verbatim, when non-empty;
- * 2. `pystructurizr` already on PATH;
- * 3. `uv run pystructurizr` when the workspace looks like a uv/python
+ * 1. the `c4studio.serverCommand` setting, verbatim, when non-empty;
+ * 2. `c4` already on PATH;
+ * 3. `uv run c4` when the workspace looks like a uv/python
  *    project (the development-repo case);
- * 4. `uv tool run --from <spec> pystructurizr` when uv is on PATH;
+ * 4. `uv tool run --from <spec> c4` when uv is on PATH;
  * 5. as (4) after downloading a private, checksum-verified uv binary
  *    into the extension's global storage.
  *
@@ -150,29 +150,29 @@ export async function resolveServerCommand(
   output: vscode.OutputChannel,
 ): Promise<string[] | null> {
   const configured = vscode.workspace
-    .getConfiguration("pystructurizr")
+    .getConfiguration("c4studio")
     .get<string[]>("serverCommand");
   if (configured && configured.length > 0) {
     output.appendLine(`[resolve] using serverCommand setting: ${configured.join(" ")}`);
     return configured;
   }
 
-  if (await runs(["pystructurizr", "--version"], PROBE_TIMEOUT_MS)) {
-    output.appendLine("[resolve] found pystructurizr on PATH");
-    return ["pystructurizr"];
+  if (await runs(["c4", "--version"], PROBE_TIMEOUT_MS)) {
+    output.appendLine("[resolve] found c4 on PATH");
+    return ["c4"];
   }
 
   const uvOnPath = await runs(["uv", "--version"], PROBE_TIMEOUT_MS);
   if (uvOnPath && workspaceLooksLikeUvProject(workspaceFolder)) {
     if (
       await runs(
-        ["uv", "run", "pystructurizr", "--version"],
+        ["uv", "run", "c4", "--version"],
         WARMUP_TIMEOUT_MS,
         workspaceFolder,
       )
     ) {
       output.appendLine("[resolve] using the workspace project via uv run");
-      return ["uv", "run", "pystructurizr"];
+      return ["uv", "run", "c4"];
     }
   }
 
@@ -180,7 +180,7 @@ export async function resolveServerCommand(
     vscode.window.withProgress(
       {
         location: vscode.ProgressLocation.Notification,
-        title: "Setting up the pystructurizr backend (one-time download)…",
+        title: "Setting up the c4studio backend (one-time download)…",
       },
       () => runs([...command, "--version"], WARMUP_TIMEOUT_MS),
     );
@@ -198,7 +198,7 @@ export async function resolveServerCommand(
     const uvPath = await vscode.window.withProgress(
       {
         location: vscode.ProgressLocation.Notification,
-        title: "Downloading the uv runtime for pystructurizr (one-time)…",
+        title: "Downloading the uv runtime for c4studio (one-time)…",
       },
       () => bootstrapUv(storageDir, output),
     );

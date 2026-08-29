@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from pystructurizr.parser.dsl import ParseError, parse_dsl
+from c4studio.parser.dsl import ParseError, parse_dsl
 
 
 def _errors(source: str) -> list[str]:

@@ -13,7 +13,7 @@ wheels/
 *.layout.json
 
 # npm workspace installs. The *built* SPA under
-# src/pystructurizr/webapp/static/ is committed deliberately (the wheel
+# src/c4studio/webapp/static/ is committed deliberately (the wheel
 # ships a working UI); packages/diagram-core/dist is a build artefact and
 # is covered by the dist/ rule above.
 node_modules/

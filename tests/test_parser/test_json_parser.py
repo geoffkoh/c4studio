@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
-from pystructurizr.models import Location
-from pystructurizr.parser.json_parser import parse_json, parse_json_file
+from c4studio.models import Location
+from c4studio.parser.json_parser import parse_json, parse_json_file
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"
 

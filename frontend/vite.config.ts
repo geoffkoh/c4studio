@@ -7,7 +7,7 @@ export default defineConfig({
   plugins: [react()],
   base: "./",
   build: {
-    outDir: "../src/pystructurizr/webapp/static",
+    outDir: "../src/c4studio/webapp/static",
     emptyOutDir: true,
   },
   server: {

@@ -1,8 +1,8 @@
 /**
- * The renderer-agnostic half of a pystructurizr diagram.
+ * The renderer-agnostic half of a c4studio diagram.
  *
  * Everything here is driven by the graph JSON the Python side emits
- * (`pystructurizr.graph.view_graph`) and knows nothing about the web app:
+ * (`c4studio.graph.view_graph`) and knows nothing about the web app:
  * no API calls, no app state, no view navigation. That is what lets the
  * same code back the Studio SPA, the headless SVG renderer and the
  * embedded surfaces (Confluence, github.dev).

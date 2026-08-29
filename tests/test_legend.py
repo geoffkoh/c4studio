@@ -11,10 +11,10 @@ from pathlib import Path
 
 import pytest
 
-from pystructurizr.graph.view_graph import build_view_graph, legend_entries
-from pystructurizr.models import Styles, View, Workspace
-from pystructurizr.parser.dsl import parse_dsl, parse_dsl_file
-from pystructurizr.webapp.graph import react_flow_graph
+from c4studio.graph.view_graph import build_view_graph, legend_entries
+from c4studio.models import Styles, View, Workspace
+from c4studio.parser.dsl import parse_dsl, parse_dsl_file
+from c4studio.webapp.graph import react_flow_graph
 
 SAMPLES = Path(__file__).parent.parent / "samples"
 
@@ -22,7 +22,7 @@ SAMPLES = Path(__file__).parent.parent / "samples"
 @pytest.fixture(autouse=True)
 def _no_remote_themes(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "pystructurizr.graph.view_graph.theme_styles", lambda workspace: Styles()
+        "c4studio.graph.view_graph.theme_styles", lambda workspace: Styles()
     )
 
 

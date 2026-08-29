@@ -1,19 +1,18 @@
-# pystructurizr
+# c4studio
 
 Python implementation of [Structurizr](https://structurizr.com/) for architecture modeling and C4 diagram generation.
 
 ## Install
 
-Published on PyPI as **`pystructurizr-studio`** (the name `pystructurizr`
-belongs to an unrelated project); the import package and the CLI are
-still `pystructurizr`:
+Published on PyPI as **`c4studio`**; the import package is `c4studio`
+and the command is `c4`:
 
 ```bash
-pipx install pystructurizr-studio          # or: pip install pystructurizr-studio
-pystructurizr webapp my-architecture.dsl
+pipx install c4studio          # or: pip install c4studio
+c4 webapp my-architecture.dsl
 
 # or run without installing:
-uvx --from pystructurizr-studio pystructurizr webapp my-architecture.dsl
+uvx --from c4studio c4 webapp my-architecture.dsl
 ```
 
 Requires Python 3.13+ (uv/uvx can provision it automatically).
@@ -21,7 +20,7 @@ Requires Python 3.13+ (uv/uvx can provision it automatically).
 ## Quick Start
 
 ```python
-from pystructurizr.models import Workspace, Person, SoftwareSystem, Container, Relationship, View, ViewType
+from c4studio.models import Workspace, Person, SoftwareSystem, Container, Relationship, View, ViewType
 
 # Create workspace
 ws = Workspace(
@@ -50,7 +49,7 @@ ws.views.append(view)
 
 ## Documentation
 
-- **[DSL Language Support](./docs/dsl-support.md)** - Every keyword in the Structurizr DSL and whether pystructurizr supports it
+- **[DSL Language Support](./docs/dsl-support.md)** - Every keyword in the Structurizr DSL and whether c4studio supports it
 - **[Data Models Reference](./docs/data-models.md)** - Complete guide to all Structurizr models and their fields
 - **[Getting Started](./docs/README.md)** - Workflow and common patterns
 - **[Enterprise Roadmap](./docs/roadmap.md)** - Parked phases 2-4 (model intelligence, headless rendering, differentiators)
@@ -70,8 +69,8 @@ ws.views.append(view)
 Parse Structurizr DSL or JSON files:
 
 ```python
-from pystructurizr.parser.dsl import parse_dsl_file
-from pystructurizr.parser.json_parser import parse_json_file
+from c4studio.parser.dsl import parse_dsl_file
+from c4studio.parser.json_parser import parse_json_file
 
 # Parse DSL
 ws = parse_dsl_file("architecture.dsl")
@@ -95,7 +94,7 @@ dense models, and GitHub pins its own Mermaid version — so prefer the
 flowchart target for anything rendered on GitHub or in a wiki.
 
 ```python
-from pystructurizr.generators import FlowchartGenerator, MermaidGenerator
+from c4studio.generators import FlowchartGenerator, MermaidGenerator
 
 for view_name, mermaid_code in MermaidGenerator(ws).generate_all().items():
     print(f"{view_name}:\n{mermaid_code}\n")
@@ -107,21 +106,21 @@ diagrams = FlowchartGenerator(ws).generate_all()
 From the CLI:
 
 ```bash
-uv run pystructurizr generate architecture.dsl                     # C4 (default)
-uv run pystructurizr generate architecture.dsl -f flowchart        # flowchart
-uv run pystructurizr generate architecture.dsl -f flowchart -o out # one .mmd per view
+uv run c4 generate architecture.dsl                     # C4 (default)
+uv run c4 generate architecture.dsl -f flowchart        # flowchart
+uv run c4 generate architecture.dsl -f flowchart -o out # one .mmd per view
 ```
 
 ## Headless SVG Rendering
 
-`pystructurizr render` draws diagrams as standalone SVG with no browser
+`c4 render` draws diagrams as standalone SVG with no browser
 and no server — for CI, docs-as-code pipelines and static sites. Layout is
 the same code the web app runs, so positions match what you see in the
 viewer, including any layout you have saved for a view.
 
 ```bash
-uv run pystructurizr render architecture.dsl -o diagrams/   # one .svg per view
-uv run pystructurizr render architecture.dsl -v Containers  # one view to stdout
+uv run c4 render architecture.dsl -o diagrams/   # one .svg per view
+uv run c4 render architecture.dsl -v Containers  # one view to stdout
 ```
 
 Each diagram carries its own title and a legend of the styles it actually
@@ -135,7 +134,7 @@ offline. An icon that cannot be fetched is simply left out.
 
 > **This is the only command that needs [Node.js](https://nodejs.org) 18+**
 > (the renderer is bundled into the wheel, so there is no `npm install`).
-> Set `PYSTRUCTURIZR_NODE` if `node` is not on your `PATH`. Parsing,
+> Set `C4STUDIO_NODE` if `node` is not on your `PATH`. Parsing,
 > Mermaid generation, JSON export and the web app all work without it.
 
 ## GitHub Action
@@ -168,7 +167,7 @@ jobs:
 | `output` | `diagrams` | Directory for the SVGs, one per view |
 | `view` | *(all)* | Render a single view key |
 | `mode` | `render` | `render`, `commit` (push the files back when they change) or `comment` (comment on the PR) |
-| `version` | `pystructurizr-studio` | pip requirement to install; `local` uses the checkout |
+| `version` | `c4studio` | pip requirement to install; `local` uses the checkout |
 | `python-version` | `3.13` | Python to set up first — runners still default to an older one than this package needs. Empty string skips the step |
 
 The action checks the workspace before rendering, so a parse error fails
@@ -183,10 +182,10 @@ round-tripping with structurizr.com, Structurizr Lite, and this package's
 own parser:
 
 ```bash
-uv run pystructurizr export workspace.dsl -o workspace.json
+uv run c4 export workspace.dsl -o workspace.json
 ```
 
-Or programmatically via `pystructurizr.generators.json_export.export_json`.
+Or programmatically via `c4studio.generators.json_export.export_json`.
 
 ## VS Code Extension
 
@@ -197,7 +196,7 @@ install it locally:
 
 ```bash
 cd editors/vscode && npm install && npm run package
-code --install-extension pystructurizr-vscode-*.vsix
+code --install-extension c4studio-vscode-*.vsix
 ```
 
 ## React Web App
@@ -208,8 +207,8 @@ exploring each view as an interactive [React Flow](https://reactflow.dev/)
 graph (draggable nodes, pan/zoom, minimap).
 
 ```bash
-uv run pystructurizr webapp samples/          # browse a directory
-uv run pystructurizr webapp file.dsl          # preload a single file
+uv run c4 webapp samples/          # browse a directory
+uv run c4 webapp file.dsl          # preload a single file
 # → opens http://127.0.0.1:8090 (use --no-browser to skip, --port to change)
 ```
 
@@ -231,7 +230,7 @@ independent of any curated view — at a selectable abstraction level
 relationships, the views it appears in (click to jump) and a
 show-definition link into the Source pane.
 
-The built SPA ships inside the package (`pystructurizr/webapp/static/`),
+The built SPA ships inside the package (`c4studio/webapp/static/`),
 so end users need no Node toolchain. To rebuild the frontend after
 changes (requires Node 18+):
 
@@ -242,10 +241,10 @@ diagram layer (layout, node/edge components, image export) and
 ```bash
 npm install
 npm run build          # diagram-core, then the SPA
-                       # outputs to src/pystructurizr/webapp/static/
-# dev loop: `npm run dev --workspace pystructurizr-frontend`
+                       # outputs to src/c4studio/webapp/static/
+# dev loop: `npm run dev --workspace c4studio-frontend`
 #           (Vite :5173, proxies /api → :8090) alongside
-#           `uv run pystructurizr webapp samples/ --no-browser`
+#           `uv run c4 webapp samples/ --no-browser`
 ```
 
 > **Security**: the web app has no authentication and is intended for

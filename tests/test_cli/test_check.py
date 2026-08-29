@@ -7,7 +7,7 @@ from pathlib import Path
 
 from click.testing import CliRunner
 
-from pystructurizr.cli.main import cli
+from c4studio.cli.main import cli
 
 WARNING_DSL = (
     'workspace "T" {\n'

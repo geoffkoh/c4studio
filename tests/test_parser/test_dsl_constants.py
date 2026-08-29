@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from pystructurizr.parser.dsl import (
+from c4studio.parser.dsl import (
     ParseError,
     UnsupportedFeatureWarning,
     parse_dsl,

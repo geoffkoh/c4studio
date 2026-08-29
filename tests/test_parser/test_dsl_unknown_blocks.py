@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pystructurizr.parser.dsl import parse_dsl
+from c4studio.parser.dsl import parse_dsl
 
 
 def test_model_level_properties_are_parsed() -> None:

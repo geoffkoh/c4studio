@@ -1,13 +1,13 @@
 {
-  "name": "pystructurizr-vscode",
-  "displayName": "pystructurizr",
-  "description": "Structurizr DSL syntax highlighting and interactive C4 diagram preview, powered by pystructurizr.",
+  "name": "c4studio-vscode",
+  "displayName": "c4studio",
+  "description": "Structurizr DSL syntax highlighting and interactive C4 diagram preview, powered by c4studio.",
   "version": "0.2.0",
   "publisher": "geoffkoh",
   "private": true,
   "repository": {
     "type": "git",
-    "url": "https://github.com/geoffkoh/pystructurizr"
+    "url": "https://github.com/geoffkoh/c4studio"
   },
   "engines": {
     "vscode": "^1.85.0"
@@ -42,13 +42,13 @@
     ],
     "commands": [
       {
-        "command": "pystructurizr.openPreview",
+        "command": "c4studio.openPreview",
         "title": "Open Diagram Preview",
         "category": "Pystructurizr",
         "icon": "$(type-hierarchy-sub)"
       },
       {
-        "command": "pystructurizr.checkFile",
+        "command": "c4studio.checkFile",
         "title": "Check for Problems",
         "category": "Pystructurizr"
       }
@@ -56,39 +56,39 @@
     "menus": {
       "editor/title": [
         {
-          "command": "pystructurizr.openPreview",
+          "command": "c4studio.openPreview",
           "when": "editorLangId == structurizr-dsl",
           "group": "navigation"
         }
       ],
       "commandPalette": [
         {
-          "command": "pystructurizr.openPreview",
+          "command": "c4studio.openPreview",
           "when": "editorLangId == structurizr-dsl"
         },
         {
-          "command": "pystructurizr.checkFile",
+          "command": "c4studio.checkFile",
           "when": "editorLangId == structurizr-dsl"
         }
       ]
     },
     "configuration": {
-      "title": "pystructurizr",
+      "title": "c4studio",
       "properties": {
-        "pystructurizr.serverCommand": {
+        "c4studio.serverCommand": {
           "type": "array",
           "items": {
             "type": "string"
           },
           "default": [],
-          "markdownDescription": "Command used to launch the preview server (the `webapp` subcommand and port are appended). Leave empty for automatic resolution: `pystructurizr` on PATH \u2192 the workspace project via `uv run` \u2192 `uv tool run` from PyPI \u2192 a one-time download of uv. Set explicitly to pin an environment, e.g. `[\"pystructurizr\"]` or a venv script path."
+          "markdownDescription": "Command used to launch the preview server (the `webapp` subcommand and port are appended). Leave empty for automatic resolution: `c4` on PATH \u2192 the workspace project via `uv run` \u2192 `uv tool run` from PyPI \u2192 a one-time download of uv. Set explicitly to pin an environment, e.g. `[\"c4\"]` or a venv script path."
         },
-        "pystructurizr.backendSpec": {
+        "c4studio.backendSpec": {
           "type": "string",
           "default": "",
-          "markdownDescription": "Package spec the automatic `uv tool run` rungs install (default: the pinned `pystructurizr-studio` release matching this extension). Override for pre-releases, e.g. `git+https://github.com/geoffkoh/pystructurizr` or a local wheel path."
+          "markdownDescription": "Package spec the automatic `uv tool run` rungs install (default: the pinned `c4studio` release matching this extension). Override for pre-releases, e.g. `git+https://github.com/geoffkoh/c4studio` or a local wheel path."
         },
-        "pystructurizr.diagnostics.enabled": {
+        "c4studio.diagnostics.enabled": {
           "type": "boolean",
           "default": true,
           "description": "Report Structurizr DSL parse problems as editor diagnostics. Checked as you type, on open and on save, using the same backend as the diagram preview."

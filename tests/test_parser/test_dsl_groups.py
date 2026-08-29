@@ -1,7 +1,7 @@
 """Tests for group membership and custom elements (Phase 2 of DSL parity)."""
 
-from pystructurizr.generators.json_export import workspace_to_json
-from pystructurizr.parser.dsl import parse_dsl
+from c4studio.generators.json_export import workspace_to_json
+from c4studio.parser.dsl import parse_dsl
 
 
 def test_flat_group_membership() -> None:

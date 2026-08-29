@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from pystructurizr.parser.dsl import parse_dsl
-from pystructurizr.graph.view_graph import build_view_graph
+from c4studio.parser.dsl import parse_dsl
+from c4studio.graph.view_graph import build_view_graph
 from typing import Any, cast
 
 JsonDict = dict[str, Any]

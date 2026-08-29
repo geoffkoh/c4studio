@@ -1,6 +1,6 @@
 # Structurizr Data Models
 
-This document provides an overview of the main data models used in pystructurizr, which represent the Structurizr C4 metamodel for architecture visualization and documentation.
+This document provides an overview of the main data models used in c4studio, which represent the Structurizr C4 metamodel for architecture visualization and documentation.
 
 ## Table of Contents
 
@@ -17,7 +17,7 @@ This document provides an overview of the main data models used in pystructurizr
 
 ## Overview
 
-Structurizr uses a layered architecture model based on the C4 model (Context, Container, Component, Code levels). The data models in pystructurizr represent this architecture:
+Structurizr uses a layered architecture model based on the C4 model (Context, Container, Component, Code levels). The data models in c4studio represent this architecture:
 
 ```
 Workspace (root)
@@ -577,7 +577,7 @@ class Workspace:
 ## Usage Example
 
 ```python
-from pystructurizr.models import (
+from c4studio.models import (
     Workspace, Person, SoftwareSystem, Container,
     Relationship, View, ViewType, Location
 )

@@ -7,12 +7,12 @@ from pathlib import Path
 
 import pytest
 
-from pystructurizr.models import Shape, ViewType
-from pystructurizr.parser.dsl import parse_dsl
-from pystructurizr.themes import ThemeLoadError, parse_theme, theme_styles
-from pystructurizr.graph.view_graph import build_view_graph
+from c4studio.models import Shape, ViewType
+from c4studio.parser.dsl import parse_dsl
+from c4studio.themes import ThemeLoadError, parse_theme, theme_styles
+from c4studio.graph.view_graph import build_view_graph
 from typing import Any
-from pystructurizr.models import Workspace
+from c4studio.models import Workspace
 
 AWS_LIKE_THEME = {
     "name": "Cloud Icons",

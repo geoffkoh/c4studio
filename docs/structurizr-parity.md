@@ -1,8 +1,8 @@
-# Feature parity: pystructurizr webapp vs. Java Structurizr UI
+# Feature parity: c4 webapp vs. Java Structurizr UI
 
 An assessment of the original Java Structurizr web application
 (`structurizr-application` — the codebase behind Structurizr Lite /
-on-premises, JSP + JointJS) against the pystructurizr React webapp.
+on-premises, JSP + JointJS) against the c4studio React webapp.
 Originally written in July 2026 from a source-level review of
 `structurizr-application` (JSP views, `structurizr-diagram.js` ~8k LOC,
 `structurizr-ui.js`); updated after the PP-42…PP-49 roadmap landed, which
@@ -27,28 +27,28 @@ inferring behaviour from this document when the two might disagree.
 
 ## Diagram rendering
 
-| Feature | Java UI | pystructurizr | Notes |
+| Feature | Java UI | c4studio | Notes |
 | --- | --- | --- | --- |
 | System landscape views | ✅ | ✅ | With enterprise boundary around internal elements |
 | System context / container / component views | ✅ | ✅ | Correct C4 semantics incl. implied-relationship lifting |
 | Dynamic views + animation steps | ✅ | ✅ | Ordered numbered steps; All/prev/next/play controls with step highlighting and dimming |
 | Deployment views | ✅ | ✅ | Nested deployment nodes, container/system instances, derived instance edges, environment + scope filtering |
 | Boundary nesting | ✅ | ✅ | Nested group nodes, any depth |
-| Expand element in place | ❌ (navigation only) | ✅ | Multiple containers expandable inside a container view — pystructurizr goes beyond the Java UI here |
+| Expand element in place | ❌ (navigation only) | ✅ | Multiple containers expandable inside a container view — c4studio goes beyond the Java UI here |
 | Tag-based styles (colours, text colour) | ✅ | ✅ | DSL `styles` block; implicit Element/kind tags, declaration-order overrides; full property set incl. strokeWidth/iconPosition, relationship style/routing/jump/position/opacity, and `light`/`dark` colour-scheme variants (parsed + JSON; webapp edge styling not yet wired). `metadata`/`description` on element **and** relationship styles are honoured by every renderer (PP-90) — the graph blanks the suppressed text so Mermaid, flowchart and the webapp all drop it |
 | Shapes | ✅ (full set) | ✅ | Person/Robot, Cylinder/Bucket, Box, Circle/Ellipse, Pipe, Hexagon, Folder, WebBrowser/Window, MobileDevice portrait/landscape; remaining exotics fall back to rounded box |
 | Themes (remote theme URLs) | ✅ | ✅ | `theme "https://..."` fetched, cached and merged (workspace styles win); `theme default` resolves to the built-in theme URL as upstream does; official AWS/Azure/GCP themes attach service logo icons |
 | Element icons | ✅ | ✅ | `icon` style property and theme icons render in the node |
 | Element metadata (`[Container: Tech]` + description) | ✅ | ✅ | |
-| Auto-layout | ✅ (dagre, per-view direction) | ✅ | Recursive compound dagre; honours `autoLayout lr/tb/bt/rl` **and its rank/node separations**, in the viewer and in `pystructurizr render` alike (PP-102 — they were parsed and sent but discarded by a hardcoded default until then). `AutomaticLayout` defaults match structurizr-core's 100/50/50; a view declaring no `autoLayout` keeps the viewer's own 90/60 |
+| Auto-layout | ✅ (dagre, per-view direction) | ✅ | Recursive compound dagre; honours `autoLayout lr/tb/bt/rl` **and its rank/node separations**, in the viewer and in `c4 render` alike (PP-102 — they were parsed and sent but discarded by a hardcoded default until then). `AutomaticLayout` defaults match structurizr-core's 100/50/50; a view declaring no `autoLayout` keeps the viewer's own 90/60 |
 | Default view (`default` keyword) | ✅ | ✅ | Recorded in the configuration; views index flags it and lists it first so the webapp opens it |
 | Multi-selection tools | ❌ (selection moves together; no align/distribute) | ✅ | Align left/centre/right/top/middle/bottom and distribute horizontally/vertically from a toolbar that appears with two or more selected, plus arrow-key nudge (10px with Shift). Geometry works in absolute coordinates so nodes inside a boundary line up visually, not just within their parent (PP-101) |
 | Drag nodes / persist layout | ✅ (full editor) | ✅ | Drag autosaves to a `<source>.layout.json` sidecar, restored on load and live reload; Reset returns to auto-layout. Multi-level-nested views re-run auto-layout on restore |
 | Edge routing | ✅ (orthogonal/curved, manual vertices) | ✅ | Bezier / straight / step / smooth-step, centre-anchored floating anchors, plus draggable waypoints persisted per edge id (PP-76) |
 | Relationship label placement | ✅ via the `position` relationship style (0–100 along the line; parsed here but **not yet honoured**) | ◐ + extension | Labels are draggable to any offset, persisted per edge id in the layout sidecar as per-user UI state; double-click returns one to the line (PP-100). Upstream has no per-view label position, so free 2-D placement is ours; honouring `position` as the *default* placement remains open |
 | Diagram title | ✅ (`structurizr.shapes.DiagramTitle`, a shape inside the diagram) | ✅ | Same placement — drawn inside the diagram by the headless renderer, and a node rather than a Panel in the viewer so PNG/SVG export captures it (PP-99). `render --no-title` omits the heading; the SVG `<title>` is metadata and stays |
-| Diagram key / legend | ✅ upstream calls it a **key** (`createDiagramKey()`, `structurizr-diagram.js:4776`), built from `elementStylesInUse` **and** `relationshipStylesInUse`, laid out in columns, and exported as a *separate* image ("Export diagram and key/legend to PNG/SVG") | ◐ | Derived once in `graph/view_graph.py`, so the viewer, exports and `pystructurizr render` show the same entries, named by the style tag that produced them (`Datastore`) rather than the C4 kind, with externals called out (PP-99). Two differences from upstream: it is **embedded below the diagram** rather than exported separately, and it covers **element styles only** — relationship styling is not wired into the viewer. `render --no-legend` omits it |
-| PNG/SVG export | ✅ | ✅ | Toolbar buttons; diagram-bounds crop, 2× PNG. Also headless: `pystructurizr render` draws the same diagram as standalone SVG with no browser (PP-93), using the same layout code so positions match the web app. Theme icons are embedded as `data:` URIs (PP-94), so the file keeps no external references |
+| Diagram key / legend | ✅ upstream calls it a **key** (`createDiagramKey()`, `structurizr-diagram.js:4776`), built from `elementStylesInUse` **and** `relationshipStylesInUse`, laid out in columns, and exported as a *separate* image ("Export diagram and key/legend to PNG/SVG") | ◐ | Derived once in `graph/view_graph.py`, so the viewer, exports and `c4 render` show the same entries, named by the style tag that produced them (`Datastore`) rather than the C4 kind, with externals called out (PP-99). Two differences from upstream: it is **embedded below the diagram** rather than exported separately, and it covers **element styles only** — relationship styling is not wired into the viewer. `render --no-legend` omits it |
+| PNG/SVG export | ✅ | ✅ | Toolbar buttons; diagram-bounds crop, 2× PNG. Also headless: `c4 render` draws the same diagram as standalone SVG with no browser (PP-93), using the same layout code so positions match the web app. Theme icons are embedded as `data:` URIs (PP-94), so the file keeps no external references |
 | Filtered views (tag include/exclude) | ✅ | ✅ | `filtered <baseKey> <include\|exclude> <tags> [key] [title]`; implicit tags participate; empty boundaries pruned; layout direction inherited from the base view |
 | Custom / image views | ✅ | ◐ | Parsed from DSL + JSON round-trip; not yet rendered in the webapp |
 | Per-type view fields (`enterpriseBoundaryVisible`, `externalSoftwareSystemBoundariesVisible`, `containerId`, `externalContainerBoundariesVisible`, `generatedKey`, `dimensions`, `mergeFromRemote`) | ✅ | ✅ | Held on the single `View` dataclass with structurizr-core's names and defaults, and round-tripped through workspace JSON. Java's nine typed view classes are deliberately not mirrored — see PP-36 |
@@ -56,7 +56,7 @@ inferring behaviour from this document when the two might disagree.
 
 ## Navigation & exploration
 
-| Feature | Java UI | pystructurizr |
+| Feature | Java UI | c4studio |
 | --- | --- | --- |
 | Double-click drill-in (landscape → context → container → component) | ✅ | ✅ |
 | Drill-out | ◐ (back button) | ✅ breadcrumb + boundary double-click |
@@ -68,7 +68,7 @@ inferring behaviour from this document when the two might disagree.
 
 ## Authoring & workspace management
 
-| Feature | Java UI | pystructurizr |
+| Feature | Java UI | c4studio |
 | --- | --- | --- |
 | DSL parsing incl. `!include` | ✅ | ✅ |
 | Element body metadata (`description`, `technology`, `url`, `tags`, `properties`, `perspectives`) | ✅ | ✅ parsed into the model + JSON export; not rendered |

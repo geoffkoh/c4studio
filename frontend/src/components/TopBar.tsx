@@ -42,7 +42,7 @@ export function TopBar({
 
   return (
     <header className="topbar">
-      <span className="topbar__title">pystructurizr</span>
+      <span className="topbar__title">c4studio</span>
       {tabs.length > 1 ? (
         <nav className="topbar__tabs">
           {tabs.map((tab) => (

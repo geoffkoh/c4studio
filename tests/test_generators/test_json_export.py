@@ -7,13 +7,13 @@ from pathlib import Path
 
 import pytest
 
-from pystructurizr.generators.json_export import export_json, workspace_to_json
-from pystructurizr.models import Location, Shape, ViewType, Workspace
-from pystructurizr.parser.dsl import parse_dsl_file
-from pystructurizr.parser.json_parser import parse_json, parse_json_file
+from c4studio.generators.json_export import export_json, workspace_to_json
+from c4studio.models import Location, Shape, ViewType, Workspace
+from c4studio.parser.dsl import parse_dsl_file
+from c4studio.parser.json_parser import parse_json, parse_json_file
 from collections.abc import Iterator
-from pystructurizr.models import DeploymentNode
-from pystructurizr.models import SoftwareSystem
+from c4studio.models import DeploymentNode
+from c4studio.models import SoftwareSystem
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"
 SAMPLES = Path(__file__).parent.parent.parent / "samples"
@@ -98,7 +98,7 @@ class TestModelShape:
         }
         """
         # The DSL marks externals via Location; JSON carries it as a tag.
-        from pystructurizr.parser.dsl import parse_dsl
+        from c4studio.parser.dsl import parse_dsl
 
         workspace = parse_dsl(source)
         vendor = workspace.find_element("vendor")
@@ -111,7 +111,7 @@ class TestModelShape:
         assert again.location == Location.EXTERNAL
 
     def test_empty_fields_are_omitted(self) -> None:
-        from pystructurizr.parser.dsl import parse_dsl
+        from c4studio.parser.dsl import parse_dsl
 
         workspace = parse_dsl('workspace "W" { model { u = person "U" } }')
         person = workspace_to_json(workspace)["workspace"]["model"]["people"][0]
@@ -242,7 +242,7 @@ class TestCli:
     def test_export_command_writes_reparseable_json(self, tmp_path: Path) -> None:
         from click.testing import CliRunner
 
-        from pystructurizr.cli.main import cli
+        from c4studio.cli.main import cli
 
         out_file = tmp_path / "out" / "workspace.json"
         runner = CliRunner()
@@ -262,7 +262,7 @@ class TestCli:
     def test_export_command_prints_to_stdout(self) -> None:
         from click.testing import CliRunner
 
-        from pystructurizr.cli.main import cli
+        from c4studio.cli.main import cli
 
         runner = CliRunner()
         result = runner.invoke(cli, ["export", str(FIXTURES / "example.json")])

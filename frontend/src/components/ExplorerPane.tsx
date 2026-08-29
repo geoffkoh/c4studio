@@ -27,7 +27,7 @@ import {
   ElementNode,
   FloatingEdge,
   layoutGraph,
-} from "@pystructurizr/diagram-core";
+} from "@c4studio/diagram-core";
 import { crumbLabel } from "../navigation";
 import { isTypingTarget } from "../shortcuts";
 import type {
@@ -48,7 +48,7 @@ const LEVELS: { value: ExplorerLevel; label: string }[] = [
 ];
 
 const LEVEL_ORDER: ExplorerLevel[] = ["systems", "containers", "components"];
-const LEVEL_STORAGE_KEY = "pystructurizr.explorerLevel";
+const LEVEL_STORAGE_KEY = "c4studio.explorerLevel";
 
 /** Human label per element kind, for search results and the details panel. */
 const KIND_LABELS: Record<string, string> = {

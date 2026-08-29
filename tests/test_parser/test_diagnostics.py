@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from pystructurizr.diagnostics import Diagnostic, Severity
-from pystructurizr.parser.dsl import ParseError, parse_dsl, parse_dsl_file
+from c4studio.diagnostics import Diagnostic, Severity
+from c4studio.parser.dsl import ParseError, parse_dsl, parse_dsl_file
 
 SPLIT = Path(__file__).parent.parent / "fixtures" / "split_workspace"
 
@@ -126,7 +126,7 @@ def test_problem_inside_an_include_names_the_fragment(tmp_path: Path) -> None:
 
 
 def test_tokeniser_records_columns() -> None:
-    from pystructurizr.parser.dsl import _tokenize
+    from c4studio.parser.dsl import _tokenize
 
     tokens = _tokenize('workspace "T" {\n    model {\n')
     by_value = {t.value: t for t in tokens}
@@ -144,7 +144,7 @@ def test_columns_survive_multi_line_tokens() -> None:
     for every token, everything after one is reported at a column offset by
     the comment's length.
     """
-    from pystructurizr.parser.dsl import _tokenize
+    from c4studio.parser.dsl import _tokenize
 
     tokens = _tokenize("a\n/* spanning\n   comment */ b\nc")
     by_value = {t.value: t for t in tokens}

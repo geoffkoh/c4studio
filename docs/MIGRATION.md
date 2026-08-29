@@ -1,7 +1,43 @@
-# pystructurizr Migration Guide
+# c4studio Migration Guide
 
 This guide describes the changes introduced by the 4-phase Structurizr Java
 compatibility work (PP-31 → PP-35) and how to adapt existing code.
+
+---
+
+## Renamed to c4studio (PP-106)
+
+Everything the project was named after itself changed at once. `0.1.0` was
+published under the old names; the next release is the first as `c4studio`.
+
+| What | Before | After |
+| --- | --- | --- |
+| PyPI distribution | `pystructurizr-studio` | `c4studio` |
+| Command | `pystructurizr` | `c4` |
+| Import package | `pystructurizr` | `c4studio` |
+| npm packages | `@pystructurizr/diagram-core`, `pystructurizr-frontend` | `@c4studio/diagram-core`, `c4studio-frontend` |
+| Node override | `PYSTRUCTURIZR_NODE` | `C4STUDIO_NODE` |
+| VS Code settings and commands | `pystructurizr.*` | `c4studio.*` |
+| VS Code extension | `pystructurizr-vscode` | `c4studio-vscode` |
+
+To upgrade:
+
+```bash
+pipx uninstall pystructurizr-studio && pipx install c4studio
+```
+
+Then rewrite `import pystructurizr` → `import c4studio` and any scripted
+`pystructurizr <command>` → `c4 <command>`. The GitHub Action's `version`
+input now defaults to `c4studio`; a workflow pinning `pystructurizr-studio`
+must be repointed.
+
+Two things did **not** change: the git repository stays at
+`geoffkoh/pystructurizr`, and the DSL and layout-sidecar formats are
+untouched, so existing `.dsl` files and `*.layout.json` sidecars load as they
+are. `PYSTRUCTURIZR_NODE` is still honoured as a fallback — it usually lives
+in CI configuration — but `C4STUDIO_NODE` wins when both are set. Browser-held
+UI preferences (edge style, snap-to-grid, interaction mode, explorer level)
+are keyed by name and reset once to their defaults.
 
 ---
 
@@ -277,14 +313,14 @@ its stored positions regardless.
 
 ## Deliberate divergences from structurizr-java
 
-These fields exist in pystructurizr but not in structurizr-java, or differ
+These fields exist in c4studio but not in structurizr-java, or differ
 from it. They are **intentional and supported**, not oversights, and were
 reviewed against the Java model in July 2026. Recorded here because a
 periodic "align with Java" pass keeps proposing their removal.
 
 | Field | Why it stays |
 | --- | --- |
-| `parent_id` on `Container`, `Component`, `DeploymentNode`, `InfrastructureNode` | Load-bearing. The webapp reconstructs element hierarchy from it, and `view_graph` lifts relationships to their nearest visible ancestor through it — that is what makes a `person -> container` relationship render as `person -> system` on a context diagram. Java uses transient back-references instead; pystructurizr's model is serialised and re-read, so it needs the explicit id. |
+| `parent_id` on `Container`, `Component`, `DeploymentNode`, `InfrastructureNode` | Load-bearing. The webapp reconstructs element hierarchy from it, and `view_graph` lifts relationships to their nearest visible ancestor through it — that is what makes a `person -> container` relationship render as `person -> system` on a context diagram. Java uses transient back-references instead; c4studio's model is serialised and re-read, so it needs the explicit id. |
 | `Person.location`, `SoftwareSystem.location` | Java deprecated `location`, but the DSL keyword still exists and this is how external elements get their distinct styling: `view_graph._person_kind` / `_system_kind` consult it (falling back to an `external` tag). Removing it would silently flatten internal and external elements to the same colour. |
 | `Perspective.url`, `Perspective.title` | Additive metadata, parsed from the DSL and round-tripped through workspace JSON. `title` was added deliberately by the PP-31 compatibility work; a later ticket proposed removing it, which would have undone that. Check the Java model directly before revisiting. |
 | `icon` on `CustomElement`, `DeploymentNode`, `InfrastructureNode` | Java carries `icon` only on `ElementStyle`. Per-element icons are a convenience the renderer honours. |

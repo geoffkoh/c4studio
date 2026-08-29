@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pystructurizr.parser.dsl import parse_dsl_file
+from c4studio.parser.dsl import parse_dsl_file
 
 FIXTURE = (
     Path(__file__).resolve().parents[2]

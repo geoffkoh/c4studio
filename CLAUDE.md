@@ -1,20 +1,22 @@
-# CLAUDE.md: pystructurizr
+# CLAUDE.md: c4studio
 
-> **Scope:** This file governs the pystructurizr repository and supersedes any
+> **Scope:** This file governs the c4studio repository and supersedes any
 > workspace-level guidance describing other projects for all work under
-> `pystructurizr/`. It is self-contained: every rule that applies here is
-> stated here.
+> `pystructurizr/` (the checkout directory, unchanged by the rename). It is
+> self-contained: every rule that applies here is stated here.
 
 ## Project Overview
 
-pystructurizr is a Python implementation of [Structurizr](https://structurizr.com/):
+c4studio is a Python implementation of [Structurizr](https://structurizr.com/):
 it parses Structurizr DSL and workspace JSON into a typed domain model, generates
 Mermaid C4 diagrams, and ships a local-first viewer — a FastAPI backend serving a
 React SPA that renders views as interactive React Flow graphs. A VS Code extension
 in `editors/vscode/` embeds that viewer as a diagram preview.
 
-Published on PyPI as **`pystructurizr-studio`** (the name `pystructurizr` belongs
-to an unrelated project); the import package and CLI are still `pystructurizr`.
+Published on PyPI as **`c4studio`**; the import package is `c4studio` and
+the CLI is `c4`. It was `pystructurizr-studio` / `pystructurizr` through 0.1.0
+— see `docs/MIGRATION.md`. The git repository and this checkout directory keep
+the old name.
 
 **Local-first by design.** No multi-user server, no auth, no workspace locking or
 branches. Sharing happens through git and generated artifacts. Do not propose
@@ -28,21 +30,21 @@ features that assume a hosted multi-user deployment.
   holds the renderer-agnostic diagram layer (layout, React Flow node/edge
   components, image export); `frontend/` is the Vite + React SPA that consumes
   it. React Flow + dagre for graph layout. `npm run build` writes to
-  `src/pystructurizr/webapp/static/` — a **committed** bundle, so the wheel
+  `src/c4studio/webapp/static/` — a **committed** bundle, so the wheel
   ships a working UI and end users never need Node.
 
 ### Module map
 
 | Path | Responsibility |
 | --- | --- |
-| `src/pystructurizr/models/` | The domain model: `workspace`, `elements`, `views`, `deployment`, `documentation`, `enums`. |
-| `src/pystructurizr/parser/` | `dsl.py` (DSL parser), `json_parser.py`, `expressions.py` (include/exclude engine), `implied.py`, `docs.py`, `locations.py` (source spans for go-to-definition). |
-| `src/pystructurizr/graph/` | `view_graph.py` — workspace + view → `{nodes, edges}` with C4 visibility, boundary nesting and endpoint lifting applied. The shared contract every renderer consumes; depends only on `models/` and `themes.py`. |
-| `src/pystructurizr/generators/` | `mermaid.py` (Mermaid C4 syntax) and `flowchart.py` (Mermaid `flowchart`/`subgraph`, covers every view type) — both render from `graph/`, sharing `mermaid_common.py`; `json_export.py` (Structurizr JSON round-trip). |
-| `src/pystructurizr/webapp/` | `server.py` (FastAPI), `loader.py` (load + live reload), `graph.py` / `model_graph.py` (React Flow reshape and full-model graph, both over `graph/view_graph`), `static/` (built SPA). |
-| `src/pystructurizr/cli/main.py` | click CLI: `generate`, `render`, `export`, `check`, `list-views`, `webapp`. |
-| `src/pystructurizr/render.py` | Headless SVG rendering: builds the same graph payload the web app serves and pipes it to the bundled Node renderer. The **only** thing in the project that needs Node at runtime. |
-| `src/pystructurizr/renderer/diagram-render.mjs` | **Committed build artefact** — `diagram-core` bundled for Node, so the wheel can render without npm. Rebuilt by the root `npm run build`; never edit by hand. |
+| `src/c4studio/models/` | The domain model: `workspace`, `elements`, `views`, `deployment`, `documentation`, `enums`. |
+| `src/c4studio/parser/` | `dsl.py` (DSL parser), `json_parser.py`, `expressions.py` (include/exclude engine), `implied.py`, `docs.py`, `locations.py` (source spans for go-to-definition). |
+| `src/c4studio/graph/` | `view_graph.py` — workspace + view → `{nodes, edges}` with C4 visibility, boundary nesting and endpoint lifting applied. The shared contract every renderer consumes; depends only on `models/` and `themes.py`. |
+| `src/c4studio/generators/` | `mermaid.py` (Mermaid C4 syntax) and `flowchart.py` (Mermaid `flowchart`/`subgraph`, covers every view type) — both render from `graph/`, sharing `mermaid_common.py`; `json_export.py` (Structurizr JSON round-trip). |
+| `src/c4studio/webapp/` | `server.py` (FastAPI), `loader.py` (load + live reload), `graph.py` / `model_graph.py` (React Flow reshape and full-model graph, both over `graph/view_graph`), `static/` (built SPA). |
+| `src/c4studio/cli/main.py` | click CLI: `generate`, `render`, `export`, `check`, `list-views`, `webapp`. |
+| `src/c4studio/render.py` | Headless SVG rendering: builds the same graph payload the web app serves and pipes it to the bundled Node renderer. The **only** thing in the project that needs Node at runtime. |
+| `src/c4studio/renderer/diagram-render.mjs` | **Committed build artefact** — `diagram-core` bundled for Node, so the wheel can render without npm. Rebuilt by the root `npm run build`; never edit by hand. |
 | `packages/diagram-core/` | The renderer-agnostic diagram layer: `layout.ts` (compound dagre, **async by contract** so the engine can be swapped), the React Flow node/edge components, `export.ts` (PNG/SVG) and `edgePaint.ts`. Knows nothing about the API or app state — that is what lets the headless renderer and the embedded surfaces reuse it. |
 | `editors/vscode/` | VS Code extension (TypeScript, esbuild, packaged as `.vsix`). |
 | `samples/` | Sample workspaces used for live verification. |
@@ -50,10 +52,10 @@ features that assume a hosted multi-user deployment.
 ## Environment & Commands
 
 - **Install deps:** `uv sync`
-- **Run CLI:** `uv run pystructurizr --help`
-- **Render SVG:** `uv run pystructurizr render <file> -o out/` (needs Node; set
-  `PYSTRUCTURIZR_NODE` if it is not on `PATH`)
-- **Web app:** `uv run pystructurizr webapp <dir-or-file>` (FastAPI + React SPA
+- **Run CLI:** `uv run c4 --help`
+- **Render SVG:** `uv run c4 render <file> -o out/` (needs Node; set
+  `C4STUDIO_NODE` if it is not on `PATH`)
+- **Web app:** `uv run c4 webapp <dir-or-file>` (FastAPI + React SPA
   on `127.0.0.1:8090`; loads DSL/JSON from disk, live-reloads on edits).
 - **Run tests:** `uv run pytest`
 - **Lint/Format:** `uv run ruff check .` and `uv run ruff format .`
@@ -118,7 +120,7 @@ Tests alone are not sufficient for webapp or parser changes. Before opening a PR
    richest model (docs, ADRs, deployment, groups, themes);
    `internet_banking.dsl` and `saas_monitoring.dsl` cover the common cases.
 3. For frontend changes, rebuild the bundle and commit it — a stale
-   `src/pystructurizr/webapp/static/` ships a broken UI.
+   `src/c4studio/webapp/static/` ships a broken UI.
 
 ## Answering Structurizr parity questions
 
@@ -159,7 +161,7 @@ the finding in the code or docs so the answer survives without it.
 
 ## Documentation Upkeep
 
-- `docs/structurizr-parity.md` tracks pystructurizr against the Java Structurizr
+- `docs/structurizr-parity.md` tracks c4studio against the Java Structurizr
   UI and is the closest thing to a status page — **update it as items land**.
 - `docs/roadmap.md` holds the staged plan (phases 2–4) and delivery conventions.
 - `docs/dsl-support.md` maps every keyword in the Structurizr DSL language

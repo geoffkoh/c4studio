@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pystructurizr.parser.locations import element_locations
+from c4studio.parser.locations import element_locations
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"
 
