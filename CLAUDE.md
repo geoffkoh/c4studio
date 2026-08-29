@@ -162,6 +162,10 @@ the finding in the code or docs so the answer survives without it.
 - `docs/structurizr-parity.md` tracks pystructurizr against the Java Structurizr
   UI and is the closest thing to a status page — **update it as items land**.
 - `docs/roadmap.md` holds the staged plan (phases 2–4) and delivery conventions.
+- `docs/dsl-support.md` maps every keyword in the Structurizr DSL language
+  reference to what this parser does with it, established by probing rather
+  than by reading. Update it when parser coverage changes — and re-probe
+  rather than assuming.
 - `docs/data-models.md` documents the domain model; keep it honest when model
   fields change.
 - `docs/MIGRATION.md` records breaking changes from the compatibility work.
