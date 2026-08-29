@@ -29,6 +29,15 @@ export {
   EDGE_ARROW_SIZE,
 } from "./edgePaint";
 export { insertionIndex } from "./waypoints";
+export {
+  align,
+  distribute,
+  nudge,
+  type AlignMode,
+  type Box,
+  type DistributeMode,
+  type Moves,
+} from "./align";
 export { exportDiagram, type ExportFormat } from "./export";
 export {
   renderSvg,

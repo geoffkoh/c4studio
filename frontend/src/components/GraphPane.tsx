@@ -23,6 +23,13 @@ import ReactFlow, {
 import "reactflow/dist/style.css";
 
 import {
+  align,
+  distribute,
+  nudge,
+  type AlignMode,
+  type Box,
+  type DistributeMode,
+  type Moves,
   BoundaryNode,
   ChromeNode,
   CHROME_PREFIX,
@@ -39,6 +46,7 @@ import {
   type FloatingEdgeData,
 } from "@pystructurizr/diagram-core";
 import { buildTrail, crumbLabel, drillTarget } from "../navigation";
+import { isTypingTarget } from "../shortcuts";
 import type { GraphData, ViewInfo, Workspace } from "../types";
 import {
   EdgeContextMenu,
@@ -46,6 +54,7 @@ import {
   type MenuAction,
 } from "./EdgeContextMenu";
 import { KeyboardShortcuts } from "./KeyboardShortcuts";
+import { SelectionTools } from "./SelectionTools";
 
 const NODE_TYPES: NodeTypes = {
   element: ElementNode,
@@ -588,6 +597,111 @@ export function GraphPane({
     [view, collectWaypoints, collectLabelOffsets, saveLayout],
   );
 
+  /**
+   * Apply absolute-coordinate moves back onto the nodes.
+   *
+   * Nodes inside a boundary are positioned relative to their parent, so a
+   * move computed in absolute space has to have the parent's absolute
+   * origin subtracted again — the same conversion absolutePositions does
+   * in the other direction. Getting this wrong lines elements up inside
+   * their own boundaries while leaving them visually scattered.
+   */
+  const applyMoves = useCallback(
+    (moves: Moves) => {
+      if (Object.keys(moves).length === 0) return;
+      const current = nodesRef.current;
+      const byId = new Map(current.map((n) => [n.id, n]));
+      const originOf = (node: Node): { x: number; y: number } => {
+        let x = 0;
+        let y = 0;
+        let parent = node.parentNode ? byId.get(node.parentNode) : undefined;
+        while (parent) {
+          x += parent.position.x;
+          y += parent.position.y;
+          parent = parent.parentNode ? byId.get(parent.parentNode) : undefined;
+        }
+        return { x, y };
+      };
+      const updated = current.map((node) => {
+        const move = moves[node.id];
+        if (!move) return node;
+        const origin = originOf(node);
+        return {
+          ...node,
+          position: { x: move.x - origin.x, y: move.y - origin.y },
+        };
+      });
+      nodesRef.current = updated;
+      setNodes(updated);
+      saveCurrentLayout();
+    },
+    [setNodes, saveCurrentLayout],
+  );
+
+  /** Selected nodes as absolute boxes, which is what the geometry wants. */
+  const selectedBoxes = useCallback((): Box[] => {
+    const current = nodesRef.current;
+    const byId = new Map(current.map((n) => [n.id, n]));
+    const absolute = (node: Node): { x: number; y: number } => {
+      let x = node.position.x;
+      let y = node.position.y;
+      let parent = node.parentNode ? byId.get(node.parentNode) : undefined;
+      while (parent) {
+        x += parent.position.x;
+        y += parent.position.y;
+        parent = parent.parentNode ? byId.get(parent.parentNode) : undefined;
+      }
+      return { x, y };
+    };
+    return current
+      .filter((node) => node.selected)
+      .map((node) => {
+        const { x, y } = absolute(node);
+        return {
+          id: node.id,
+          x,
+          y,
+          width: node.width ?? Number(node.style?.width ?? 200),
+          height: node.height ?? Number(node.style?.height ?? 110),
+        };
+      });
+  }, []);
+
+  const handleAlign = useCallback(
+    (mode: AlignMode) => applyMoves(align(selectedBoxes(), mode)),
+    [applyMoves, selectedBoxes],
+  );
+
+  const handleDistribute = useCallback(
+    (mode: DistributeMode) => applyMoves(distribute(selectedBoxes(), mode)),
+    [applyMoves, selectedBoxes],
+  );
+
+  // Arrow keys nudge the selection: 1px for placement, 10px with Shift to
+  // cover ground. Modifier-free arrows would otherwise do nothing at all,
+  // so there is no gesture to conflict with.
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      const deltas: Record<string, [number, number]> = {
+        ArrowLeft: [-1, 0],
+        ArrowRight: [1, 0],
+        ArrowUp: [0, -1],
+        ArrowDown: [0, 1],
+      };
+      const delta = deltas[event.key];
+      if (!delta || event.metaKey || event.ctrlKey || event.altKey) return;
+      if (isTypingTarget(event.target)) return;
+      const boxes = selectedBoxes();
+      if (boxes.length === 0) return;
+      event.preventDefault();
+      const step = event.shiftKey ? 10 : 1;
+      applyMoves(nudge(boxes, delta[0] * step, delta[1] * step));
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [selectedBoxes, applyMoves]);
+
+
   /** Move one edge's label, then persist on drag end. */
   const handleLabelDrag = useCallback(
     (edgeId: string, dx: number, dy: number) => {
@@ -894,6 +1008,11 @@ export function GraphPane({
     [views, onNavigate],
   );
 
+  const selectedCount = useMemo(
+    () => nodes.filter((node) => node.selected).length,
+    [nodes],
+  );
+
   const trail = useMemo(
     () => (view ? buildTrail(view, views, workspace) : []),
     [view, views, workspace],
@@ -1011,6 +1130,11 @@ export function GraphPane({
             ))}
           </Panel>
         ) : null}
+        <SelectionTools
+          count={selectedCount}
+          onAlign={handleAlign}
+          onDistribute={handleDistribute}
+        />
         <Panel position="top-right" className="edge-style">
           <span className="edge-style__title">Mouse</span>
           {INTERACTIONS.map((mode) => (

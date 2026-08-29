@@ -1438,3 +1438,53 @@ button {
 .edge-label--draggable:active {
   cursor: grabbing;
 }
+
+/* ---- Align / distribute toolbar (PP-101) ---- */
+/* Appears only while several nodes are selected, so it costs no chrome
+   the rest of the time. */
+.selection-tools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  box-shadow: var(--shadow);
+}
+
+.selection-tools__count {
+  font-size: 11px;
+  color: var(--muted);
+  margin-right: 4px;
+  white-space: nowrap;
+}
+
+.selection-tools__button {
+  border: 1px solid transparent;
+  background: none;
+  border-radius: 4px;
+  font-size: 15px;
+  line-height: 1;
+  width: 26px;
+  height: 24px;
+  cursor: pointer;
+  color: #44546f;
+}
+
+.selection-tools__button:hover:not(:disabled) {
+  background: var(--bg);
+  border-color: var(--border);
+}
+
+.selection-tools__button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.selection-tools__sep {
+  width: 1px;
+  height: 16px;
+  background: var(--border);
+  margin: 0 4px;
+}

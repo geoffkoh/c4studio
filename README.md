@@ -212,6 +212,10 @@ uv run pystructurizr webapp file.dsl          # preload a single file
 # → opens http://127.0.0.1:8090 (use --no-browser to skip, --port to change)
 ```
 
+Select several nodes (Shift+drag, or ⌘/Ctrl+click) to align or distribute
+them from the toolbar that appears, and nudge a selection with the arrow
+keys — 10px with Shift. Everything persists to the layout sidecar.
+
 Pass a directory to browse and load any `.dsl`/`.json` file from the
 in-app file picker, or a single file to preload it. The element tree and
 per-view graph come from the parser and `graph/view_graph`;
