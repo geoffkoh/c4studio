@@ -118,8 +118,25 @@ def generate(
     show_default=True,
     help="Blank margin around the diagram, in pixels.",
 )
+@click.option(
+    "--no-title",
+    is_flag=True,
+    default=False,
+    help="Omit the heading above the diagram (the SVG <title> stays).",
+)
+@click.option(
+    "--no-legend",
+    is_flag=True,
+    default=False,
+    help="Omit the legend of element styles used by the view.",
+)
 def render(
-    input_file: Path, output: Path | None, view_key: str | None, padding: int
+    input_file: Path,
+    output: Path | None,
+    view_key: str | None,
+    padding: int,
+    no_title: bool,
+    no_legend: bool,
 ) -> None:
     """Render diagrams from INPUT_FILE as standalone SVG.
 
@@ -145,7 +162,13 @@ def render(
         output.mkdir(parents=True, exist_ok=True)
     try:
         for view in views:
-            svg = render_view(workspace, view, padding=padding)
+            svg = render_view(
+                workspace,
+                view,
+                padding=padding,
+                show_title=not no_title,
+                show_legend=not no_legend,
+            )
             if output is None:
                 click.echo(svg, nl=False)
             else:
