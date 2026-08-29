@@ -70,6 +70,9 @@ export interface GraphPayload {
   nodes: GraphPayloadNode[];
   edges: GraphPayloadEdge[];
   rankDirection?: RankDirection;
+  /** Spacing the view declared via `autoLayout`, honoured by the layout. */
+  rankSeparation?: number;
+  nodeSeparation?: number;
   /** Distinct styles used by this view, derived in the graph layer. */
   legend?: LegendEntry[];
 }
@@ -659,7 +662,10 @@ export async function renderSvg(
 
   const anyMissing = payload.nodes.some((n) => !n.position);
   const positioned = anyMissing
-    ? await layoutGraph(nodes, edges, payload.rankDirection ?? "TB")
+    ? await layoutGraph(nodes, edges, payload.rankDirection ?? "TB", {
+        rankSeparation: payload.rankSeparation,
+        nodeSeparation: payload.nodeSeparation,
+      })
     : await normalizeStoredPositions(nodes, edges);
 
   const placed = place(positioned);

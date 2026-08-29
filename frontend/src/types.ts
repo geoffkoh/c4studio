@@ -84,6 +84,10 @@ export interface GraphData {
   edges: GEdge[];
   /** dagre rank direction from the view's autoLayout: TB, BT, LR or RL. */
   rankDirection: "TB" | "BT" | "LR" | "RL";
+  /** Separations from the view's autoLayout; the viewer's defaults when
+      the view declares none. */
+  rankSeparation?: number;
+  nodeSeparation?: number;
   /** Distinct element styles used by this view, for the legend. */
   legend?: { label: string; colour: string; shape: string }[];
 }

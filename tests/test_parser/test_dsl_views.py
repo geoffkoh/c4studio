@@ -159,8 +159,9 @@ def test_autolayout_without_separations_keeps_defaults() -> None:
     )
     layout = ws.views[0].auto_layout
     assert layout is not None
+    # structurizr-core's defaults, which a bare `autoLayout` means (PP-102).
     assert layout.rank_separation == 100
-    assert layout.node_separation == 100
+    assert layout.node_separation == 50
 
 
 def test_view_features_round_trip_to_json() -> None:
