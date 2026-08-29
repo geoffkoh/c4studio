@@ -226,22 +226,6 @@ workspace.views.configuration.styles.element_styles.append(
 )
 ```
 
-## The web stack moved to an extra (PP-97)
-
-**Breaking for anyone installing the viewer.** `pip install
-pystructurizr-studio` no longer pulls FastAPI, uvicorn and pydantic; use
-`pip install "pystructurizr-studio[webapp]"` instead. Running
-`pystructurizr webapp` without the extra prints exactly that instruction
-rather than an ImportError.
-
-The reason is not tidiness. `uvicorn[standard]` pulls `httptools`,
-`watchfiles` and `uvloop`, which are compiled and have no pure-Python
-wheels, so `micropip` could not install the wheel at all under Pyodide —
-which the Confluence and github.dev surfaces depend on (PP-96). The base
-distribution now depends only on `click`, and
-`tests/test_core_dependencies.py` asserts the core imports and runs with
-`click`, `pydantic`, `fastapi` and `uvicorn` all blocked.
-
 ## Field mapping reference
 
 | Phase | Class | Field | Type | Default |
