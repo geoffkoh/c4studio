@@ -5,7 +5,7 @@ import * as path from "node:path";
 import * as vscode from "vscode";
 
 /** Backend installed by the uv rungs; overridable via c4studio.backendSpec. */
-export const DEFAULT_BACKEND_SPEC = "c4studio==0.1.0";
+export const DEFAULT_BACKEND_SPEC = "c4studio==0.2.0";
 
 const PROBE_TIMEOUT_MS = 5_000;
 /** First `uv tool run` downloads CPython + the wheel; allow minutes, not seconds. */
