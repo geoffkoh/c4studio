@@ -1463,9 +1463,10 @@ button {
    the rest of the time. */
 /* Every React Flow panel gets `margin: 15px` at `top: 0`, so the top row
    is one ~34px band shared by the breadcrumb (top-left) and the mouse/edge
-   toolbar (top-right). Both grow with content and would overlap a centred
-   panel on any window under ~1200px, so this one takes a second row. It is
-   contextual, so that row exists only while a selection does. */
+   toolbar (top-right). Both grow with content, so this panel takes a second
+   row rather than competing for the first. Right-aligned, so it stacks
+   under the toolbar it belongs with. Being contextual, the row exists only
+   while a selection does. */
 .react-flow__panel.selection-tools {
   margin-top: 58px;
 }
