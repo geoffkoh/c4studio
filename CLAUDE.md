@@ -2,8 +2,8 @@
 
 > **Scope:** This file governs the c4studio repository and supersedes any
 > workspace-level guidance describing other projects for all work under
-> `pystructurizr/` (the checkout directory, unchanged by the rename). It is
-> self-contained: every rule that applies here is stated here.
+> `c4studio/`. It is self-contained: every rule that applies here is stated
+> here.
 
 ## Project Overview
 
@@ -15,8 +15,8 @@ in `editors/vscode/` embeds that viewer as a diagram preview.
 
 Published on PyPI as **`c4studio`**; the import package is `c4studio` and
 the CLI is `c4`. It was `pystructurizr-studio` / `pystructurizr` through 0.1.0
-— see `docs/MIGRATION.md`. The git repository and this checkout directory keep
-the old name.
+— see `docs/MIGRATION.md`. Only the conda env below still carries the old
+name.
 
 **Local-first by design.** No multi-user server, no auth, no workspace locking or
 branches. Sharing happens through git and generated artifacts. Do not propose
@@ -68,7 +68,8 @@ features that assume a hosted multi-user deployment.
 ### Node is not on PATH
 
 `node`/`npm`/`npx` are **only** available in the conda env `pystructurizr`
-(`/opt/miniconda3/envs/pystructurizr`). Any frontend or VS Code extension build
+(`/opt/miniconda3/envs/pystructurizr`) — an env name, deliberately not renamed
+with the product. Any frontend or VS Code extension build
 must go through it, e.g.:
 
 ```bash
