@@ -2,7 +2,7 @@
   "name": "c4studio-vscode",
   "displayName": "c4studio",
   "description": "Structurizr DSL syntax highlighting and interactive C4 diagram preview, powered by c4studio.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publisher": "geoffkoh",
   "private": true,
   "repository": {

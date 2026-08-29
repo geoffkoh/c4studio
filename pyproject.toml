@@ -4,7 +4,7 @@
 # project. C4 is the notation, not a vendor's product, so the name stays
 # honest even if support broadens beyond Structurizr DSL.
 name = "c4studio"
-version = "0.1.0"
+version = "0.2.0"
 description = "Parse Structurizr DSL/JSON and generate C4 diagrams in Mermaid, with a CLI and a React web app"
 readme = "README.md"
 license = "MIT"
