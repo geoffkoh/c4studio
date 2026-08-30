@@ -1,4 +1,4 @@
-import { memo, type MouseEvent } from "react";
+import { memo, type CSSProperties, type MouseEvent } from "react";
 import { Handle, Position, type NodeProps } from "reactflow";
 
 /** Colour used when the backend supplies no palette colour for a kind. */
@@ -31,6 +31,12 @@ export interface ElementNodeData {
   showMetadata?: boolean;
   /** Icon image URL (e.g. a cloud-provider service logo from a theme). */
   icon?: string;
+  /** Outline from the element style: "Solid" | "Dashed" | "Dotted". */
+  border?: string;
+  stroke?: string;
+  strokeWidth?: number;
+  /** Percentage, as Structurizr spells it. */
+  opacity?: number;
   /** Key of the view this node drills into on double-click, if any. */
   drillKey?: string;
   /** Label of the drill target, used for the hover hint. */
@@ -84,6 +90,17 @@ function ElementNodeComponent({ id, data }: NodeProps<ElementNodeData>) {
     data.shape === "Robot" ||
     (data.shape === undefined && data.kind.startsWith("person"));
   const shapeClass = (!isPerson && SHAPE_CLASSES[data.shape ?? ""]) || "";
+  // Outline properties, matching what the SVG emitter draws so the viewer
+  // and an exported diagram agree (PP-107). A border is only meaningful
+  // with a width, so setting one implies a visible edge.
+  const outline: CSSProperties =
+    data.border || data.stroke || data.strokeWidth !== undefined
+      ? {
+          borderStyle: (data.border ?? "Solid").toLowerCase(),
+          borderWidth: data.strokeWidth ?? 1,
+          borderColor: data.stroke || "rgba(0,0,0,0.35)",
+        }
+      : {};
   const drillable = Boolean(data.drillKey);
   const expandable = Boolean(data.expandable && data.onToggleExpand);
 
@@ -100,7 +117,14 @@ function ElementNodeComponent({ id, data }: NodeProps<ElementNodeData>) {
         (shapeClass ? ` ${shapeClass}` : "") +
         (drillable ? " node--drillable" : "")
       }
-      style={{ background, color: data.textColor || undefined }}
+      style={{
+        background,
+        color: data.textColor || undefined,
+        ...outline,
+        ...(data.opacity !== undefined && data.opacity < 100
+          ? { opacity: Math.max(0, data.opacity) / 100 }
+          : {}),
+      }}
       title={
         drillable ? `Double-click to open ${data.drillLabel ?? "view"}` : undefined
       }

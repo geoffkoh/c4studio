@@ -49,6 +49,12 @@ export interface GNode {
     textColor?: string;
     /** Structurizr shape name, e.g. "Cylinder", "Box", "Person". */
     shape?: string;
+    /** Outline from the element style: "Solid" | "Dashed" | "Dotted". */
+    border?: string;
+    stroke?: string;
+    strokeWidth?: number;
+    /** Percentage, as Structurizr spells it. */
+    opacity?: number;
     /** False when an element style declares `metadata false`. */
     showMetadata?: boolean;
     /** On containers that can be expanded in place (container views). */
@@ -89,7 +95,7 @@ export interface GraphData {
   rankSeparation?: number;
   nodeSeparation?: number;
   /** Distinct element styles used by this view, for the legend. */
-  legend?: { label: string; colour: string; shape: string }[];
+  legend?: { label: string; colour: string; shape: string; border?: string }[];
 }
 
 /** Response body from POST /api/views/{key}/layout. */

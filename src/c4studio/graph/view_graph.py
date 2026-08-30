@@ -427,6 +427,17 @@ def _apply_styles(workspace: Workspace, nodes: list[GraphNode]) -> None:
                 data["shape"] = style.shape.value
             if style.icon:
                 data["icon"] = style.icon
+            # Outline properties. `border dashed` is the conventional way to
+            # mark something as planned or new, so dropping these made the
+            # legend claim a distinction the diagram never drew (PP-107).
+            if style.border is not None:
+                data["border"] = style.border.value
+            if style.stroke:
+                data["stroke"] = style.stroke
+            if style.stroke_width is not None:
+                data["strokeWidth"] = style.stroke_width
+            if style.opacity is not None:
+                data["opacity"] = style.opacity
             if style.metadata is not None:
                 show_metadata = style.metadata
             if style.description is not None:
@@ -459,6 +470,9 @@ BOUNDARY_LEGEND: dict[str, str] = {
     "label": "Boundary",
     "colour": KIND_COLOURS["boundary"],
     "shape": "Boundary",
+    # Boundaries are always drawn dashed; saying so keeps every entry the
+    # same shape rather than leaving this one short a key.
+    "border": "Dashed",
 }
 
 
@@ -474,11 +488,11 @@ def legend_entries(nodes: list[GraphNode]) -> list[dict[str, str]]:
         nodes: Graph nodes, after styles have been applied.
 
     Returns:
-        Entries of ``label``, ``colour`` and ``shape``; a single boundary
-        entry is appended when the view draws any.
+        Entries of ``label``, ``colour``, ``shape`` and ``border``; a single
+        boundary entry is appended when the view draws any.
     """
     entries: list[dict[str, str]] = []
-    seen: set[tuple[str, str, str]] = set()
+    seen: set[tuple[str, str, str, str]] = set()
     has_boundary = False
     for node in nodes:
         data = node["data"]
@@ -492,11 +506,18 @@ def legend_entries(nodes: list[GraphNode]) -> list[dict[str, str]]:
         colour = str(data.get("background") or KIND_COLOURS.get(kind, ""))
         default_shape = "Person" if kind.startswith("person") else "RoundedBox"
         shape = str(data.get("shape") or default_shape)
-        key = (label, colour, shape)
+        # The outline is part of what makes an entry visually distinct, so it
+        # belongs in the key as well as the swatch: two tags that differ only
+        # by `border dashed` are two rows, and each row draws its own outline
+        # rather than two identical ones (PP-107).
+        border = str(data.get("border") or "")
+        key = (label, colour, shape, border)
         if key in seen:
             continue
         seen.add(key)
-        entries.append({"label": label, "colour": colour, "shape": shape})
+        entries.append(
+            {"label": label, "colour": colour, "shape": shape, "border": border}
+        )
     if has_boundary:
         entries.append(dict(BOUNDARY_LEGEND))
     return entries

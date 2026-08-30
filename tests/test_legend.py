@@ -110,7 +110,9 @@ class TestEntries:
     def test_entries_carry_what_a_swatch_needs(self) -> None:
         workspace = parse_dsl(WORKSPACE)
         for entry in build_view_graph(workspace, _view(workspace, "cont"))["legend"]:
-            assert set(entry) == {"label", "colour", "shape"}
+            # `border` joined the contract in PP-107 so the swatch can draw
+            # the outline the row's style declares.
+            assert set(entry) == {"label", "colour", "shape", "border"}
             assert entry["colour"].startswith("#")
             assert entry["shape"]
 

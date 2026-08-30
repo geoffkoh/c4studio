@@ -9461,10 +9461,26 @@ function place(nodes) {
 function fillOf(data) {
 	return data.background || data.color || FALLBACK_FILL;
 }
+/**
+* Dash pattern for a Structurizr `border`, scaled to the stroke width so a
+* thick dashed outline does not read as solid.
+*/
+function dashArray(border, width) {
+	switch (border) {
+		case "Dashed": return ` stroke-dasharray="${round(width * 5)} ${round(width * 3)}"`;
+		case "Dotted": return ` stroke-dasharray="${round(width)} ${round(width * 2.5)}"`;
+		default: return "";
+	}
+}
+/** Fill and outline attributes for a node, honouring its element style. */
+function outlineOf(data, fill) {
+	const width = data.strokeWidth ?? 1;
+	return ` fill="${fill}" stroke="${data.stroke || NODE_STROKE}" stroke-width="${width}"` + dashArray(data.border, width);
+}
 /** The box outline, honouring the Structurizr shape where SVG can. */
 function shapeMarkup(node, fill) {
 	const { x, y, width, height } = node;
-	const stroke = ` fill="${fill}" stroke="${NODE_STROKE}" stroke-width="1"`;
+	const stroke = outlineOf(node.data, fill);
 	switch (node.data.shape) {
 		case "Circle":
 		case "Ellipse": return `<ellipse cx="${round(x + width / 2)}" cy="${round(y + height / 2)}" rx="${round(width / 2)}" ry="${round(height / 2)}"${stroke}/>`;
@@ -9526,7 +9542,7 @@ function paintNode(node) {
 		y: bodyTop,
 		height: node.height - 22
 	} : node;
-	if (node.isPerson) parts.push(`<circle cx="${round(node.x + node.width / 2)}" cy="${round(node.y + PERSON_HEAD / 2)}" r="${PERSON_HEAD / 2}" fill="${fill}" stroke="${NODE_STROKE}" stroke-width="1"/>`);
+	if (node.isPerson) parts.push(`<circle cx="${round(node.x + node.width / 2)}" cy="${round(node.y + PERSON_HEAD / 2)}" r="${PERSON_HEAD / 2}"${outlineOf(node.data, fill)}/>`);
 	parts.push(shapeMarkup(body, fill));
 	const centreX = node.x + node.width / 2;
 	const innerWidth = node.width - 24;
@@ -9558,6 +9574,8 @@ function paintNode(node) {
 			cursor += SMALL_LEADING;
 		}
 	}
+	const opacity = node.data.opacity;
+	if (opacity !== void 0 && opacity < 100) return `<g opacity="${round(Math.max(0, opacity) / 100)}">${parts.join("")}</g>`;
 	return parts.join("");
 }
 function paintBoundary(node) {
@@ -9604,7 +9622,7 @@ function legendSwatch(entry, x, y) {
 	const size = LEGEND_SWATCH;
 	const half = size / 2;
 	const fill = entry.colour || FALLBACK_FILL;
-	const stroke = ` stroke="${NODE_STROKE}" stroke-width="1"`;
+	const stroke = entry.border === "Dashed" || entry.border === "Dotted" ? ` stroke="${LEGEND_LABEL_COLOUR}" stroke-width="1.25"` + (entry.border === "Dashed" ? " stroke-dasharray=\"3 2\"" : " stroke-dasharray=\"1 2\"") : ` stroke="${NODE_STROKE}" stroke-width="1"`;
 	switch (entry.shape) {
 		case "Boundary": return `<rect x="${round(x)}" y="${round(y)}" width="${size}" height="${size}" rx="3" fill="none" stroke="${BOUNDARY_STROKE}" stroke-width="1.5" stroke-dasharray="3 2"/>`;
 		case "Person":
