@@ -63,7 +63,13 @@ features that assume a hosted multi-user deployment.
 - **Rebuild frontend:** `npm install && npm run build` **from the repo root** —
   it is a workspace, so `diagram-core` must be built before the SPA. The root
   `build` script does both in order.
-- **Audit frontend deps:** `npm audit` at the repo root (kept at zero advisories)
+- **Audit frontend deps:** `npm audit` at the repo root **and**
+  `npm --prefix editors/vscode audit` — two separate installs, two separate
+  lockfiles. Both are kept at zero advisories. The root audit alone missed
+  eight advisories in the extension, which is what Dependabot surfaced when
+  it was switched on; its `.github/dependabot.yml` covers both directories
+  for the same reason. Note `npm audit` and Dependabot do not always agree:
+  the root `nanoid` advisory was reported by npm and not by Dependabot.
 
 ### Node is not on PATH
 
