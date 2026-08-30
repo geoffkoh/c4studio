@@ -32,4 +32,11 @@ def test_highlighting_fixture_parses() -> None:
     shop = next(s for s in workspace.software_systems if s.name == "Shop")
     assert len(shop.containers) == 2
     assert shop.properties == {"owner": "platform-team"}
-    assert workspace.parse_warnings == []
+
+    # The fixture exercises the whole grammar, so it deliberately sets style
+    # properties no renderer draws (PP-108 warns about those by design). Any
+    # other warning means the parser stopped understanding the fixture.
+    unexpected = [
+        d for d in workspace.diagnostics if d.code != "ignored-style-property"
+    ]
+    assert unexpected == []
