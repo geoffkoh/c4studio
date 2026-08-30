@@ -122,6 +122,37 @@ prints. A skipped construct never consumes its enclosing scope.
 | `branding { … }` | ✅ | Logo and font, including the font URL |
 | `terminology { … }` | ✅ | |
 
+### Marking elements as new, existing or deprecated
+
+There is no lifecycle keyword in the DSL. The only styling axis is the
+**tag**: tag the elements, style the tag, and the legend follows — c4studio
+derives one row per visually distinct combination of colour, shape and
+border, labelled by the most specific style tag that matched.
+
+```
+container "Fraud Check" "" "Go" { tags "New" }
+...
+styles {
+    element "Existing"   { background #4b7bb5 }
+    element "New"        { background #2e7d32 border dashed strokeWidth 3 }
+    element "Deprecated" { background #90a4ae border dotted opacity 55 }
+}
+```
+
+Three things that are easy to get wrong:
+
+- **Tag the unchanged elements too.** An untagged element falls back to its
+  C4 kind, so you get "New" vs "Container" rather than "New" vs "Existing".
+- **The last matching rule names the row.** Every matching rule contributes
+  its own properties, but the legend label comes from the one declared last.
+  Put the rule you want as the label after the others.
+- **The swatch carries colour, shape and border — not opacity.** Two greys
+  separated only by a fade are one row apart in the diagram and
+  indistinguishable in the legend; give one of them a border.
+
+`samples/delta_release.dsl` is a complete worked example, including tag
+composition and the ordering rule.
+
 ## Configuration
 
 | Keyword | Support | Notes |
