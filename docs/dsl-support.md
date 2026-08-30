@@ -114,7 +114,7 @@ prints. A skipped construct never consumes its enclosing scope.
 
 | Keyword | Support | Notes |
 | --- | --- | --- |
-| `styles { element … }` | ◐ | Every property parses. Painted: `background`, `color`, `shape`, `icon`, `border`, `stroke`, `strokeWidth`, `opacity`, `metadata`, `description`. Parsed but **not** painted: `width`, `height`, `fontSize`, `colorScheme`, `iconPosition` |
+| `styles { element … }` | ◐ | Every property parses. Painted: `background`, `color`, `shape`, `icon`, `border`, `stroke`, `strokeWidth`, `opacity`, `metadata`, `description`. Parsed and exported but **not** painted: `width`, `height`, `fontSize`, `iconPosition` — each warns (`ignored-style-property`), as does an unrecognised property name (`unknown-style-property`) |
 | `styles { relationship … }` | ◐ | Parsed and exported in full; the viewer does not yet paint edge styling beyond `metadata`/`description` |
 | `light { … }` / `dark { … }` | ◐ | Colour-scheme variants parse; the viewer renders one scheme |
 | `theme <url\|default>` | ✅ | Fetched, cached and merged; workspace styles win |

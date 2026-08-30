@@ -166,6 +166,35 @@ _LINE_STYLE_MAP = {line_style.value.lower(): line_style for line_style in LineSt
 _ROUTING_MAP = {routing.value.lower(): routing for routing in Routing}
 _ICON_POSITION_MAP = {pos.value.lower(): pos for pos in IconPosition}
 
+#: Every element style property this parser recognises. A name outside this
+#: set is a typo or a Structurizr feature we have not met, and either way the
+#: author deserves to be told rather than have it vanish (PP-108).
+_ELEMENT_STYLE_PROPS = frozenset(
+    {
+        "background",
+        "color",
+        "colour",
+        "stroke",
+        "strokewidth",
+        "shape",
+        "border",
+        "icon",
+        "iconposition",
+        "fontsize",
+        "opacity",
+        "width",
+        "height",
+        "metadata",
+        "description",
+    }
+)
+
+#: Recognised, stored, and round-tripped through JSON export — but no
+#: renderer draws them. Setting one has no visible effect, so it warns.
+_UNPAINTED_ELEMENT_STYLE_PROPS = frozenset(
+    {"width", "height", "fontsize", "iconposition"}
+)
+
 # terminology keyword → Terminology attribute
 _TERMINOLOGY_FIELDS = {
     "enterprise": "enterprise",
@@ -1546,7 +1575,8 @@ class _Parser:
             if not self._match(IDENT):
                 self._advance()
                 continue
-            prop = self._advance().value.lower()
+            prop_token = self._advance()
+            prop = prop_token.value.lower()
             if prop in ("light", "dark") and self._match(LBRACE):
                 variant = ElementStyle(
                     tag=style.tag,
@@ -1586,7 +1616,26 @@ class _Parser:
                 style.metadata = value.lower() == "true"
             elif prop == "description":
                 style.description = value.lower() == "true"
-            # Unknown properties: the value token is consumed; ignore.
+            # The value token has been consumed either way; what is left is
+            # deciding whether to say something about the property name.
+            if prop not in _ELEMENT_STYLE_PROPS:
+                self._warn(
+                    f"unknown element style property {prop!r} "
+                    f"on tag {style.tag!r}; ignored",
+                    line=prop_token.line,
+                    code="unknown-style-property",
+                    column=prop_token.column,
+                    end_column=prop_token.end_column,
+                )
+            elif prop in _UNPAINTED_ELEMENT_STYLE_PROPS:
+                self._warn(
+                    f"element style property {prop!r} on tag {style.tag!r} "
+                    "is parsed and exported but not drawn by any renderer",
+                    line=prop_token.line,
+                    code="ignored-style-property",
+                    column=prop_token.column,
+                    end_column=prop_token.end_column,
+                )
         self._expect(RBRACE)
         return variants
 
