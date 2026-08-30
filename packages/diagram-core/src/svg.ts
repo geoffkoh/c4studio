@@ -49,6 +49,12 @@ export interface GraphPayloadNode {
     showMetadata?: boolean;
     /** A `data:` URI — the Python side embeds theme icons before render. */
     icon?: string;
+    /** Outline properties from the element style: "Solid" | "Dashed" | "Dotted". */
+    border?: string;
+    stroke?: string;
+    strokeWidth?: number;
+    /** Percentage, as Structurizr spells it. */
+    opacity?: number;
   };
 }
 
@@ -64,6 +70,8 @@ export interface LegendEntry {
   label: string;
   colour: string;
   shape: string;
+  /** "Dashed" | "Dotted" | "Solid" | "" — the swatch must show what the row claims. */
+  border?: string;
 }
 
 export interface GraphPayload {
@@ -309,10 +317,35 @@ function fillOf(data: GraphPayloadNode["data"]): string {
   return data.background || data.color || FALLBACK_FILL;
 }
 
+/**
+ * Dash pattern for a Structurizr `border`, scaled to the stroke width so a
+ * thick dashed outline does not read as solid.
+ */
+function dashArray(border: string | undefined, width: number): string {
+  switch (border) {
+    case "Dashed":
+      return ` stroke-dasharray="${round(width * 5)} ${round(width * 3)}"`;
+    case "Dotted":
+      return ` stroke-dasharray="${round(width)} ${round(width * 2.5)}"`;
+    default:
+      return "";
+  }
+}
+
+/** Fill and outline attributes for a node, honouring its element style. */
+function outlineOf(data: GraphPayloadNode["data"], fill: string): string {
+  const width = data.strokeWidth ?? 1;
+  const colour = data.stroke || NODE_STROKE;
+  return (
+    ` fill="${fill}" stroke="${colour}" stroke-width="${width}"` +
+    dashArray(data.border, width)
+  );
+}
+
 /** The box outline, honouring the Structurizr shape where SVG can. */
 function shapeMarkup(node: Placed, fill: string): string {
   const { x, y, width, height } = node;
-  const stroke = ` fill="${fill}" stroke="${NODE_STROKE}" stroke-width="1"`;
+  const stroke = outlineOf(node.data, fill);
   switch (node.data.shape) {
     case "Circle":
     case "Ellipse":
@@ -404,7 +437,7 @@ function paintNode(node: Placed): string {
   if (node.isPerson) {
     parts.push(
       `<circle cx="${round(node.x + node.width / 2)}" cy="${round(node.y + PERSON_HEAD / 2)}" ` +
-        `r="${PERSON_HEAD / 2}" fill="${fill}" stroke="${NODE_STROKE}" stroke-width="1"/>`,
+        `r="${PERSON_HEAD / 2}"${outlineOf(node.data, fill)}/>`,
     );
   }
   parts.push(shapeMarkup(body, fill));
@@ -464,6 +497,13 @@ function paintNode(node: Placed): string {
     }
   }
 
+  // Structurizr's opacity is a percentage over the whole element, so it
+  // wraps the finished node — the label must fade with its box, not stay
+  // crisp on top of a washed-out shape.
+  const opacity = node.data.opacity;
+  if (opacity !== undefined && opacity < 100) {
+    return `<g opacity="${round(Math.max(0, opacity) / 100)}">${parts.join("")}</g>`;
+  }
   return parts.join("");
 }
 
@@ -534,7 +574,16 @@ function legendSwatch(entry: LegendEntry, x: number, y: number): string {
   const size = LEGEND_SWATCH;
   const half = size / 2;
   const fill = entry.colour || FALLBACK_FILL;
-  const stroke = ` stroke="${NODE_STROKE}" stroke-width="1"`;
+  // A patterned outline has to be visible at 14px to say anything, and the
+  // default node stroke (12% black) is not. Darken it only when there is a
+  // pattern to show, so solid swatches keep their light edge.
+  const stroke =
+    entry.border === "Dashed" || entry.border === "Dotted"
+      ? ` stroke="${LEGEND_LABEL_COLOUR}" stroke-width="1.25"` +
+        (entry.border === "Dashed"
+          ? ' stroke-dasharray="3 2"'
+          : ' stroke-dasharray="1 2"')
+      : ` stroke="${NODE_STROKE}" stroke-width="1"`;
   switch (entry.shape) {
     case "Boundary":
       // The one entry that explains an outline rather than a fill.

@@ -20,3 +20,6 @@ node_modules/
 
 # TypeScript incremental build state
 *.tsbuildinfo
+
+# macOS Finder metadata.
+.DS_Store
