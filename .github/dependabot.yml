@@ -1,0 +1,62 @@
+# Dependabot version updates.
+#
+# Vulnerability *scanning* is a repository setting, not this file: Dependabot
+# alerts and security updates are enabled on the repo and act on their own,
+# regardless of what is configured here. This file is the routine side —
+# keeping dependencies current so a security bump is a small diff rather than
+# a jump across several majors.
+#
+# Note the project rule in CLAUDE.md: no new dependencies without asking.
+# Dependabot only bumps what is already declared, so it never violates that —
+# but its pull requests still need a human to merge them.
+version: 2
+
+updates:
+  # Python. `uv` rather than `pip`: this project's dependency state lives in
+  # pyproject.toml *and* uv.lock, and only the uv ecosystem updates the lock.
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    groups:
+      # One PR for the routine noise; majors stay separate so they get read.
+      python-minor-and-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  # The npm workspace at the root covers frontend/ and packages/diagram-core,
+  # which have no lockfiles of their own. editors/vscode is a separate install
+  # with its own lockfile, so it needs its own directory here.
+  - package-ecosystem: "npm"
+    directories:
+      - "/"
+      - "/editors/vscode"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    groups:
+      npm-minor-and-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  # Covers .github/workflows/ and the composite action.yml in the root, which
+  # pins actions/checkout and actions/setup-python.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    commit-message:
+      prefix: "chore"
+    groups:
+      actions:
+        patterns: ["*"]
