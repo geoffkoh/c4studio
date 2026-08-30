@@ -10,6 +10,15 @@ Welcome to the c4studio documentation. This directory contains guides and refere
 - **[Migration Guide](./MIGRATION.md)** - Breaking changes from the Structurizr Java compatibility work and how to adapt.
 - **[Compatibility Roadmap](./COMPATIBILITY_ROADMAP.md)** - Historical record of that compatibility work, now complete.
 
+## Samples
+
+`samples/` holds workspaces used for live verification, and doubles as worked
+examples:
+
+- `internet_banking.dsl`, `saas_monitoring.dsl`, `ecommerce_platform.dsl` — the common cases.
+- `hedge_fund/` — the richest model: documentation, ADRs, deployment, groups and themes, split across `!include`-ed files.
+- `delta_release.dsl` — marking elements as new, existing or deprecated, and getting that into the legend. See [Marking elements as new, existing or deprecated](./dsl-support.md#marking-elements-as-new-existing-or-deprecated).
+
 ## Quick Start
 
 The main entry point for c4studio is the `Workspace` model, which contains:
