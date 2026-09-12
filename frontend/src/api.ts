@@ -12,6 +12,7 @@ import type {
   LayoutResult,
   LoadResult,
   ModelGraphData,
+  SaveConflict,
   SaveSourceResult,
   SourceResult,
   StatusResult,
@@ -22,27 +23,50 @@ import type {
 /** Raised for any non-2xx API response, carrying the HTTP status. */
 export class ApiError extends Error {
   readonly status: number;
+  /** The response's `detail`, undecoded. A string for most errors; an
+      object for the ones a client has to act on rather than just show —
+      see {@link saveConflict}. */
+  readonly detail: unknown;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, detail: unknown = null) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.detail = detail;
   }
 }
 
-/** Pull a human-readable message out of a failed response body. */
-async function extractError(response: Response): Promise<string> {
+/** Build the ApiError for a failed response, message and detail together. */
+async function failure(response: Response): Promise<ApiError> {
+  const fallback = response.statusText || `HTTP ${response.status}`;
   try {
     const body = (await response.json()) as unknown;
-    if (body && typeof body === "object" && "detail" in body) {
-      const detail = (body as { detail: unknown }).detail;
-      if (typeof detail === "string") return detail;
-      return JSON.stringify(detail);
-    }
-    return JSON.stringify(body);
+    const detail =
+      body && typeof body === "object" && "detail" in body
+        ? (body as { detail: unknown }).detail
+        : body;
+    const message =
+      typeof detail === "string" ? detail : JSON.stringify(detail) || fallback;
+    return new ApiError(response.status, message, detail);
   } catch {
-    return response.statusText || `HTTP ${response.status}`;
+    return new ApiError(response.status, fallback);
   }
+}
+
+/** The structured body of a 409 from {@link saveSource}, or null if the
+    error is anything else. Carries the on-disk text, so showing both sides
+    of the conflict needs no second round trip. */
+export function saveConflict(error: unknown): SaveConflict | null {
+  if (!(error instanceof ApiError) || error.status !== 409) return null;
+  const detail = error.detail;
+  if (
+    detail &&
+    typeof detail === "object" &&
+    (detail as { code?: unknown }).code === "conflict"
+  ) {
+    return detail as SaveConflict;
+  }
+  return null;
 }
 
 /** Perform a fetch and decode JSON, throwing ApiError on failure. */
@@ -57,7 +81,7 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
     );
   }
   if (!response.ok) {
-    throw new ApiError(response.status, await extractError(response));
+    throw await failure(response);
   }
   return (await response.json()) as T;
 }

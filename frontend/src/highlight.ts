@@ -1,17 +1,24 @@
-// Lightweight Structurizr DSL syntax highlighter.
+// The Structurizr DSL vocabulary and token shapes, shared by everything in
+// the SPA that has to make sense of DSL text.
 //
-// No mainstream highlighter ships a Structurizr grammar, so this mirrors
-// the backend parser's tokenizer (dsl.py _TOKEN_RE) and classifies tokens
-// into a handful of span classes rendered by the source viewer. Block
-// comments may span lines; the output is therefore per-line span arrays.
+// No mainstream highlighter ships a Structurizr grammar, so this mirrors the
+// backend parser's tokenizer (dsl.py _TOKEN_RE). It is deliberately the SPA's
+// only copy: `dslLanguage.ts` builds the CodeMirror StreamLanguage from these
+// patterns rather than restating them, so adding a keyword is one edit here.
 
-export interface HighlightSpan {
-  text: string;
-  /** CSS modifier (comment, string, color, keyword, def, arrow, directive, number) or null for plain text. */
-  cls: string | null;
-}
+/** How a token is painted. Names match the `dsl-*` CSS classes. */
+export type DslTokenClass =
+  | "comment"
+  | "string"
+  | "color"
+  | "keyword"
+  | "property"
+  | "def"
+  | "arrow"
+  | "directive"
+  | "number";
 
-const KEYWORDS = new Set([
+export const DSL_KEYWORDS: ReadonlySet<string> = new Set([
   "workspace",
   "model",
   "views",
@@ -40,7 +47,7 @@ const KEYWORDS = new Set([
   "terminology",
 ]);
 
-const PROPERTIES = new Set([
+export const DSL_PROPERTIES: ReadonlySet<string> = new Set([
   "include",
   "exclude",
   "autolayout",
@@ -59,73 +66,30 @@ const PROPERTIES = new Set([
   "dashed",
 ]);
 
-// Whitespace must be its own token and the punctuation catch-all a SINGLE
-// character: a greedy multi-char catch-all would swallow the whitespace
-// together with the `"`, `//`, `->`, `#` or `!` that starts the next
-// token, leaving strings/comments/arrows/colours/directives unhighlighted.
-const TOKEN_RE =
-  /\/\*[\s\S]*?\*\/|\/\/[^\n]*|"(?:[^"\\]|\\.)*"|#[0-9A-Fa-f]{3,8}|->|![A-Za-z]+|[A-Za-z_][A-Za-z0-9_]*|[0-9]+|\n|[ \t]+|[^\nA-Za-z0-9_]/g;
-
-function classify(text: string, nextSolid: string | undefined): string | null {
-  if (text.startsWith("//") || text.startsWith("/*")) return "comment";
-  if (text.startsWith('"')) return "string";
-  if (/^#[0-9A-Fa-f]{3,8}$/.test(text)) return "color";
-  if (text === "->") return "arrow";
-  if (text.startsWith("!")) return "directive";
-  if (/^[0-9]+$/.test(text)) return "number";
-  if (/^[A-Za-z_]/.test(text)) {
-    const lower = text.toLowerCase();
-    if (KEYWORDS.has(lower)) return "keyword";
-    if (PROPERTIES.has(lower)) return "property";
-    if (nextSolid === "=") return "def";
-    return null;
-  }
-  return null;
-}
-
 /**
- * Highlight DSL source into one span array per line. Newlines are never
- * part of a span; multi-line tokens (block comments) are split across
- * their lines with the same class.
+ * Token shapes, each anchored so it can be fed straight to CodeMirror's
+ * `StringStream.match`. Order matters at the call site: `color` must be
+ * tried before punctuation, `arrow` before `-`, and both comment forms
+ * before `/`.
  */
-export function highlightDsl(source: string): HighlightSpan[][] {
-  const raw = source.match(TOKEN_RE) ?? [];
+export const DSL_PATTERNS = {
+  lineComment: /^\/\/[^\n]*/,
+  blockCommentOpen: /^\/\*/,
+  blockCommentClose: /^\*\//,
+  string: /^"(?:[^"\\]|\\.)*"/,
+  color: /^#[0-9A-Fa-f]{3,8}/,
+  arrow: /^->/,
+  directive: /^![A-Za-z]+/,
+  word: /^[A-Za-z_][A-Za-z0-9_]*/,
+  number: /^[0-9]+/,
+  /** Lookahead marking `name` in `name = element` as a definition. */
+  assignment: /^[ \t]*=/,
+} as const;
 
-  // Look ahead to the next non-whitespace token so `name =` identifiers
-  // can be styled as definitions.
-  const solids: (string | undefined)[] = new Array(raw.length);
-  let next: string | undefined;
-  for (let i = raw.length - 1; i >= 0; i--) {
-    solids[i] = next;
-    const trimmed = raw[i].trim();
-    if (trimmed !== "" && raw[i] !== "\n") next = trimmed;
-  }
-
-  const lines: HighlightSpan[][] = [[]];
-  // After a !directive, the rest of the line is a path/argument: suppress
-  // keyword/definition colouring there (`!include model/oms.dsl` must not
-  // paint "model" as a keyword).
-  let inDirectiveLine = false;
-  raw.forEach((token, index) => {
-    if (token === "\n") {
-      lines.push([]);
-      inDirectiveLine = false;
-      return;
-    }
-    let cls = classify(token, solids[index]);
-    if (cls === "directive") {
-      inDirectiveLine = true;
-    } else if (
-      inDirectiveLine &&
-      (cls === "keyword" || cls === "property" || cls === "def")
-    ) {
-      cls = null;
-    }
-    const parts = token.split("\n");
-    parts.forEach((part, partIndex) => {
-      if (partIndex > 0) lines.push([]);
-      if (part !== "") lines[lines.length - 1].push({ text: part, cls });
-    });
-  });
-  return lines;
+/** Classify a bare word: a keyword, a style property, or neither. */
+export function classifyDslWord(word: string): DslTokenClass | null {
+  const lower = word.toLowerCase();
+  if (DSL_KEYWORDS.has(lower)) return "keyword";
+  if (DSL_PROPERTIES.has(lower)) return "property";
+  return null;
 }

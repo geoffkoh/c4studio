@@ -29,7 +29,9 @@ features that assume a hosted multi-user deployment.
 - **Frontend:** an npm **workspace** at the repo root. `packages/diagram-core`
   holds the renderer-agnostic diagram layer (layout, React Flow node/edge
   components, image export); `frontend/` is the Vite + React SPA that consumes
-  it. React Flow + dagre for graph layout. `npm run build` writes to
+  it. React Flow + dagre for graph layout; CodeMirror 6 for the DSL editor,
+  which is a `frontend/` dependency **only** — `diagram-core` is bundled into
+  the headless Node renderer and must never need a DOM. `npm run build` writes to
   `src/c4studio/webapp/static/` — a **committed** bundle, so the wheel
   ships a working UI and end users never need Node.
 

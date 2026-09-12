@@ -81,7 +81,7 @@ inferring behaviour from this document when the two might disagree.
 | Unknown `!directives` | ✅ (executed or errors) | ⚠ skipped with an `UnsupportedFeatureWarning` recorded in `Workspace.parse_warnings` |
 | `deploymentEnvironment`, instances | ✅ | ✅ incl. instance counts, `deploymentGroup` declarations + instance membership, positional/nested instance tags, `healthCheck` |
 | Live reload on DSL edits | ✅ | ✅ mtime heartbeat over source + `!include` fragments + docs; parse errors keep the last good workspace |
-| In-browser DSL editor | ✅ | ❌ (edit on disk; live reload covers the loop) |
+| In-browser DSL editor | ✅ (behind a feature flag, default off; Lite has none) | ✅ CodeMirror 6 editor on the Source page (PP-125): shared-vocabulary highlighting, `POST /api/check` diagnostics as you type, ⌘S save through `PUT /api/source` with conflict detection. Read-only in Viewer mode (`--viewer`) and for files that are not valid UTF-8 |
 | Documentation / ADR rendering | ✅ | ✅ `!docs`/`!adrs` directives, TOC reader, ADR status badges |
 | `!const` / `!var` + `${NAME}` substitution | ✅ | ✅ preprocessing pass; const redefinition errors, unknown placeholders left intact |
 | `!impliedRelationships` | ✅ (default on) | ✅ opt-in via `!impliedRelationships true`; implied relationships carry `linkedRelationshipId` and are deduped in the webapp |
@@ -110,11 +110,14 @@ abstraction level, with element search, a details panel showing
 relationships and view membership, and show-definition into the Source
 pane. Deployment elements remain view-only.
 
+In-browser DSL editing, previously listed as a gap here, shipped in
+Phase B of `studio-editor-plan.md`: Studio/Viewer modes (PP-119),
+`POST /api/check` (PP-122), `PUT /api/source` (PP-124) and the CodeMirror
+editor (PP-125).
+
 ### Remaining gaps, should they ever be worth closing
 
-1. **In-browser DSL editor** — live reload already gives a tight loop
-   with an external editor, so this is convenience rather than capability.
-2. **Custom / image views, perspectives** — long-tail Structurizr
+1. **Custom / image views, perspectives** — long-tail Structurizr
    features with niche usage.
 
 Manual edge vertices, previously listed here, shipped as draggable
