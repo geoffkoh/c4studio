@@ -27,7 +27,7 @@ import { isTypingTarget } from "./shortcuts";
 import { DocsPane } from "./components/DocsPane";
 import { ElementTree } from "./components/ElementTree";
 import { ExplorerPane } from "./components/ExplorerPane";
-import { FilePicker } from "./components/FilePicker";
+import { FileTree } from "./components/FileTree";
 import { GraphPane } from "./components/GraphPane";
 import { ShortcutHelp } from "./components/ShortcutHelp";
 import { SourcePane, type CodeFocus } from "./components/SourcePane";
@@ -184,13 +184,6 @@ export default function App() {
     return () => window.clearInterval(timer);
   }, [currentPath, refresh]);
 
-  // The picker offers only what POST /api/load accepts. Fragments come
-  // back from /api/files too, and the tree that uses them is C3.
-  const loadableFiles = useMemo(
-    () => files.filter((f) => f.kind === "workspace").map((f) => f.path),
-    [files],
-  );
-
   // What the editor can complete. Rebuilt only when the model or the view
   // index actually changes, so the editor reconfigures on a reload rather
   // than on every render.
@@ -285,8 +278,8 @@ export default function App() {
               </ul>
             </details>
           ) : null}
-          <FilePicker
-            files={loadableFiles}
+          <FileTree
+            entries={files}
             currentPath={currentPath}
             loadingPath={loadingPath}
             onSelect={handleSelectFile}
