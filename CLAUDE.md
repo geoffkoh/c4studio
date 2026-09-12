@@ -174,9 +174,15 @@ the finding in the code or docs so the answer survives without it.
 - **PR-first merge — never merge a feature branch locally.** Push the branch,
   open a PR, merge the PR, and wait for the merge before starting the next
   ticket.
-- **`gh` is not installed on this machine.** Create and merge PRs through the
-  GitHub REST API (`https://api.github.com/repos/geoffkoh/c4studio/pulls`)
-  with `curl`, not the `gh` CLI.
+- **Use `gh` for pull requests** — `gh pr create --body-file …`,
+  `gh pr checks`, `gh pr merge --merge --delete-branch`. Check
+  `gh auth status` first; if it reports logged out, **ask** rather than
+  reaching for the REST API. Hitting `api.github.com` with `curl` does not
+  work here: there is no `GITHUB_TOKEN` in the environment, and reading the
+  token back out of the osxkeychain helper to build an `Authorization`
+  header is refused as credential materialization. A successful `git push`
+  proves nothing — git gets the credential through the helper, which a
+  `curl` call cannot.
 
 ## Documentation Upkeep
 
