@@ -306,11 +306,20 @@ button {
   text-align: center;
 }
 
+/* Every field is clamped to the same number of lines `nodeMetrics.ts`
+   measured the box with. Without a clamp the box grows past the space
+   dagre reserved for it and lands on the rank below; with a tighter one
+   it would clip text the box already has room for. Change a clamp here
+   and change its *_MAX_LINES there in the same edit. */
 .node__label {
   font-size: 13px;
   font-weight: 600;
   line-height: 1.25;
   word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .node__kind {
@@ -318,6 +327,12 @@ button {
   opacity: 0.85;
   margin-top: 3px;
   letter-spacing: 0.02em;
+  line-height: 1.3;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .node__desc {
@@ -326,7 +341,7 @@ button {
   margin-top: 5px;
   line-height: 1.35;
   display: -webkit-box;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 4;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }

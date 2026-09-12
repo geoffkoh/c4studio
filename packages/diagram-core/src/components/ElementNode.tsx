@@ -1,21 +1,10 @@
 import { memo, type CSSProperties, type MouseEvent } from "react";
 import { Handle, Position, type NodeProps } from "reactflow";
 
+import { metaLine, nodeTooltip } from "../nodeMetrics";
+
 /** Colour used when the backend supplies no palette colour for a kind. */
 const FALLBACK_COLOR = "#78909c";
-
-/** C4 metadata label per element kind, shown as `[Container: Java]`. */
-const KIND_LABELS: Record<string, string> = {
-  person: "Person",
-  "person-external": "Person",
-  system: "Software System",
-  "system-external": "Software System",
-  container: "Container",
-  component: "Component",
-  infrastructure: "Infrastructure Node",
-  "container-instance": "Container",
-  "system-instance": "Software System",
-};
 
 export interface ElementNodeData {
   label: string;
@@ -45,17 +34,6 @@ export interface ElementNodeData {
   expandable?: boolean;
   /** Callback wired by the graph pane to expand/collapse this node. */
   onToggleExpand?: (id: string, expand: boolean) => void;
-}
-
-/**
- * The `[Kind: technology]` line, or null when an element style declares
- * `metadata false`. The backend blanks the technology in that case but the
- * kind is composed here, so the whole line has to be dropped explicitly.
- */
-function metaLine(data: ElementNodeData): string | null {
-  if (data.showMetadata === false) return null;
-  const kindLabel = KIND_LABELS[data.kind] ?? data.kind;
-  return data.technology ? `[${kindLabel}: ${data.technology}]` : `[${kindLabel}]`;
 }
 
 /** CSS modifier class per Structurizr shape; unlisted shapes use the default. */
@@ -103,6 +81,13 @@ function ElementNodeComponent({ id, data }: NodeProps<ElementNodeData>) {
       : {};
   const drillable = Boolean(data.drillKey);
   const expandable = Boolean(data.expandable && data.onToggleExpand);
+  // Boxes size themselves to their text, so anything still clipped is long
+  // prose; hovering is how you read the rest of it.
+  const overflow = nodeTooltip(data);
+  const drillHint = drillable
+    ? `Double-click to open ${data.drillLabel ?? "view"}`
+    : null;
+  const hint = [overflow, drillHint].filter(Boolean).join("\n\n") || undefined;
 
   const handleExpand = (event: MouseEvent) => {
     event.stopPropagation();
@@ -125,9 +110,7 @@ function ElementNodeComponent({ id, data }: NodeProps<ElementNodeData>) {
           ? { opacity: Math.max(0, data.opacity) / 100 }
           : {}),
       }}
-      title={
-        drillable ? `Double-click to open ${data.drillLabel ?? "view"}` : undefined
-      }
+      title={hint}
     >
       <Handle type="target" position={Position.Top} />
       {data.icon ? (

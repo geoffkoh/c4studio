@@ -11,14 +11,19 @@
 import dagre from "dagre";
 import type { Edge, Node } from "reactflow";
 
-const NODE_WIDTH = 200;
-const NODE_HEIGHT = 110;
-const PERSON_HEIGHT = 150;
+import {
+  ICON_ALLOWANCE,
+  NODE_MIN_HEIGHT,
+  NODE_WIDTH,
+  nodeBox,
+  type NodeTextData,
+} from "./nodeMetrics";
 
-// An element with a theme icon needs room for it above the label, or the
-// description is squeezed out. Matches `.node__icon` (30px plus margins)
-// in the web app, where the box grows with its content.
-export const ICON_ALLOWANCE = 36;
+// Node sizing lives in nodeMetrics, so dagre reserves exactly what the
+// renderers draw; re-exported here because that is where callers have
+// always imported it from.
+const NODE_HEIGHT = NODE_MIN_HEIGHT;
+export { ICON_ALLOWANCE };
 
 // Space between a boundary edge and its children; the bottom pad leaves
 // room for the boundary label.
@@ -46,14 +51,15 @@ interface Point {
   y: number;
 }
 
+/**
+ * The space a node needs, measured from its own text rather than assumed.
+ *
+ * A flat height here was the reason a long name pushed its rendered box
+ * into the rank below: the web app grows `.node` around its content, and
+ * dagre was never told.
+ */
 function nodeSize(node: Node): Size {
-  const data = node.data as { kind?: string; icon?: string } | undefined;
-  const kind = data?.kind ?? "";
-  const icon = data?.icon ? ICON_ALLOWANCE : 0;
-  if (kind.startsWith("person")) {
-    return { width: NODE_WIDTH, height: PERSON_HEIGHT + icon };
-  }
-  return { width: NODE_WIDTH, height: NODE_HEIGHT + icon };
+  return nodeBox((node.data ?? {}) as NodeTextData);
 }
 
 /**

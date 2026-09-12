@@ -37,6 +37,20 @@ export {
   type EdgeLineStyle,
   type EdgePaintOverrides,
 } from "./edgePaint";
+export {
+  nodeBox,
+  nodeHeight,
+  nodeTextLines,
+  nodeTooltip,
+  metaLine,
+  wrap,
+  NODE_MIN_HEIGHT,
+  PERSON_MIN_HEIGHT,
+  LABEL_MAX_LINES,
+  META_MAX_LINES,
+  DESC_MAX_LINES,
+  type NodeTextData,
+} from "./nodeMetrics";
 export { insertionIndex } from "./waypoints";
 export {
   align,
