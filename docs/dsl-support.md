@@ -29,6 +29,11 @@ so this table cannot silently drift for those rows.
 | ⛔ | Skipped, and recorded as a diagnostic you can see |
 | 🚫 | Deliberately unsupported and staying that way |
 
+**Comments:** `//`, `/* … */` and full-line `#` are all supported. A `#`
+only starts a comment when nothing but whitespace precedes it on the line
+— mid-line it is a hex colour (`background #1a2b3c`), the same rule as
+structurizr-java (`^\s*?(//|#)`).
+
 Anything marked ⛔ follows the parser's fail-soft contract: the construct
 and any `{ … }` body are skipped whole, never half-applied, and recorded in
 `Workspace.diagnostics` (and `parse_warnings`), which `c4 check`
