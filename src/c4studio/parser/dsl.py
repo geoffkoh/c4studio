@@ -590,6 +590,7 @@ class _Parser:
         ones are skipped (their same-line arguments plus any ``{...}`` block)
         and recorded as an unsupported-feature warning.
         """
+        bang_tok = self._peek()
         self._expect(BANG)
         if not self._match(IDENT):
             return
@@ -605,8 +606,18 @@ class _Parser:
             self._advance()
         if self._match(LBRACE):
             self._skip_block()
+        # The line goes in the field, not the message: `_warn` resolves it
+        # through the source map so the warning names the fragment it came
+        # from. Formatted into the text it stayed a *flattened* line number
+        # attached to no file at all, which no editor can place.
         self._warn(
-            f"Line {name_tok.line}: unsupported directive '!{name_tok.value}' ignored"
+            f"unsupported directive '!{name_tok.value}' ignored",
+            line=name_tok.line,
+            code="unsupported-directive",
+            # From the `!`, not the name after it: the directive the user
+            # wrote is `!bogus`, and that is what should be underlined.
+            column=bang_tok.column,
+            end_column=name_tok.end_column,
         )
 
     def _directive_identifiers(self, scope: str, line: int) -> None:
