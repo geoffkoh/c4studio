@@ -5,6 +5,7 @@
 // the same origin as the backend.
 
 import type {
+  Capabilities,
   ExplorerLevel,
   GraphData,
   LayoutResult,
@@ -86,6 +87,11 @@ export function getSource(): Promise<SourceResult> {
 /** GET /api/workspace -> the full loaded workspace model. */
 export function getWorkspace(): Promise<Workspace> {
   return request<Workspace>("/api/workspace");
+}
+
+/** GET /api/capabilities -> what this server allows. Needs no workspace. */
+export function getCapabilities(): Promise<Capabilities> {
+  return request<Capabilities>("/api/capabilities");
 }
 
 /** GET /api/views -> the index of views in the loaded workspace. */

@@ -117,6 +117,17 @@ export interface LayoutResult {
   saved: string;
 }
 
+/** Response body from GET /api/capabilities — what this server allows.
+
+    `features` is an open map: a newer server may report keys this client
+    does not know, and must be free to. Read it defensively. */
+export interface Capabilities {
+  readOnly: boolean;
+  mode: "studio" | "viewer";
+  version: string;
+  features: Record<string, boolean>;
+}
+
 /** Abstraction level rendered by the full-model explorer. */
 export type ExplorerLevel = "systems" | "containers" | "components";
 

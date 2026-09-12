@@ -57,6 +57,12 @@ features that assume a hosted multi-user deployment.
   `C4STUDIO_NODE` if it is not on `PATH`)
 - **Web app:** `uv run c4 webapp <dir-or-file>` (FastAPI + React SPA
   on `127.0.0.1:8090`; loads DSL/JSON from disk, live-reloads on edits).
+  Serves the full **Studio** by default; `--viewer` serves **Viewer**,
+  where routes that write DSL refuse with 403. Viewer still saves layout
+  and expansion state — you cannot change the model, but you can arrange
+  the view, and that arrangement is gitignored per-user UI state either
+  way. Capability lives on the server (`GET /api/capabilities`), not in
+  hidden buttons, so the guarantee holds against a crafted request.
 - **Run tests:** `uv run pytest`
 - **Lint/Format:** `uv run ruff check .` and `uv run ruff format .`
 - **Type check:** `uv run mypy .`

@@ -58,6 +58,20 @@ button {
   letter-spacing: -0.01em;
 }
 
+/* Only Viewer is badged. Studio is the default and needs no label — a
+   badge on the normal case is noise. */
+.topbar__mode {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  cursor: default;
+}
+
 .topbar__file {
   color: var(--muted);
   font-size: 13px;

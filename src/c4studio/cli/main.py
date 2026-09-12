@@ -304,11 +304,21 @@ def list_views(input_file: Path) -> None:
     default=False,
     help="Do not open a browser window automatically.",
 )
-def webapp(path: Path, port: int, host: str, no_browser: bool) -> None:
+@click.option(
+    "--viewer",
+    is_flag=True,
+    default=False,
+    help="Serve read-only: the DSL cannot be edited in the browser.",
+)
+def webapp(path: Path, port: int, host: str, no_browser: bool, viewer: bool) -> None:
     """Launch the React web application backend for PATH.
 
     PATH may be a directory (browsed as the source root) or a single source
     file (loaded eagerly, with its parent directory as the root).
+
+    Serves the full Studio by default. ``--viewer`` serves Viewer instead:
+    the DSL cannot be edited, though diagrams can still be arranged —
+    layout is per-user UI state in a gitignored sidecar either way.
     """
     from c4studio.webapp.server import run_server
 
@@ -326,4 +336,4 @@ def webapp(path: Path, port: int, host: str, no_browser: bool) -> None:
         url = f"http://{host}:{port}"
         threading.Timer(1.0, webbrowser.open, args=(url,)).start()
 
-    run_server(root=root, initial=initial, host=host, port=port)
+    run_server(root=root, initial=initial, host=host, port=port, read_only=viewer)
