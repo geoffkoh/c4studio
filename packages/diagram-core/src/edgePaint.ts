@@ -12,8 +12,17 @@
 
 import { MarkerType } from "reactflow";
 
-export const EDGE_COLOUR = "#b1b1b7";
-export const EDGE_WIDTH = 1;
+// Heavier than reactflow's 1px default on purpose: relationships are the
+// content of a C4 diagram, not chrome, and at 1px they vanished next to
+// the node fills. svg.ts (headless export) keeps its own copies of these
+// two values — change them together or exports diverge from the screen.
+export const EDGE_COLOUR = "#8f8f98";
+export const EDGE_WIDTH = 1.8;
+
+// Hover emphasis, shared by the live edge component and the edge list so
+// the path, the label and the arrowhead marker all pop together.
+export const EDGE_HOVER_COLOUR = "#1976d2";
+export const EDGE_HOVER_WIDTH = 3.2;
 
 // Arrowhead size, in pixels. reactflow's marker defaults are 12.5 with
 // `markerUnits: "strokeWidth"`, which makes the head a multiple of the line
@@ -34,4 +43,15 @@ export const EDGE_PAINT = {
     markerUnits: "userSpaceOnUse",
   },
   style: { stroke: EDGE_COLOUR, strokeWidth: EDGE_WIDTH },
+} as const;
+
+/**
+ * `markerEnd` swap for the hovered edge. The arrowhead is an SVG marker
+ * whose colour is baked in when the edge is defined, so emphasising the
+ * path alone leaves a grey head on a blue line; giving the hovered edge
+ * this marker makes React Flow generate (and reuse) the highlighted def.
+ */
+export const EDGE_HOVER_MARKER = {
+  ...EDGE_PAINT.markerEnd,
+  color: EDGE_HOVER_COLOUR,
 } as const;
