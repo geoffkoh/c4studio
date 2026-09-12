@@ -176,6 +176,20 @@ class SaveSourceRequest(BaseModel):
     force: bool = False
 
 
+class FolderRequest(BaseModel):
+    """Body for ``POST /api/folder``."""
+
+    path: str
+
+
+class RenameRequest(BaseModel):
+    """Body for ``POST /api/rename``."""
+
+    # Both root-relative. `to` must not exist: rename never clobbers.
+    path: str
+    to: str
+
+
 class ExpansionRequest(BaseModel):
     """Body for ``POST /api/views/{key}/expansion``."""
 
@@ -244,6 +258,54 @@ def _safe_resolve(root: Path, rel: str) -> Path:
             detail=f"Unsupported file type: {candidate.suffix or '(none)'}",
         )
     return candidate
+
+
+def _safe_resolve_dir(root: Path, rel: str) -> Path:
+    """Resolve a *directory* path under ``root``, rejecting traversal.
+
+    :func:`_safe_resolve` insists on a source suffix, which a folder does
+    not have. The traversal guard is the part that matters and is kept; the
+    suffix allowlist is what is dropped, deliberately and only here.
+    """
+    candidate = (root / rel).resolve()
+    if not candidate.is_relative_to(root):
+        raise HTTPException(status_code=400, detail="Path escapes the root directory")
+    if candidate == root:
+        raise HTTPException(status_code=400, detail="Refusing to operate on the root")
+    return candidate
+
+
+def _require_listable(state: AppState, rel: str) -> Path:
+    """Resolve a path that the file listing would actually show.
+
+    The rule for destructive routes: **if you cannot see it, you cannot
+    delete or rename it.** That rules out layout sidecars, unsupported
+    suffixes and anything outside the root in one check, rather than
+    leaving each route to remember three of them.
+    """
+    target = _safe_resolve(state.root, rel)
+    if not target.is_file():
+        raise HTTPException(status_code=404, detail=f"No such file: {rel}")
+    if _classify(target) is None:
+        raise HTTPException(
+            status_code=400,
+            detail=f"{rel} is not a listed source file",
+        )
+    return target
+
+
+def _refuse_if_loaded(state: AppState, target: Path, verb: str) -> None:
+    """Refuse to move or remove the workspace the server has open.
+
+    ``state.current_path`` would be left pointing at a file that is gone,
+    and every subsequent reload would fail against it. Loading something
+    else first is one click and leaves no broken state.
+    """
+    if state.current_path is not None and target == state.current_path:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot {verb} the loaded workspace; load another file first",
+        )
 
 
 def _find_view(workspace: Workspace, key: str) -> View:
@@ -579,6 +641,22 @@ def _reload_now(state: AppState) -> None:
     _begin_watching(state, state.current_path)
     _apply_saved_layout(state)
     state.generation += 1
+
+
+def _after_tree_change(state: AppState, target: Path) -> None:
+    """Re-read the workspace when a file it depends on moved or vanished.
+
+    The C1 discovery cache needs no invalidation here: creating, renaming
+    or removing anything changes a directory's mtime, which is exactly
+    what its stat revalidation already checks.
+
+    A fragment the loaded workspace includes is a different matter — the
+    reload happens now so the parse error surfaces immediately rather than
+    up to two seconds later, the same reasoning ``PUT /api/source`` uses.
+    """
+    state.source_cache = None
+    if state.current_path is not None and target in state.watch_files:
+        _reload_now(state)
 
 
 def _layout_sidecar(source: Path) -> Path:
@@ -1134,6 +1212,118 @@ def create_app(
             "fingerprint": _fingerprint(target),
             "editable": editable,
         }
+
+    @app.post("/api/folder")
+    def create_folder(
+        body: FolderRequest, state: AppState = Depends(_require_writable)
+    ) -> dict[str, str]:
+        """Create an empty folder under the root.
+
+        Creating a *file* needs no route of its own: ``PUT /api/source``
+        with a null fingerprint asserts the file does not exist and makes
+        its parent directories on the way. Only an empty folder — one with
+        nothing to write into it yet — has nowhere else to come from.
+        """
+        target = _safe_resolve_dir(state.root, body.path)
+        if target.exists():
+            raise HTTPException(status_code=409, detail=f"{body.path} already exists")
+        try:
+            target.mkdir(parents=True)
+        except OSError as exc:
+            raise HTTPException(
+                status_code=400, detail=f"Cannot create {body.path}: {exc}"
+            ) from exc
+        return {"path": target.relative_to(state.root).as_posix()}
+
+    @app.post("/api/rename")
+    def rename_source(
+        body: RenameRequest, state: AppState = Depends(_require_writable)
+    ) -> dict[str, str]:
+        """Rename or move a listed source file.
+
+        **Never clobbers.** An existing destination is a conflict, not an
+        overwrite — the one-keystroke typo that silently destroys another
+        file is exactly what a rename route must not allow.
+
+        Renaming a fragment the loaded workspace ``!include``s leaves that
+        include dangling, and the next reload reports it. That is the
+        project's fail-soft contract rather than an oversight: the DSL text
+        is the user's, and rewriting their `!include` lines to match is the
+        model-to-DSL generation Principle 1 rules out.
+        """
+        source = _require_listable(state, body.path)
+        _refuse_if_loaded(state, source, "rename")
+        target = _safe_resolve(state.root, body.to)
+        if target.exists():
+            raise HTTPException(status_code=409, detail=f"{body.to} already exists")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            source.rename(target)
+        except OSError as exc:
+            raise HTTPException(
+                status_code=400, detail=f"Cannot rename {body.path}: {exc}"
+            ) from exc
+        # Carry the layout across with the file. Losing an arrangement
+        # because a file was renamed is a bad surprise, and the sidecar is
+        # keyed by filename with nothing inside it that knows better.
+        old_sidecar = _layout_sidecar(source)
+        new_sidecar = _layout_sidecar(target)
+        if old_sidecar.is_file() and not new_sidecar.exists():
+            old_sidecar.rename(new_sidecar)
+        _after_tree_change(state, source)
+        return {
+            "path": target.relative_to(state.root).as_posix(),
+            "from": body.path,
+        }
+
+    @app.delete("/api/file")
+    def delete_source(
+        path: str, state: AppState = Depends(_require_writable)
+    ) -> dict[str, str]:
+        """Delete one listed source file.
+
+        Only a file the listing shows: not a layout sidecar, not an
+        unsupported suffix, not anything outside the root. If you cannot
+        see it you cannot delete it, which keeps the blast radius equal to
+        what the tree offered.
+
+        Directories are not deleted here, and never recursively — see
+        ``DELETE /api/folder``.
+        """
+        target = _require_listable(state, path)
+        _refuse_if_loaded(state, target, "delete")
+        try:
+            target.unlink()
+        except OSError as exc:
+            raise HTTPException(
+                status_code=400, detail=f"Cannot delete {path}: {exc}"
+            ) from exc
+        # Derived per-user state for a file that no longer exists. Left
+        # behind it would silently attach itself to any future file of the
+        # same name.
+        _layout_sidecar(target).unlink(missing_ok=True)
+        _after_tree_change(state, target)
+        return {"deleted": path}
+
+    @app.delete("/api/folder")
+    def delete_folder(
+        path: str, state: AppState = Depends(_require_writable)
+    ) -> dict[str, str]:
+        """Remove an empty folder.
+
+        Empty only. A recursive delete is the one operation here that could
+        destroy work the user never named, and nothing in the UI needs it.
+        """
+        target = _safe_resolve_dir(state.root, path)
+        if not target.is_dir():
+            raise HTTPException(status_code=404, detail=f"No such folder: {path}")
+        if any(target.iterdir()):
+            raise HTTPException(
+                status_code=409,
+                detail=f"{path} is not empty; delete its contents first",
+            )
+        target.rmdir()
+        return {"deleted": path}
 
     @app.get("/api/workspace")
     def get_workspace(state: AppState = Depends(_get_state)) -> dict[str, Any]:
