@@ -36,7 +36,9 @@ def root(tmp_path: Path) -> Path:
 @pytest.fixture()
 def client(root: Path) -> TestClient:
     test_client = TestClient(create_app(root=root))
-    assert test_client.post("/api/load", json={"path": "example.dsl"}).status_code == 200
+    assert (
+        test_client.post("/api/load", json={"path": "example.dsl"}).status_code == 200
+    )
     return test_client
 
 
