@@ -99,7 +99,8 @@ conventions in `roadmap.md`.
 | A1 | `feat(webapp): Studio and Viewer modes` | Frozen `AppConfig` on `AppState`; `create_app(..., *, read_only=False)` keyword-only so existing callers are untouched; `c4 webapp --viewer`; `_require_writable` as a **FastAPI dependency** (a route that writes cannot forget to depend on it the way it could forget a call); `GET /api/capabilities`. | — |
 | A2 | `fix(webapp): keep watching includes after a failed reload` | Extract `_reload_now(state)` so the poll path and the save path are one implementation; fix the stale `watch_files` bug. | — |
 | A3 | `feat(parser): in-memory source overlay for !include` | `overlay: Mapping[Path, str] \| None` on `parse_dsl` → `_expand_includes`, consulted **before** `is_file()` so a not-yet-saved fragment also resolves. Default `None` is a no-op. First increment of the `SourceResolver` roadmap row. | — |
-| A4 | `feat(webapp): POST /api/check for unsaved buffers` | Structured diagnostics for arbitrary text; no disk writes, no `AppState` mutation. Also surface `workspace.diagnostics` on `/api/status` so **Viewer gains warning display** — useful independent of editing. | A3 |
+| A3b | `fix(parser): attribute fragment diagnostics to the fragment` | Found while building A3, see [Diagnostic attribution](#diagnostic-attribution). Without it the editor puts squiggles in the wrong file. | A3 |
+| A4 | `feat(webapp): POST /api/check for unsaved buffers` | Structured diagnostics for arbitrary text; no disk writes, no `AppState` mutation. Also surface `workspace.diagnostics` on `/api/status` so **Viewer gains warning display** — useful independent of editing. | A3b |
 
 ### Phase B — The editor
 
@@ -170,10 +171,31 @@ root_text = overlay.get(root) or root.read_text(encoding="utf-8")
 workspace = parse_dsl(root_text, base_dir=root.parent, path=root, overlay=overlay)
 ```
 
-Diagnostics already map back to the originating fragment through
-`SourceMap.resolve()`; the only webapp work is relativising `path` to the
-root. Keep `Diagnostic.to_dict()` as the single source of key names so the
-webapp and `c4 check --json` never drift.
+Diagnostics must be relativised to the root for the client, and — once
+A3b lands — will carry the fragment they came from. Keep
+`Diagnostic.to_dict()` as the single source of key names so the webapp
+and `c4 check --json` never drift.
+
+### Diagnostic attribution
+
+**Established by measurement during A3, not assumed.** A diagnostic from
+inside an `!include`-ed fragment is currently attributed to the **root
+file at the flattened line**, not to the fragment at its own line. This
+is identical whether the include is read from disk or supplied through
+the overlay, so it is not overlay-specific.
+
+The `SourceMap` machinery is correct. Two call-site patterns bypass it:
+
+1. `_record_error` resolves through the source map **only when
+   `error.path is None`**, so any `ParseError` raised with an explicit
+   path keeps the root's.
+2. Several `_warn` call sites pass `line=None` and embed a flattened line
+   number in the message text (`"Line 4: unsupported directive ..."`)
+   instead of carrying `path`/`line` as fields.
+
+An editor cannot place a squiggle from either. Hence A3b, sequenced
+before A4 — there is no point returning diagnostics over HTTP until they
+name the file the user is looking at.
 
 Return the view list too — it is free (`_views_index` on a workspace
 already in hand) and buys a live "this edit adds/removes a view" preview
@@ -313,8 +335,9 @@ State these in the tickets so they don't creep in.
 |---|---|---|
 | A1 — Studio/Viewer modes, `GET /api/capabilities` | ✅ Done | #128 (PP-119) |
 | A2 — Keep watching includes after a failed reload | ✅ Done | #129 (PP-120) |
-| A3 — Parser source overlay | 🔨 In progress | PP-121 |
-| A4 — `POST /api/check` | ⬜ Not started | PP-122 |
+| A3 — Parser source overlay | ✅ Done | #131 (PP-121) |
+| A3b — Fragment diagnostic attribution | ⬜ Not started | PP-123 |
+| A4 — `POST /api/check` | ⬜ Not started | PP-122, blocked on PP-123 |
 | B1–B4, C1–C5, D1–D2, E1–E2, F1 | ⬜ Not started | not yet ticketed |
 
 Update this table as tickets land, and file the next phase's tickets when
