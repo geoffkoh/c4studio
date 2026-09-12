@@ -9189,7 +9189,13 @@ async function layoutGraph(nodes, edges, direction = "TB", spacing) {
 	const { parentOf, childrenOf } = buildHierarchy(nodes);
 	const positions = /* @__PURE__ */ new Map();
 	const groupSizes = /* @__PURE__ */ new Map();
+	const byId = new Map(nodes.map((node) => [node.id, node]));
 	const sizeOf = (node) => groupSizes.get(node.id) ?? nodeSize(node);
+	function levelDirection(parentId) {
+		if (parentId === void 0) return direction;
+		const hint = (byId.get(parentId)?.data)?.rankDirection;
+		return hint === "TB" || hint === "BT" || hint === "LR" || hint === "RL" ? hint : direction;
+	}
 	function edgesAtLevel(parentId) {
 		const seen = /* @__PURE__ */ new Set();
 		const lifted = [];
@@ -9214,7 +9220,7 @@ async function layoutGraph(nodes, edges, direction = "TB", spacing) {
 		const laidOut = dagreLevel(children.map((c) => ({
 			id: c.id,
 			size: sizeOf(c)
-		})), edgesAtLevel(parentId), direction, spacing);
+		})), edgesAtLevel(parentId), levelDirection(parentId), spacing);
 		let maxX = 0;
 		let maxY = 0;
 		let minX = Number.POSITIVE_INFINITY;

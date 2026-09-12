@@ -59,6 +59,13 @@ workspace "NorthWind Logistics" "Parcel network: booking, routing, tracking and 
                 }
 
                 routing = container "Routing Engine" "Plans depot-to-door routes and re-plans on disruption" "Python" {
+                    // A per-boundary layout hint: wherever this container
+                    // renders as a boundary (its component view, or when
+                    // expanded in place), its children flow left to right
+                    // regardless of the view's own autoLayout direction.
+                    properties {
+                        "c4studio.autolayout" "lr"
+                    }
                     optimizer = component "Route Optimizer" "Solves the vehicle-routing problem per depot" "OR-Tools"
                     trafficAdapter = component "Traffic Adapter" "Normalises live traffic and road-closure feeds" "Python"
                     manifestBuilder = component "Manifest Builder" "Turns optimised routes into courier manifests" "Python"
@@ -205,6 +212,11 @@ workspace "NorthWind Logistics" "Parcel network: booking, routing, tracking and 
         container platform PlatformContainers "Delivery Platform – Containers" {
             include *
             autoLayout
+            // Groups cannot carry properties, so a group boundary's layout
+            // hint is keyed by group name on the view instead.
+            properties {
+                "c4studio.autolayout.Core Services" "lr"
+            }
         }
 
         // The same containers with the Kafka chatter hidden: exclude takes

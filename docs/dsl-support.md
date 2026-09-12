@@ -135,6 +135,41 @@ prints. A skipped construct never consumes its enclosing scope.
 | `branding { … }` | ✅ | Logo and font, including the font URL |
 | `terminology { … }` | ✅ | |
 
+### Per-boundary layout hints (`c4studio.autolayout`)
+
+`autoLayout` sets one rank direction for the whole view. To lay a single
+boundary's interior out differently, c4studio reads a **property** — not a
+DSL extension, so the file stays valid for every Structurizr tool, which
+simply carries the property through untouched:
+
+```
+softwareSystem "Platform" {
+    properties {
+        "c4studio.autolayout" "lr"    // this boundary's children flow left-to-right
+    }
+    ...
+}
+
+views {
+    container platform Containers {
+        include *
+        autoLayout tb                  // the view itself stays top-to-bottom
+        properties {
+            // groups have no properties of their own, so a group
+            // boundary's hint is keyed by group name on the view
+            "c4studio.autolayout.Core Services" "lr"
+        }
+    }
+}
+```
+
+Values are `tb`, `bt`, `lr`, `rl` (case-insensitive); anything else is
+ignored. The hint applies wherever that element renders as a boundary — the
+view's own scope, an element expanded in place, a deployment node — and is
+purely local: the boundary still sits in its parent's flow. It steers
+auto-layout only; positions saved in a layout sidecar still win.
+`samples/logistics_network.dsl` shows both forms.
+
 ### Marking elements as new, existing or deprecated
 
 There is no lifecycle keyword in the DSL. The only styling axis is the
