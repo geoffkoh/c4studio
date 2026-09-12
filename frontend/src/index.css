@@ -1252,6 +1252,11 @@ button {
   color: var(--danger);
 }
 
+.editor__detached {
+  color: var(--muted);
+  font-size: 11px;
+}
+
 .editor__dot {
   margin-left: 6px;
   font-size: 9px;
