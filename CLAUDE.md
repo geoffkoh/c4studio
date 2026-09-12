@@ -125,7 +125,10 @@ Tests alone are not sufficient for webapp or parser changes. Before opening a PR
 1. `uv run pytest`, `uv run ruff check .`, `uv run mypy .` — all green.
 2. Live-check against `samples/` — `samples/hedge_fund/workspace.dsl` is the
    richest model (docs, ADRs, deployment, groups, themes);
-   `internet_banking.dsl` and `saas_monitoring.dsl` cover the common cases.
+   `internet_banking.dsl` and `saas_monitoring.dsl` cover the common cases;
+   `logistics_network.dsl` exercises the wide end of the DSL (groups, bulk
+   `!…` directives, deployment groups, health checks, animation, branding)
+   and is pinned keyword-by-keyword in `tests/test_samples/`.
 3. For frontend changes, rebuild the bundle and commit it — a stale
    `src/c4studio/webapp/static/` ships a broken UI.
 
