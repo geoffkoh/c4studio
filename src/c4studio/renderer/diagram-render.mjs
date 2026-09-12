@@ -9087,7 +9087,7 @@ var require_version = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = "0.8.5";
 }));
 //#endregion
-//#region src/layout.ts
+//#region src/nodeMetrics.ts
 var import_dagre = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = {
 		graphlib: require_graphlib(),
@@ -9100,24 +9100,155 @@ var import_dagre = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJSMin(((expo
 		version: require_version()
 	};
 })))(), 1);
-var PERSON_HEIGHT = 150;
+/**
+* Character width as a fraction of font size, for wrapping without a DOM.
+* Measured against the SPA's font stack; erring high keeps text inside the
+* box rather than overflowing it.
+*/
+var CHAR_RATIO = .55;
+var BOLD_CHAR_RATIO = .58;
+/**
+* Slack added to every measured height.
+*
+* The leading constants above are whole pixels while the CSS line-heights
+* are fractional (13px × 1.25 = 16.25 against a 16px leading, 10px × 1.35
+* = 13.5 against 13), so a fully-wrapped box renders a couple of pixels
+* taller than the arithmetic here suggests. Being under is the dangerous
+* direction — that is an overlap — so the difference is paid back with
+* interest and rounded up.
+*/
+var HEIGHT_SLACK = 10;
+/** Extra vertical padding some shapes add on top of `.node`'s own. */
+var SHAPE_EXTRA_HEIGHT = {
+	Circle: 16,
+	Ellipse: 16,
+	Cylinder: 18,
+	Bucket: 18,
+	Folder: 12,
+	WebBrowser: 14,
+	Window: 14,
+	MobileDevicePortrait: 8,
+	MobileDeviceLandscape: 8
+};
+/** Horizontal padding some shapes add, which narrows the text column. */
+var SHAPE_EXTRA_PAD_X = {
+	Circle: 8,
+	Ellipse: 8,
+	Pipe: 12,
+	Hexagon: 22
+};
+/** C4 metadata label per element kind, shown as `[Container: Java]`. */
+var KIND_LABELS = {
+	person: "Person",
+	"person-external": "Person",
+	system: "Software System",
+	"system-external": "Software System",
+	container: "Container",
+	component: "Component",
+	infrastructure: "Infrastructure Node",
+	"container-instance": "Container",
+	"system-instance": "Software System",
+	group: "Group"
+};
+/**
+* The `[Kind: technology]` line, or null when an element style declares
+* `metadata false`. The backend blanks the technology in that case but the
+* kind is composed here, so the whole line has to be dropped explicitly.
+*/
+function metaLine(data) {
+	if (data.showMetadata === false) return null;
+	const kindLabel = KIND_LABELS[data.kind ?? ""] ?? data.kind ?? "";
+	if (!kindLabel) return null;
+	return data.technology ? `[${kindLabel}: ${data.technology}]` : `[${kindLabel}]`;
+}
+/**
+* Split `text` into at most `maxLines` lines that fit `maxWidth`, marking
+* a clipped final line with an ellipsis as the CSS line clamp does.
+*/
+function wrap(text, maxWidth, fontSize, maxLines, bold = false) {
+	const perChar = fontSize * (bold ? BOLD_CHAR_RATIO : CHAR_RATIO);
+	const limit = Math.max(1, Math.floor(maxWidth / perChar));
+	const lines = [];
+	let current = "";
+	for (const word of text.split(/\s+/).filter(Boolean)) {
+		const candidate = current ? `${current} ${word}` : word;
+		if (candidate.length <= limit) {
+			current = candidate;
+			continue;
+		}
+		if (current) lines.push(current);
+		current = word.length > limit ? `${word.slice(0, limit - 1)}…` : word;
+		if (lines.length === maxLines) break;
+	}
+	if (current && lines.length < maxLines) lines.push(current);
+	if (lines.length > maxLines) lines.length = maxLines;
+	if (lines.join(" ").replace(/…$/, "").length < text.replace(/\s+/g, " ").trim().length && lines.length) {
+		const last = lines[lines.length - 1];
+		if (!last.endsWith("…")) lines[lines.length - 1] = `${last.slice(0, Math.max(0, limit - 1))}…`;
+	}
+	return lines;
+}
+/** Whether a node renders as the C4 person silhouette. */
+function isPersonNode(data) {
+	return data.shape === "Person" || data.shape === "Robot" || data.shape === void 0 && (data.kind ?? "").startsWith("person");
+}
+/** Width of the text column inside a node of the given shape. */
+function textWidth(data) {
+	return 200 - 2 * (12 + (SHAPE_EXTRA_PAD_X[data.shape ?? ""] ?? 0));
+}
+/** The wrapped lines a node will show, each already capped and ellipsised. */
+function nodeTextLines(data) {
+	const inner = textWidth(data);
+	const meta = metaLine(data);
+	return {
+		label: wrap(data.label ?? "", inner, 13, 4, true),
+		meta: meta ? wrap(meta, inner, 10, 2) : [],
+		description: data.description ? wrap(data.description, inner, 10, 4) : []
+	};
+}
+/**
+* How tall a node must be to show its text without clipping it.
+*
+* Never smaller than the kind's floor, so short-labelled nodes keep the
+* proportions the diagram is used to; taller whenever the content needs
+* it, which is the whole point.
+*/
+function nodeHeight(data) {
+	const lines = nodeTextLines(data);
+	const person = isPersonNode(data);
+	let height = (person ? 20 : 10) + 10;
+	if (data.icon) height += 36;
+	height += lines.label.length * 16;
+	if (lines.meta.length) height += 3 + lines.meta.length * 13;
+	if (lines.description.length) height += 5 + lines.description.length * 13;
+	height += SHAPE_EXTRA_HEIGHT[data.shape ?? ""] ?? 0;
+	height += HEIGHT_SLACK;
+	const floor = (person ? 150 : 110) + (data.icon ? 36 : 0);
+	return Math.max(floor, Math.ceil(height));
+}
+/** The full box a node occupies in the layout. */
+function nodeBox(data) {
+	return {
+		width: 200,
+		height: nodeHeight(data)
+	};
+}
+//#endregion
+//#region src/layout.ts
 var BOUNDARY_PAD_X = 28;
 var BOUNDARY_PAD_TOP = 28;
 var BOUNDARY_PAD_BOTTOM = 56;
 var DEFAULT_RANK_SEPARATION = 90;
 var DEFAULT_NODE_SEPARATION = 60;
+/**
+* The space a node needs, measured from its own text rather than assumed.
+*
+* A flat height here was the reason a long name pushed its rendered box
+* into the rank below: the web app grows `.node` around its content, and
+* dagre was never told.
+*/
 function nodeSize(node) {
-	const data = node.data;
-	const kind = data?.kind ?? "";
-	const icon = data?.icon ? 36 : 0;
-	if (kind.startsWith("person")) return {
-		width: 200,
-		height: PERSON_HEIGHT + icon
-	};
-	return {
-		width: 200,
-		height: 110 + icon
-	};
+	return nodeBox(node.data ?? {});
 }
 function dagreLevel(items, edges, direction, spacing) {
 	const g = new import_dagre.default.graphlib.Graph();
@@ -9338,18 +9469,7 @@ async function normalizeStoredPositions(nodes, edges) {
 var FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
 var NODE_RADIUS = 8;
 var PERSON_RADIUS = 18;
-var NODE_PAD_TOP = 10;
-var PERSON_PAD_TOP = 20;
 var PERSON_HEAD = 38;
-var ICON_SIZE = 30;
-var ICON_MARGIN_TOP = 2;
-var LABEL_SIZE = 13;
-var LABEL_LEADING = 16;
-var SMALL_SIZE = 10;
-var SMALL_LEADING = 13;
-var META_GAP = 3;
-var DESC_MAX_LINES = 3;
-var LABEL_MAX_LINES = 3;
 var NODE_STROKE = "rgba(0,0,0,0.12)";
 var FALLBACK_FILL = "#78909c";
 var TEXT_COLOUR = "#ffffff";
@@ -9376,39 +9496,8 @@ var EDGE_LABEL_SIZE = 10;
 var EDGE_LABEL_COLOUR = "#6b7684";
 var EDGE_LABEL_BG = "rgba(255,255,255,0.92)";
 var EDGE_LABEL_BORDER = "#e2e5ea";
-/**
-* Character width as a fraction of font size, for wrapping without a DOM.
-* Measured against the SPA's font stack; erring high keeps text inside the
-* box rather than overflowing it.
-*/
-var CHAR_RATIO = .55;
-var BOLD_CHAR_RATIO = .58;
 function escapeXml(text) {
 	return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-}
-/** Greedy word wrap to a pixel width, using the estimated character width. */
-function wrap(text, maxWidth, fontSize, maxLines, bold = false) {
-	const perChar = fontSize * (bold ? BOLD_CHAR_RATIO : CHAR_RATIO);
-	const limit = Math.max(1, Math.floor(maxWidth / perChar));
-	const lines = [];
-	let current = "";
-	for (const word of text.split(/\s+/).filter(Boolean)) {
-		const candidate = current ? `${current} ${word}` : word;
-		if (candidate.length <= limit) {
-			current = candidate;
-			continue;
-		}
-		if (current) lines.push(current);
-		current = word.length > limit ? `${word.slice(0, limit - 1)}…` : word;
-		if (lines.length === maxLines) break;
-	}
-	if (current && lines.length < maxLines) lines.push(current);
-	if (lines.length > maxLines) lines.length = maxLines;
-	if (lines.join(" ").replace(/…$/, "").length < text.replace(/\s+/g, " ").trim().length && lines.length) {
-		const last = lines[lines.length - 1];
-		if (!last.endsWith("…")) lines[lines.length - 1] = `${last.slice(0, Math.max(0, limit - 1))}…`;
-	}
-	return lines;
 }
 function textLine(content, x, y, size, colour, opacity = 1, weight = 400, anchor = "middle") {
 	const fill = opacity === 1 ? colour : `${colour}" opacity="${opacity}`;
@@ -9451,13 +9540,13 @@ function place(nodes) {
 		const { x, y } = absolute(node);
 		const data = node.data ?? {};
 		const isBoundary = node.type === "boundary";
-		const isPerson = !isBoundary && (data.shape === "Person" || data.shape === "Robot" || data.shape === void 0 && (data.kind ?? "").startsWith("person"));
+		const isPerson = !isBoundary && isPersonNode(data);
 		placed.set(node.id, {
 			id: node.id,
 			x,
 			y,
 			width: Number(node.style?.width ?? 200),
-			height: Number(node.style?.height ?? (isPerson ? 150 : 110) + (data.icon ? 36 : 0)),
+			height: Number(node.style?.height ?? nodeHeight(data)),
 			isBoundary,
 			isPerson,
 			data
@@ -9521,24 +9610,6 @@ function shapeMarkup(node, fill) {
 		}
 	}
 }
-/** `[Kind: Technology]`, unless an element style suppressed it. */
-var KIND_LABELS = {
-	person: "Person",
-	"person-external": "Person",
-	system: "Software System",
-	"system-external": "Software System",
-	container: "Container",
-	component: "Component",
-	infrastructure: "Infrastructure Node",
-	"container-instance": "Container",
-	"system-instance": "Software System"
-};
-function metaLine(data) {
-	if (data.showMetadata === false) return null;
-	const kind = KIND_LABELS[data.kind ?? ""] ?? data.kind ?? "";
-	if (!kind) return null;
-	return data.technology ? `[${kind}: ${data.technology}]` : `[${kind}]`;
-}
 function paintNode(node) {
 	const fill = fillOf(node.data);
 	const colour = node.data.textColor || TEXT_COLOUR;
@@ -9552,33 +9623,31 @@ function paintNode(node) {
 	if (node.isPerson) parts.push(`<circle cx="${round(node.x + node.width / 2)}" cy="${round(node.y + PERSON_HEAD / 2)}" r="${PERSON_HEAD / 2}"${outlineOf(node.data, fill)}/>`);
 	parts.push(shapeMarkup(body, fill));
 	const centreX = node.x + node.width / 2;
-	const innerWidth = node.width - 24;
-	let cursor = body.y + (node.isPerson ? PERSON_PAD_TOP : NODE_PAD_TOP);
+	const innerWidth = node.width === 200 ? textWidth(node.data) : node.width - 24;
+	let cursor = body.y + (node.isPerson ? 20 : 10);
 	const icon = node.data.icon;
 	if (icon && icon.startsWith("data:")) {
-		parts.push(`<image x="${round(centreX - ICON_SIZE / 2)}" y="${round(cursor + ICON_MARGIN_TOP)}" width="${ICON_SIZE}" height="${ICON_SIZE}" preserveAspectRatio="xMidYMid meet" href="${escapeXml(icon)}"/>`);
+		parts.push(`<image x="${round(centreX - 15)}" y="${round(cursor + 2)}" width="30" height="30" preserveAspectRatio="xMidYMid meet" href="${escapeXml(icon)}"/>`);
 		cursor += 36;
 	}
-	cursor += LABEL_SIZE;
-	for (const line of wrap(node.data.label ?? "", innerWidth, LABEL_SIZE, LABEL_MAX_LINES, true)) {
-		parts.push(textLine(line, centreX, cursor, LABEL_SIZE, colour, 1, 600));
-		cursor += LABEL_LEADING;
+	cursor += 13;
+	for (const line of wrap(node.data.label ?? "", innerWidth, 13, 4, true)) {
+		parts.push(textLine(line, centreX, cursor, 13, colour, 1, 600));
+		cursor += 16;
 	}
 	const meta = metaLine(node.data);
 	if (meta) {
-		cursor += META_GAP;
-		const [line] = wrap(meta, innerWidth, SMALL_SIZE, 1);
-		if (line) {
-			parts.push(textLine(line, centreX, cursor, SMALL_SIZE, colour, .85));
-			cursor += SMALL_LEADING;
+		cursor += 3;
+		for (const line of wrap(meta, innerWidth, 10, 2)) {
+			parts.push(textLine(line, centreX, cursor, 10, colour, .85));
+			cursor += 13;
 		}
 	}
 	if (node.data.description) {
 		cursor += 2;
-		const room = Math.max(0, Math.floor((body.y + body.height - 6 - cursor) / SMALL_LEADING) + 1);
-		for (const line of wrap(node.data.description, innerWidth, SMALL_SIZE, Math.min(DESC_MAX_LINES, room))) {
-			parts.push(textLine(line, centreX, cursor, SMALL_SIZE, colour, .8));
-			cursor += SMALL_LEADING;
+		for (const line of wrap(node.data.description, innerWidth, 10, 4)) {
+			parts.push(textLine(line, centreX, cursor, 10, colour, .8));
+			cursor += 13;
 		}
 	}
 	const opacity = node.data.opacity;

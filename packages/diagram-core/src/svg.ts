@@ -21,11 +21,34 @@
 import type { Edge, Node } from "reactflow";
 
 import {
-  ICON_ALLOWANCE,
   layoutGraph,
   normalizeStoredPositions,
   type RankDirection,
 } from "./layout";
+import {
+  CHAR_RATIO,
+  DESC_GAP,
+  DESC_MAX_LINES,
+  ICON_MARGIN_BOTTOM,
+  ICON_MARGIN_TOP,
+  ICON_SIZE,
+  LABEL_LEADING,
+  LABEL_MAX_LINES,
+  META_GAP,
+  META_MAX_LINES,
+  NODE_PAD_TOP,
+  NODE_PAD_X,
+  NODE_WIDTH,
+  LABEL_SIZE,
+  PERSON_PAD_TOP,
+  SMALL_LEADING,
+  SMALL_SIZE,
+  isPersonNode,
+  metaLine,
+  nodeHeight,
+  textWidth,
+  wrap,
+} from "./nodeMetrics";
 
 // ---------------------------------------------------------------------------
 // The payload, matching what `webapp/graph.py` serves the SPA.
@@ -116,24 +139,7 @@ const FONT =
 
 const NODE_RADIUS = 8;
 const PERSON_RADIUS = 18;
-const NODE_PAD_X = 12;
-const NODE_PAD_TOP = 10;
-const PERSON_PAD_TOP = 20;
 const PERSON_HEAD = 38;
-
-// `.node__icon`: 30px square above the label, with 2px/4px margins.
-const ICON_SIZE = 30;
-const ICON_MARGIN_TOP = 2;
-const ICON_MARGIN_BOTTOM = 4;
-
-const LABEL_SIZE = 13;
-const LABEL_LEADING = 16;
-const SMALL_SIZE = 10;
-const SMALL_LEADING = 13;
-const META_GAP = 3;
-const DESC_GAP = 5;
-const DESC_MAX_LINES = 3;
-const LABEL_MAX_LINES = 3;
 
 const NODE_STROKE = "rgba(0,0,0,0.12)";
 const FALLBACK_FILL = "#78909c";
@@ -173,14 +179,6 @@ const EDGE_LABEL_COLOUR = "#6b7684"; // --muted
 const EDGE_LABEL_BG = "rgba(255,255,255,0.92)";
 const EDGE_LABEL_BORDER = "#e2e5ea"; // --border
 
-/**
- * Character width as a fraction of font size, for wrapping without a DOM.
- * Measured against the SPA's font stack; erring high keeps text inside the
- * box rather than overflowing it.
- */
-const CHAR_RATIO = 0.55;
-const BOLD_CHAR_RATIO = 0.58;
-
 interface Point {
   x: number;
   y: number;
@@ -207,41 +205,6 @@ function escapeXml(text: string): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
-}
-
-/** Greedy word wrap to a pixel width, using the estimated character width. */
-function wrap(
-  text: string,
-  maxWidth: number,
-  fontSize: number,
-  maxLines: number,
-  bold = false,
-): string[] {
-  const perChar = fontSize * (bold ? BOLD_CHAR_RATIO : CHAR_RATIO);
-  const limit = Math.max(1, Math.floor(maxWidth / perChar));
-  const lines: string[] = [];
-  let current = "";
-  for (const word of text.split(/\s+/).filter(Boolean)) {
-    const candidate = current ? `${current} ${word}` : word;
-    if (candidate.length <= limit) {
-      current = candidate;
-      continue;
-    }
-    if (current) lines.push(current);
-    current = word.length > limit ? `${word.slice(0, limit - 1)}…` : word;
-    if (lines.length === maxLines) break;
-  }
-  if (current && lines.length < maxLines) lines.push(current);
-  if (lines.length > maxLines) lines.length = maxLines;
-  // A clipped final line ends in an ellipsis, as the CSS line clamp does.
-  const consumed = lines.join(" ").replace(/…$/, "");
-  if (consumed.length < text.replace(/\s+/g, " ").trim().length && lines.length) {
-    const last = lines[lines.length - 1];
-    if (!last.endsWith("…")) {
-      lines[lines.length - 1] = `${last.slice(0, Math.max(0, limit - 1))}…`;
-    }
-  }
-  return lines;
 }
 
 function textLine(
@@ -301,20 +264,15 @@ function place(nodes: Node[]): Map<string, Placed> {
     const { x, y } = absolute(node);
     const data = (node.data ?? {}) as GraphPayloadNode["data"];
     const isBoundary = node.type === "boundary";
-    const isPerson =
-      !isBoundary &&
-      (data.shape === "Person" ||
-        data.shape === "Robot" ||
-        (data.shape === undefined && (data.kind ?? "").startsWith("person")));
+    const isPerson = !isBoundary && isPersonNode(data);
     placed.set(node.id, {
       id: node.id,
       x,
       y,
-      width: Number(node.style?.width ?? 200),
-      height: Number(
-        node.style?.height ??
-          (isPerson ? 150 : 110) + (data.icon ? ICON_ALLOWANCE : 0),
-      ),
+      width: Number(node.style?.width ?? NODE_WIDTH),
+      // Same measurement dagre reserved space with, so the drawn box is
+      // the box the layout planned for.
+      height: Number(node.style?.height ?? nodeHeight(data)),
       isBoundary,
       isPerson,
       data,
@@ -417,26 +375,6 @@ function shapeMarkup(node: Placed, fill: string): string {
   }
 }
 
-/** `[Kind: Technology]`, unless an element style suppressed it. */
-const KIND_LABELS: Record<string, string> = {
-  person: "Person",
-  "person-external": "Person",
-  system: "Software System",
-  "system-external": "Software System",
-  container: "Container",
-  component: "Component",
-  infrastructure: "Infrastructure Node",
-  "container-instance": "Container",
-  "system-instance": "Software System",
-};
-
-function metaLine(data: GraphPayloadNode["data"]): string | null {
-  if (data.showMetadata === false) return null;
-  const kind = KIND_LABELS[data.kind ?? ""] ?? data.kind ?? "";
-  if (!kind) return null;
-  return data.technology ? `[${kind}: ${data.technology}]` : `[${kind}]`;
-}
-
 function paintNode(node: Placed): string {
   const fill = fillOf(node.data);
   const colour = node.data.textColor || TEXT_COLOUR;
@@ -457,7 +395,8 @@ function paintNode(node: Placed): string {
   parts.push(shapeMarkup(body, fill));
 
   const centreX = node.x + node.width / 2;
-  const innerWidth = node.width - 2 * NODE_PAD_X;
+  const innerWidth =
+    node.width === NODE_WIDTH ? textWidth(node.data) : node.width - 2 * NODE_PAD_X;
   let cursor = body.y + (node.isPerson ? PERSON_PAD_TOP : NODE_PAD_TOP);
 
   // Only `data:` URIs are drawn: a remote href would make the exported
@@ -487,8 +426,7 @@ function paintNode(node: Placed): string {
   const meta = metaLine(node.data);
   if (meta) {
     cursor += META_GAP;
-    const [line] = wrap(meta, innerWidth, SMALL_SIZE, 1);
-    if (line) {
+    for (const line of wrap(meta, innerWidth, SMALL_SIZE, META_MAX_LINES)) {
       parts.push(textLine(line, centreX, cursor, SMALL_SIZE, colour, 0.85));
       cursor += SMALL_LEADING;
     }
@@ -496,15 +434,15 @@ function paintNode(node: Placed): string {
 
   if (node.data.description) {
     cursor += DESC_GAP - SMALL_LEADING + SMALL_SIZE;
-    const room = Math.max(
-      0,
-      Math.floor((body.y + body.height - 6 - cursor) / SMALL_LEADING) + 1,
-    );
+    // The box was measured to fit these lines, so the description gets its
+    // full allowance. It used to be handed whatever vertical room a long
+    // name had left over, which is how a three-line name silently cost the
+    // description two of its own.
     for (const line of wrap(
       node.data.description,
       innerWidth,
       SMALL_SIZE,
-      Math.min(DESC_MAX_LINES, room),
+      DESC_MAX_LINES,
     )) {
       parts.push(textLine(line, centreX, cursor, SMALL_SIZE, colour, 0.8));
       cursor += SMALL_LEADING;

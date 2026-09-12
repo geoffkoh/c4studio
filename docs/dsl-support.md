@@ -127,13 +127,31 @@ prints. A skipped construct never consumes its enclosing scope.
 
 | Keyword | Support | Notes |
 | --- | --- | --- |
-| `styles { element … }` | ◐ | Every property parses. Painted: `background`, `color`, `shape`, `icon`, `border`, `stroke`, `strokeWidth`, `opacity`, `metadata`, `description`. Parsed and exported but **not** painted: `width`, `height`, `fontSize`, `iconPosition` — each warns (`ignored-style-property`), as does an unrecognised property name (`unknown-style-property`) |
+| `styles { element … }` | ◐ | Every property parses. Painted: `background`, `color`, `shape`, `icon`, `border`, `stroke`, `strokeWidth`, `opacity`, `metadata`, `description`. Parsed and exported but **not** painted: `width`, `height`, `fontSize`, `iconPosition` — each warns (`ignored-style-property`), as does an unrecognised property name (`unknown-style-property`). `height` matters less than it looks: a node is already sized to fit its own text (see below) |
 | `styles { relationship … }` | ◐ | Every property parses and exports. Painted: `color`, `style` / `dashed` (solid/dashed/dotted; `style` wins when both are set), `thickness`, `opacity`, `metadata`, `description`. Parsed and exported but **not** painted: `routing`, `jump`, `position`, `width`, `fontSize`. Unstyled relationships render dashed, 2px, `#444444` — upstream Structurizr's default — so mark special edges with `style dotted`/`style solid` or a colour, not `dashed true` |
 | `light { … }` / `dark { … }` | ◐ | Colour-scheme variants parse; the viewer renders one scheme |
 | `theme <url\|default>` | ✅ | Fetched, cached and merged; workspace styles win |
 | `themes <url> <url…>` | ✅ | |
 | `branding { … }` | ✅ | Logo and font, including the font URL |
 | `terminology { … }` | ✅ | |
+
+### How much text a node shows
+
+Nodes are a fixed 200px wide and **as tall as their own text needs**, so a
+wordy element grows downward rather than clipping. The measurement lives in
+`packages/diagram-core/src/nodeMetrics.ts` and is shared by the layout
+engine, the SVG emitter and the web app's CSS clamps — one number, so the
+box that is drawn is the box the layout reserved.
+
+Each field still has a ceiling, past which text is ellipsised and shown in
+full on hover: **4 lines** for the name, **2** for the `[Kind: technology]`
+line, **4** for the description. Those are generous enough that no node in
+any bundled sample clips, but a diagram is a poor place for prose — put the
+long version in `!docs` and keep the description to a sentence.
+
+Width is deliberately not part of this: equal-width boxes are most of what
+makes ranks scannable. Upstream's `width`/`height` element-style properties
+remain unsupported.
 
 ### Per-boundary layout hints (`c4studio.autolayout`)
 
