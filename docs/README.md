@@ -7,6 +7,7 @@ Welcome to the c4studio documentation. This directory contains guides and refere
 - **[Data Models](./data-models.md)** - Comprehensive reference for all Structurizr data models, including static structure elements, relationships, views, deployment infrastructure, and styling configuration.
 - **[Feature Parity](./structurizr-parity.md)** - Where c4studio stands against the Java Structurizr UI, feature by feature. The closest thing to a status page; kept current as work lands.
 - **[Roadmap](./roadmap.md)** - The staged forward plan (query layer, headless rendering, differentiators) and the delivery conventions.
+- **[Studio editor plan](./studio-editor-plan.md)** - The in-flight plan for in-app DSL editing: Studio/Viewer modes, the CodeMirror editor, file navigation at scale, and the assistant seam. Carries a progress table.
 - **[Migration Guide](./MIGRATION.md)** - Breaking changes from the Structurizr Java compatibility work and how to adapt.
 - **[Compatibility Roadmap](./COMPATIBILITY_ROADMAP.md)** - Historical record of that compatibility work, now complete.
 

@@ -181,6 +181,10 @@ the finding in the code or docs so the answer survives without it.
 - `docs/structurizr-parity.md` tracks c4studio against the Java Structurizr
   UI and is the closest thing to a status page — **update it as items land**.
 - `docs/roadmap.md` holds the staged plan (phases 2–4) and delivery conventions.
+- `docs/studio-editor-plan.md` is the in-flight plan for in-app DSL editing
+  (Studio/Viewer modes, the editor, file scale, the assistant seam). It
+  carries a **Progress** table — update it as each ticket lands, and read
+  it first when picking up that work.
 - `docs/dsl-support.md` maps every keyword in the Structurizr DSL language
   reference to what this parser does with it, established by probing rather
   than by reading. Update it when parser coverage changes — and re-probe
