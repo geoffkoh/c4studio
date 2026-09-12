@@ -124,7 +124,7 @@ endpoint** — `GET /api/source` already enumerates the root plus every
 | C2 | `feat(webapp): file tree with fragments` | `_is_workspace_root` hid `!include` fragments, so they were invisible to the picker while being valid edit targets. `/api/files` now returns `{path, kind}`; `GET /api/file` closes the read asymmetry — see [Reading was the asymmetric one](#reading-was-the-asymmetric-one). |
 | C3b | `feat(frontend): open any source file` | Clicking any file in the tree opens it in the editor, which is what gives `GET /api/file` a caller. Detached buffers survive reloads; `/api/check` is skipped for a fragment whose workspace is not loaded — see [A fragment out of context](#a-fragment-out-of-context). | C2, C3 |
 | C3 | `feat(frontend): searchable file tree` | Replace the flat, unfiltered, unvirtualised `FilePicker`. Logic in a pure `fileTree.ts`; windowed without a dependency — see [A tree flattens to uniform rows](#a-tree-flattens-to-uniform-rows). |
-| C4 | `perf(webapp): cache hygiene` | `/api/workspace` runs `dataclasses.asdict` over the whole model on every call — on mount *and* every reload. Bound the unbounded per-view graph cache. |
+| C4 | `perf(webapp): cache hygiene` | `/api/workspace` runs `dataclasses.asdict` over the whole model on every call. Bound the unbounded per-view graph cache. **Measuring reversed the priority** — see [The graph cache was the real one](#the-graph-cache-was-the-real-one). |
 | C5 | `feat(webapp): file operations` | New file, new folder, rename, delete — capability-guarded and `_safe_resolve`d. |
 
 ### Phase D — Creating workspaces
@@ -395,6 +395,43 @@ like attached ones. `/api/source` says nothing about them, so left alone
 they would drift out of date silently and the next save would 409 for no
 visible reason.
 
+### The graph cache was the real one
+
+This plan listed `asdict` first and the graph cache second. Measurement
+reversed that.
+
+**`dataclasses.asdict` is not the expense it was written up as.** 0.85 ms
+on a hedge_fund-sized workspace; 47 ms at 11,400 elements — where
+*parsing* the same file costs 340 ms, seven times more. It is memoised
+anyway, because ten lines that grow with the model are worth having, but
+it was never the bottleneck.
+
+**The graph cache was worse than unbounded — it was *exponentially*
+unbounded.** The cache key carries the expand and collapse sets, so every
+distinct subset is its own entry and nothing was ever evicted:
+
+| expandable elements in one view | reachable entries | at the ~5 KB mean measured |
+|---|---|---|
+| 5 | 32 | negligible |
+| 10 | 1,024 | ~5 MB |
+| 15 | 32,768 | ~171 MB |
+
+All of it reachable by clicking expand and collapse around, with no
+warning and no ceiling. Now an LRU capped at 64 entries.
+
+**The invalidation that nearly slipped through:** `save_layout` and
+`delete_layout` call `apply_positions`/`apply_sizes`, which mutate the
+view **in place**. The model a memoised `asdict` was taken from is
+therefore no longer the model, so the new cache had to be dropped there
+too — a bug the cache would have *introduced*, in an endpoint that was
+correct before. Two tests pin it.
+
+All three behaviours were mutation-checked: disable eviction, swap LRU
+for FIFO, or drop the layout invalidation, and a test fails in each case.
+That mattered — the first version of the LRU test passed against a FIFO
+cache, because it re-read the keeper *last* and so freshly inserted it
+whatever the policy.
+
 ---
 
 ## Risks
@@ -492,8 +529,9 @@ State these in the tickets so they don't creep in.
 | C2 — Fragments in the file listing | ✅ Done | PP-131 |
 | C3 — Searchable file tree | ✅ Done | PP-132 |
 | C3b — Open any source file | ✅ Done | PP-133 |
-| C4 — Cache hygiene | ⬜ Next | not yet ticketed |
-| C5, D1–D2, E1–E2, F1 | ⬜ Not started | not yet ticketed |
+| C4 — Cache hygiene | ✅ Done | PP-134 |
+| C5 — File operations | ⬜ Next | not yet ticketed |
+| D1–D2, E1–E2, F1 | ⬜ Not started | not yet ticketed |
 
 Update this table as tickets land, and file the next phase's tickets when
 the current one is done rather than all at once.

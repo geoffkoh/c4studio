@@ -38,6 +38,12 @@ from c4studio.webapp.loader import (
 
 
 _SOURCE_SUFFIXES = frozenset({".dsl", ".json", ".structurizr"})
+# Most graph payloads this many back. The cache key carries the expand and
+# collapse sets, so the key space is 2**(expandable elements) *per view* —
+# not merely unbounded but exponentially so, and reachable by clicking
+# around. At the ~5 KB mean payload measured on samples/hedge_fund this cap
+# is well under a megabyte; the cost of a miss is one graph rebuild.
+_MAX_CACHED_GRAPHS = 64
 _SKIP_DIRS = frozenset({"node_modules", ".venv", "__pycache__"})
 _MAX_DEPTH = 5
 
@@ -76,6 +82,8 @@ class AppState:
             to refetch.
         load_error: Parse error from the last failed live reload, if any.
         source_cache: Cached /api/source payload; cleared on (re)load.
+        workspace_cache: Cached ``dataclasses.asdict`` of the workspace,
+            dropped wherever ``diagrams`` is.
         discovery: Cached /api/files walk, revalidated by stat rather than
             invalidated by an event — the tree changes underneath this
             server, so there is nothing to hook.
@@ -102,6 +110,7 @@ class AppState:
     generation: int = 0
     load_error: str = ""
     source_cache: dict[str, Any] | None = None
+    workspace_cache: dict[str, Any] | None = None
     discovery: _Discovery | None = None
     waypoints: dict[str, dict[str, list[list[int]]]] = field(default_factory=dict)
     labels: dict[str, dict[str, list[int]]] = field(default_factory=dict)
@@ -416,6 +425,39 @@ def _iter_source_files(root: Path, state: AppState) -> list[dict[str, str]]:
     return list(discovery.entries)
 
 
+def _drop_model_caches(state: AppState) -> None:
+    """Forget everything derived from the workspace currently loaded.
+
+    One function so a future cache cannot be added to the state and
+    forgotten at one of the several places a reload happens.
+    """
+    state.diagrams.clear()
+    state.workspace_cache = None
+
+
+def _cache_graph(state: AppState, key: str, data: dict[str, Any]) -> dict[str, Any]:
+    """Store a graph payload, evicting the least recently used beyond the cap.
+
+    Plain-dict LRU: insertion order is the recency order, so re-inserting on
+    a hit moves an entry to the back and eviction pops from the front.
+    """
+    state.diagrams.pop(key, None)
+    state.diagrams[key] = data
+    while len(state.diagrams) > _MAX_CACHED_GRAPHS:
+        state.diagrams.pop(next(iter(state.diagrams)))
+    return data
+
+
+def _cached_graph(state: AppState, key: str) -> dict[str, Any] | None:
+    """Return a cached payload, marking it most recently used."""
+    data = state.diagrams.get(key)
+    if data is None:
+        return None
+    state.diagrams.pop(key)
+    state.diagrams[key] = data
+    return data
+
+
 def _watch_token(files: list[Path]) -> str:
     """Fingerprint of the given files' mtimes, for change detection."""
     parts: list[str] = []
@@ -533,7 +575,7 @@ def _reload_now(state: AppState) -> None:
         state.watch_token = _watch_token(state.watch_files)
         return
     state.workspace = workspace
-    state.diagrams.clear()
+    _drop_model_caches(state)
     _begin_watching(state, state.current_path)
     _apply_saved_layout(state)
     state.generation += 1
@@ -972,7 +1014,7 @@ def create_app(
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         state.workspace = workspace
         state.current_path = path
-        state.diagrams.clear()
+        _drop_model_caches(state)
         _begin_watching(state, path)
         _apply_saved_layout(state)
         return {
@@ -1095,9 +1137,18 @@ def create_app(
 
     @app.get("/api/workspace")
     def get_workspace(state: AppState = Depends(_get_state)) -> dict[str, Any]:
-        """Return the full loaded workspace as a JSON-safe dict."""
+        """Return the full loaded workspace as a JSON-safe dict.
+
+        Memoised because ``asdict`` walks and copies the whole model. It is
+        not the expense the roadmap assumed — 0.85 ms on a hedge_fund-sized
+        workspace, and 47 ms at 11,400 elements where *parsing* the same
+        file costs 340 ms — but it grows with the model, and the cache
+        costs ten lines and is dropped wherever the graph cache is.
+        """
         workspace = _require_workspace(state)
-        return dataclasses.asdict(workspace)
+        if state.workspace_cache is None:
+            state.workspace_cache = dataclasses.asdict(workspace)
+        return state.workspace_cache
 
     @app.get("/api/views")
     def get_views(state: AppState = Depends(_get_state)) -> list[dict[str, Any]]:
@@ -1123,9 +1174,10 @@ def create_app(
                 detail=f"level must be one of {', '.join(model_graph.LEVELS)}",
             )
         cache_key = f"__model__::{level}"
-        if cache_key not in state.diagrams:
-            state.diagrams[cache_key] = model_graph.model_graph(workspace, level)
-        return state.diagrams[cache_key]
+        cached = _cached_graph(state, cache_key)
+        if cached is not None:
+            return cached
+        return _cache_graph(state, cache_key, model_graph.model_graph(workspace, level))
 
     @app.get("/api/views/{key}/graph")
     def get_view_graph(
@@ -1156,8 +1208,9 @@ def create_app(
         cache_key = (
             f"{key}::{','.join(sorted(expand_ids))}::{','.join(sorted(collapse_ids))}"
         )
-        if cache_key in state.diagrams:
-            return state.diagrams[cache_key]
+        cached = _cached_graph(state, cache_key)
+        if cached is not None:
+            return cached
         view = _find_view(workspace, key)
         data = graph.react_flow_graph(
             workspace, view, expand_ids or None, collapse_ids or None
@@ -1172,12 +1225,20 @@ def create_app(
             }
         data["expandedIds"] = sorted(expand_ids)
         data["collapsedIds"] = sorted(collapse_ids)
-        state.diagrams[cache_key] = data
-        return data
+        return _cache_graph(state, cache_key, data)
 
     def _invalidate_view_cache(state: AppState, key: str) -> None:
+        """Drop what a change to one view's layout invalidates.
+
+        The workspace payload goes too, which is not obvious: saving or
+        resetting a layout calls ``apply_positions``/``apply_sizes``, and
+        those mutate the view **in place**. The model the memoised
+        ``asdict`` was taken from is therefore no longer the model, so
+        keeping it would serve coordinates that have been overwritten.
+        """
         for cached in [k for k in state.diagrams if k.split("::")[0] == key]:
             state.diagrams.pop(cached)
+        state.workspace_cache = None
 
     @app.post("/api/views/{key}/layout")
     def save_layout(
