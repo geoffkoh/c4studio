@@ -12,6 +12,7 @@ import type {
   LayoutResult,
   LoadResult,
   ModelGraphData,
+  SaveSourceResult,
   SourceResult,
   StatusResult,
   ViewInfo,
@@ -105,6 +106,26 @@ export function checkSource(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ path, content, ...(root ? { root } : {}) }),
+  });
+}
+
+/** PUT /api/source -> write DSL text to a file under the root.
+
+    `fingerprint` is the file as this client last saw it; pass `null` to
+    assert the file does not exist yet (creating one). A mismatch throws
+    ApiError with status 409, whose message carries the on-disk content so
+    the caller can show both sides. `force` overwrites regardless, and
+    should only be set after a person has seen the conflict and chosen. */
+export function saveSource(
+  path: string,
+  content: string,
+  fingerprint: string | null,
+  force = false,
+): Promise<SaveSourceResult> {
+  return request<SaveSourceResult>("/api/source", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path, content, fingerprint, force }),
   });
 }
 

@@ -10,9 +10,11 @@ globals.
 from __future__ import annotations
 
 import dataclasses
+import hashlib
 import importlib.metadata
 import importlib.resources
 import json
+import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -145,6 +147,20 @@ class CheckRequest(BaseModel):
     # buffer that is part of the loaded workspace is checked in its
     # context, anything else on its own.
     root: str | None = None
+
+
+class SaveSourceRequest(BaseModel):
+    """Body for ``PUT /api/source``."""
+
+    path: str
+    content: str
+    # The file as the client last saw it. ``None`` asserts the file does
+    # not exist yet, which is how a new fragment is created — and what
+    # makes an accidental create-over-existing a 409 rather than a clobber.
+    fingerprint: str | None = None
+    # Save anyway, discarding what is on disk. Set by the client only after
+    # a person has seen the conflict and chosen.
+    force: bool = False
 
 
 class ExpansionRequest(BaseModel):
@@ -316,6 +332,61 @@ def _begin_watching(state: AppState, path: Path) -> None:
     state.watch_token = _watch_token(state.watch_files)
     state.load_error = ""
     state.source_cache = None
+
+
+def _fingerprint(path: Path) -> str | None:
+    """Content hash of a file, or ``None`` when it does not exist.
+
+    A hash rather than an mtime, because this answers "is this still the
+    text the editor last saw?". Mtimes move when a file is copied, checked
+    out or restored without its content changing, and two writes inside one
+    filesystem clock tick share one mtime.
+
+    Mtime keeps its own job in :func:`_watch_token`, where the question is
+    the cheaper "did anything change?" and hashing every watched file on
+    every poll would be far too expensive. Two questions, two mechanisms.
+    """
+    try:
+        return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError:
+        return None
+
+
+def _read_source(path: Path) -> tuple[str, bool]:
+    """Return a file's text and whether it is safe to edit.
+
+    A file that is not valid UTF-8 is still *shown* — with the offending
+    bytes replaced, which is what a viewer wants — but is flagged
+    uneditable, and :func:`save_source` refuses it. Round-tripping replaced
+    bytes through an editor would write U+FFFD over whatever was really
+    there, destroying data to no purpose.
+    """
+    raw = path.read_bytes()
+    try:
+        return raw.decode("utf-8"), True
+    except UnicodeDecodeError:
+        return raw.decode("utf-8", errors="replace"), False
+
+
+def _atomic_write(path: Path, content: str) -> None:
+    """Write text by renaming a sibling temp file over the target.
+
+    A sibling rather than the system temp directory, so the rename stays
+    within one filesystem — which is what makes ``os.replace`` atomic. A
+    reader either sees the old file or the new one, never a half-written
+    file, which matters here because the live-reload watcher may be reading
+    at any moment.
+
+    ``newline=""`` writes the buffer's line endings verbatim instead of
+    translating them, so saving on Windows does not rewrite every line of a
+    file it was only meant to touch one line of.
+    """
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    try:
+        tmp.write_text(content, encoding="utf-8", newline="")
+        os.replace(tmp, path)
+    finally:
+        tmp.unlink(missing_ok=True)
 
 
 def _client_diagnostic(root: Path, diagnostic: Diagnostic) -> dict[str, Any]:
@@ -700,6 +771,83 @@ def create_app(
             "views": _views_index(workspace) if workspace is not None else [],
         }
 
+    @app.put("/api/source")
+    def save_source(
+        body: SaveSourceRequest, state: AppState = Depends(_require_writable)
+    ) -> dict[str, Any]:
+        """Write DSL text to a file under the root.
+
+        Saving is the render trigger: the write changes the file's mtime,
+        which is the signal the live-reload watcher exists to notice. Rather
+        than leave that to the next poll, the reload happens here and the
+        resulting ``generation`` comes back in the response — so the client
+        can tell its own save apart from someone else's edit and leave the
+        buffer alone for the former.
+
+        **Invalid DSL still saves.** An editor that refuses to save
+        mid-thought is unusable. The text lands on disk, the response
+        carries the diagnostics, and the last good workspace keeps being
+        served — the same fail-soft contract the watcher already honours.
+        """
+        target = _safe_resolve(state.root, body.path)
+
+        on_disk = _fingerprint(target)
+        if not body.force and on_disk != body.fingerprint:
+            # Someone else wrote to this file since the buffer was loaded.
+            # Hand back what is actually there, so the client can show both
+            # sides without a second round trip.
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "conflict",
+                    "path": body.path,
+                    "fingerprint": on_disk,
+                    "content": (
+                        _read_source(target)[0] if on_disk is not None else None
+                    ),
+                },
+            )
+
+        if on_disk is not None and not _read_source(target)[1]:
+            # Writing it would replace whatever those bytes really were
+            # with the U+FFFD the reader substituted.
+            raise HTTPException(
+                status_code=422,
+                detail=f"{body.path} is not valid UTF-8 and cannot be edited here",
+            )
+
+        target.parent.mkdir(parents=True, exist_ok=True)
+        _atomic_write(target, body.content)
+
+        # Unconditional, and before the reload: `_begin_watching` clears
+        # this too, but only on a *successful* load. Leaving it to that
+        # would serve pre-save text after a save that does not parse, and
+        # the editor's fingerprints would silently diverge from disk.
+        state.source_cache = None
+
+        reloaded = state.current_path is not None and (
+            target == state.current_path or target in state.watch_files
+        )
+        if reloaded:
+            _reload_now(state)
+
+        workspace = state.workspace
+        return {
+            "path": body.path,
+            # Recomputed from disk rather than hashed from the request, so
+            # the client's next save is exact even if the filesystem
+            # normalised something.
+            "fingerprint": _fingerprint(target),
+            "generation": state.generation,
+            "reloaded": reloaded,
+            "error": state.load_error or None,
+            "diagnostics": [
+                _client_diagnostic(state.root, d)
+                for d in (workspace.diagnostics if workspace else [])
+            ],
+            "views": _views_index(workspace) if workspace else [],
+        }
+
     @app.get("/api/files")
     def list_files(state: AppState = Depends(_get_state)) -> list[str]:
         """List relative paths of all source files under the root."""
@@ -768,7 +916,7 @@ def create_app(
             return state.source_cache
 
         dsl_suffixes = {".dsl", ".structurizr"}
-        files: list[dict[str, str]] = []
+        files: list[dict[str, Any]] = []
         seen: set[Path] = set()
         candidates = [state.current_path] + list(state.watch_files)
         for file in candidates:
@@ -778,14 +926,24 @@ def create_app(
             if file.suffix.lower() not in dsl_suffixes and file != state.current_path:
                 continue
             try:
-                content = file.read_text(encoding="utf-8", errors="replace")
+                content, editable = _read_source(file)
             except OSError:
                 continue
             try:
                 rel = file.relative_to(state.root).as_posix()
             except ValueError:
                 rel = file.name
-            files.append({"path": rel, "content": content})
+            files.append(
+                {
+                    "path": rel,
+                    "content": content,
+                    # The editor's baseline for conflict detection, and its
+                    # cue not to offer editing a file it cannot faithfully
+                    # write back.
+                    "fingerprint": _fingerprint(file),
+                    "editable": editable,
+                }
+            )
 
         locations: dict[str, dict[str, Any]] = {}
         if state.current_path.suffix.lower() in dsl_suffixes:

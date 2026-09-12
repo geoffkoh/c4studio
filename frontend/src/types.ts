@@ -194,6 +194,33 @@ export interface DslDiagnostic {
   message: string;
 }
 
+/** Response body from PUT /api/source. */
+export interface SaveSourceResult {
+  path: string;
+  /** The file's hash after writing — the baseline for the next save. */
+  fingerprint: string;
+  /** Reload generation after the save. The client adopts this so the poll
+      does not treat its own save as someone else's edit. */
+  generation: number;
+  /** Whether the saved file was part of the loaded workspace. */
+  reloaded: boolean;
+  /** Parse error, when the saved text does not parse. The file is still
+      written; the previous workspace keeps being served. */
+  error: string | null;
+  diagnostics: DslDiagnostic[];
+  views: ViewInfo[];
+}
+
+/** Body of a 409 from PUT /api/source: someone else changed the file. */
+export interface SaveConflict {
+  code: "conflict";
+  path: string;
+  /** Hash of what is actually on disk now. */
+  fingerprint: string | null;
+  /** The on-disk text, so a diff needs no second round trip. */
+  content: string | null;
+}
+
 /** Response body from POST /api/check. */
 export interface CheckResult {
   /** False when any diagnostic is an error; warnings still parse. */
@@ -276,6 +303,14 @@ export interface WorkspaceDocumentation {
 export interface SourceFile {
   path: string;
   content: string;
+  /** Content hash, sent back on save so an edit made elsewhere in the
+      meantime is a conflict rather than a silent overwrite. Absent from
+      servers older than PP-124. */
+  fingerprint?: string | null;
+  /** False when the file is not valid UTF-8: it is shown with the bad
+      bytes replaced, but writing it back would destroy them, so the
+      editor must stay read-only for it. */
+  editable?: boolean;
 }
 
 /** Where an element is defined, from GET /api/source. */
