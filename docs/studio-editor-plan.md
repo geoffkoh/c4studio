@@ -120,7 +120,7 @@ endpoint** — `GET /api/source` already enumerates the root plus every
 
 | # | Ticket | Scope |
 |---|---|---|
-| C1 | `perf(webapp): cache source discovery` | `/api/files` does a full recursive walk **and reads the first 8 KB of every candidate DSL file** on every call, uncached. Directory-mtime-keyed cache. |
+| C1 | `perf(webapp): cache source discovery` | `/api/files` does a full recursive walk **and reads the first 8 KB of every candidate DSL file** on every call, uncached. Stat-revalidated cache — see [What discovery actually cost](#what-discovery-actually-cost). |
 | C2 | `feat(webapp): file tree with fragments` | `_is_workspace_root` hides `!include` fragments today, so they are invisible to the picker while being valid edit targets. |
 | C3 | `feat(frontend): searchable file tree` | Replace the flat, unfiltered, unvirtualised `FilePicker`. |
 | C4 | `perf(webapp): cache hygiene` | `/api/workspace` runs `dataclasses.asdict` over the whole model on every call — on mount *and* every reload. Bound the unbounded per-view graph cache. |
@@ -293,6 +293,31 @@ The three-way keyword duplication is now a *two*-way one plus a consumer:
 `StreamLanguage` from it, so the SPA has one copy, not two. See
 [Deferred decision](#deferred-decision).
 
+### What discovery actually cost
+
+Measured before designing the C1 cache, on a synthetic 220-file tree (20
+workspaces, 10 `!include` fragments each, nested two deep):
+
+| | per call |
+|---|---|
+| `_iter_source_files`, uncached | 16.0 ms |
+| …of which the 8 KB reads | 12.1 ms (**79%**) |
+| stat-ing the same files instead | 0.4 ms |
+
+That settled the shape. The plan had said "directory-mtime-keyed", which
+would have been **wrong on its own**: a directory's mtime does not move
+when a file's *contents* change, so a fragment edited to add a `workspace`
+block would never appear in the picker. The cache therefore records a
+signature for both — mtime for each directory walked (catching adds,
+removes and renames) and mtime+size for each candidate file (catching an
+edit that changes the answer) — and a file whose signature is unchanged
+keeps its previous answer instead of being reopened.
+
+Warm calls land at 0.48 ms, 34× faster, with identical output. The
+regression test that matters asserts no candidate file is opened a second
+time when nothing changed; it was checked against a deliberately
+un-cached build to confirm it actually fails there.
+
 ---
 
 ## Risks
@@ -386,8 +411,9 @@ State these in the tickets so they don't creep in.
 | B2 — CodeMirror editor | ✅ Done | PP-125 |
 | B3 — Split authoring view | ✅ Done | PP-128 |
 | B4 — DSL autocomplete | ✅ Done | PP-129 |
-| C1 — Cache source discovery | ⬜ Next | not yet ticketed |
-| C2–C5, D1–D2, E1–E2, F1 | ⬜ Not started | not yet ticketed |
+| C1 — Cache source discovery | ✅ Done | PP-130 |
+| C2 — File tree with fragments | ⬜ Next | not yet ticketed |
+| C3–C5, D1–D2, E1–E2, F1 | ⬜ Not started | not yet ticketed |
 
 Update this table as tickets land, and file the next phase's tickets when
 the current one is done rather than all at once.
