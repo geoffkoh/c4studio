@@ -2272,10 +2272,15 @@ def parse_dsl_file(path: str | Path) -> Workspace:
 def collect_source_files(path: str | Path) -> list[Path]:
     """Return ``path`` plus every file it (transitively) ``!include``s.
 
-    Best-effort: unreadable or missing include targets are skipped and
-    cycles are ignored, so this is safe to call on sources that would fail
-    to parse. Used by the web app to know which files to watch for
-    live-reload.
+    Best-effort: unreadable targets are skipped and cycles are ignored, so
+    this is safe to call on sources that would fail to parse. Used by the
+    web app to know which files to watch for live-reload.
+
+    A target that is *declared but does not exist yet* is returned too,
+    even though there is nothing to recurse into. Creating it is precisely
+    what fixes the parse, and a caller watching mtimes cannot notice a file
+    it was never told about — so omitting it makes "add the include, then
+    create the fragment" a dead end.
     """
     root = Path(path).resolve()
     seen: set[Path] = set()
@@ -2295,6 +2300,9 @@ def collect_source_files(path: str | Path) -> list[Path]:
             included = (current.parent / target).resolve()
             if included.is_file():
                 visit(included)
+            elif not included.exists() and included not in seen:
+                seen.add(included)
+                ordered.append(included)
         for match in _DOCS_RE.finditer(text):
             target = match.group("target").strip('"')
             directory = (root.parent / target).resolve()
