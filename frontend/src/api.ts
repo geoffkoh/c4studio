@@ -14,6 +14,8 @@ import type {
   ModelGraphData,
   SaveConflict,
   SaveSourceResult,
+  SingleFile,
+  SourceEntry,
   SourceResult,
   StatusResult,
   ViewInfo,
@@ -86,9 +88,18 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
-/** GET /api/files -> list of source paths relative to the server root. */
-export function listFiles(): Promise<string[]> {
-  return request<string[]>("/api/files");
+/** GET /api/files -> every source under the root, each with its kind.
+
+    Includes `!include` fragments, which are not loadable but are editable;
+    callers that want only what `POST /api/load` accepts filter on
+    `kind === "workspace"`. */
+export function listFiles(): Promise<SourceEntry[]> {
+  return request<SourceEntry[]>("/api/files");
+}
+
+/** GET /api/file -> one source file under the root, loaded or not. */
+export function getFile(path: string): Promise<SingleFile> {
+  return request<SingleFile>(`/api/file?path=${encodeURIComponent(path)}`);
 }
 
 /** POST /api/load -> load the workspace at the given relative path. */

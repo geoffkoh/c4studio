@@ -121,7 +121,7 @@ endpoint** — `GET /api/source` already enumerates the root plus every
 | # | Ticket | Scope |
 |---|---|---|
 | C1 | `perf(webapp): cache source discovery` | `/api/files` does a full recursive walk **and reads the first 8 KB of every candidate DSL file** on every call, uncached. Stat-revalidated cache — see [What discovery actually cost](#what-discovery-actually-cost). |
-| C2 | `feat(webapp): file tree with fragments` | `_is_workspace_root` hides `!include` fragments today, so they are invisible to the picker while being valid edit targets. |
+| C2 | `feat(webapp): file tree with fragments` | `_is_workspace_root` hid `!include` fragments, so they were invisible to the picker while being valid edit targets. `/api/files` now returns `{path, kind}`; `GET /api/file` closes the read asymmetry — see [Reading was the asymmetric one](#reading-was-the-asymmetric-one). |
 | C3 | `feat(frontend): searchable file tree` | Replace the flat, unfiltered, unvirtualised `FilePicker`. |
 | C4 | `perf(webapp): cache hygiene` | `/api/workspace` runs `dataclasses.asdict` over the whole model on every call — on mount *and* every reload. Bound the unbounded per-view graph cache. |
 | C5 | `feat(webapp): file operations` | New file, new folder, rename, delete — capability-guarded and `_safe_resolve`d. |
@@ -318,6 +318,30 @@ regression test that matters asserts no candidate file is opened a second
 time when nothing changed; it was checked against a deliberately
 un-cached build to confirm it actually fails there.
 
+### Reading was the asymmetric one
+
+C2 set out to stop hiding `!include` fragments from `/api/files`, and
+turning them up exposed a gap nobody had noticed: **`PUT /api/source` and
+`POST /api/check` both take any path under the root, and reading took
+none.** A fragment belonging to some other workspace could be written and
+checked, but never opened. `GET /api/file?path=` closes that, with the
+same `_safe_resolve` guard and the same `editable` contract the loaded
+workspace's files already carry.
+
+The classification is free: C1's discovery walk already computed
+workspace-or-not per candidate and threw the answer away. Keeping it is
+the whole of the backend change.
+
+One thing that had to become deliberate: layout sidecars used to drop out
+of the listing by *failing* the workspace-root test. Now that failing it
+merely means "fragment", `_classify` has to exclude `*.layout.json`
+explicitly — they are gitignored per-user UI state and must never be
+offered for editing. A test pins it.
+
+The shape change to `/api/files` is safe because the SPA is its only
+consumer and ships in the same wheel; the VS Code extension probes
+`/api/status` alone. That was checked rather than assumed.
+
 ---
 
 ## Risks
@@ -412,8 +436,9 @@ State these in the tickets so they don't creep in.
 | B3 — Split authoring view | ✅ Done | PP-128 |
 | B4 — DSL autocomplete | ✅ Done | PP-129 |
 | C1 — Cache source discovery | ✅ Done | PP-130 |
-| C2 — File tree with fragments | ⬜ Next | not yet ticketed |
-| C3–C5, D1–D2, E1–E2, F1 | ⬜ Not started | not yet ticketed |
+| C2 — Fragments in the file listing | ✅ Done | PP-131 |
+| C3 — Searchable file tree | ⬜ Next | not yet ticketed |
+| C4–C5, D1–D2, E1–E2, F1 | ⬜ Not started | not yet ticketed |
 
 Update this table as tickets land, and file the next phase's tickets when
 the current one is done rather than all at once.

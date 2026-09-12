@@ -37,17 +37,23 @@ def _load(client: TestClient) -> None:
 def test_files_lists_fixture(client: TestClient) -> None:
     response = client.get("/api/files")
     assert response.status_code == 200
-    assert "example.dsl" in response.json()
+    assert {"path": "example.dsl", "kind": "workspace"} in response.json()
 
 
-def test_files_hides_include_fragments(root: Path) -> None:
+def test_files_marks_include_fragments(root: Path) -> None:
+    """Fragments are listed, but never as loadable (PP-131).
+
+    They used to be hidden entirely, which made them unreachable from the
+    UI even though they are perfectly good edit targets.
+    """
     split = Path(__file__).parent.parent / "fixtures" / "split_workspace"
     shutil.copytree(split, root / "split_workspace")
     client = TestClient(create_app(root=root))
-    files = client.get("/api/files").json()
-    assert "split_workspace/workspace.dsl" in files
-    # Fragment files without a workspace block are not offered for loading.
-    assert not any("model/" in f for f in files)
+    kinds = {entry["path"]: entry["kind"] for entry in client.get("/api/files").json()}
+    assert kinds["split_workspace/workspace.dsl"] == "workspace"
+    fragments = [path for path in kinds if "model/" in path]
+    assert fragments, "the split fixture should contribute fragments"
+    assert all(kinds[path] == "fragment" for path in fragments)
 
 
 def test_load_split_workspace_resolves_includes(root: Path) -> None:
@@ -213,7 +219,8 @@ def test_layout_sidecar_hidden_from_file_browser(
     client.post(
         "/api/views/SystemContext/layout", json={"positions": {"customer": [1, 2]}}
     )
-    assert "example.layout.json" not in client.get("/api/files").json()
+    paths = [entry["path"] for entry in client.get("/api/files").json()]
+    assert "example.layout.json" not in paths
 
 
 def test_layout_survives_live_reload(client: TestClient, root: Path) -> None:

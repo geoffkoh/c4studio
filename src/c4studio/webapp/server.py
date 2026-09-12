@@ -271,24 +271,30 @@ def _views_index(workspace: Workspace) -> list[dict[str, Any]]:
 _WORKSPACE_RE = re.compile(r"^\s*workspace\b", re.MULTILINE)
 
 
-def _is_workspace_root(path: Path) -> bool:
-    """Whether a source file defines a workspace of its own.
+def _classify(path: Path) -> str | None:
+    """What a source file is: ``"workspace"``, ``"fragment"``, or nothing.
 
     DSL sources split across files via ``!include`` contain fragment files
-    (elements/relationships only) that cannot be loaded standalone; only
-    files declaring a ``workspace`` block are offered in the browser. JSON
-    exports are always complete workspaces.
+    (elements/relationships only) that cannot be *loaded* standalone — but
+    they are perfectly good *edit* targets, so they are listed and marked
+    rather than hidden. JSON exports are always complete workspaces.
+
+    ``None`` means "do not list this at all". Layout sidecars are the only
+    such case: they used to fall out of the listing by failing the
+    workspace-root test, and now that failing it merely means "fragment",
+    excluding them has to be said out loud. They are gitignored per-user UI
+    state and must never be offered for editing.
     """
     if path.name.endswith(".layout.json"):
-        return False  # layout sidecars are not loadable workspaces
+        return None
     if path.suffix.lower() == ".json":
-        return True
+        return "workspace"
     try:
         with path.open(encoding="utf-8", errors="ignore") as handle:
             head = handle.read(8192)
     except OSError:
-        return False
-    return _WORKSPACE_RE.search(head) is not None
+        return None
+    return "workspace" if _WORKSPACE_RE.search(head) else "fragment"
 
 
 def _signature(path: Path, *, with_size: bool) -> str:
@@ -310,26 +316,26 @@ class _Discovery:
     """A completed walk, plus everything its result depended on.
 
     Attributes:
-        files: The walk's answer — POSIX-relative paths of loadable sources.
+        entries: The walk's answer — ``{"path", "kind"}`` per listable
+            source, ordered as the walk found them.
         directories: Every directory the walk descended into, with the
             signature it had at the time.
-        candidates: Every file whose workspace-root test was run, with its
-            signature and the answer, so an unchanged file is never opened
-            and read again.
+        candidates: Every file that was classified, with its signature and
+            the answer, so an unchanged file is never opened and read again.
     """
 
-    files: list[str]
+    entries: list[dict[str, str]]
     directories: dict[Path, str]
-    candidates: dict[Path, tuple[str, bool]]
+    candidates: dict[Path, tuple[str, str | None]]
 
     def is_current(self) -> bool:
         """Whether re-walking would reach the same answer.
 
         Any addition, removal or rename moves the mtime of the directory
-        holding it, and any edit that could change a file's workspace-root
-        answer moves that file's mtime or size — so re-stat-ing what the
-        walk depended on is enough. Stat is ~40x cheaper than the 8 KB
-        reads it avoids.
+        holding it, and any edit that could change a file's classification
+        moves that file's mtime or size — so re-stat-ing what the walk
+        depended on is enough. Stat is ~40x cheaper than the 8 KB reads it
+        avoids.
         """
         return all(
             _signature(directory, with_size=False) == token
@@ -343,18 +349,17 @@ class _Discovery:
 def _walk_source_files(root: Path, previous: _Discovery | None) -> _Discovery:
     """Walk ``root`` for loadable sources, reusing ``previous`` where valid.
 
-    Recurses up to ``_MAX_DEPTH`` levels, skipping hidden directories,
-    well-known noise directories (``node_modules``, ``.venv`` ...) and DSL
-    fragment files that only exist to be ``!include``-ed.
+    Recurses up to ``_MAX_DEPTH`` levels, skipping hidden directories and
+    well-known noise directories (``node_modules``, ``.venv`` ...).
 
     A file whose signature is unchanged keeps the answer the previous walk
     computed for it, so the 8 KB read happens once per edit rather than once
     per request.
     """
     known = previous.candidates if previous else {}
-    files: list[str] = []
+    entries_found: list[dict[str, str]] = []
     directories: dict[Path, str] = {}
-    candidates: dict[Path, tuple[str, bool]] = {}
+    candidates: dict[Path, tuple[str, str | None]] = {}
 
     def walk(directory: Path, depth: int) -> None:
         if depth > _MAX_DEPTH:
@@ -372,21 +377,26 @@ def _walk_source_files(root: Path, previous: _Discovery | None) -> _Discovery:
             elif entry.suffix.lower() in _SOURCE_SUFFIXES:
                 token = _signature(entry, with_size=True)
                 cached = known.get(entry)
-                is_root = (
-                    cached[1]
-                    if cached and cached[0] == token
-                    else _is_workspace_root(entry)
-                )
-                candidates[entry] = (token, is_root)
-                if is_root:
-                    files.append(entry.relative_to(root).as_posix())
+                kind = cached[1] if cached and cached[0] == token else _classify(entry)
+                candidates[entry] = (token, kind)
+                if kind is not None:
+                    entries_found.append(
+                        {"path": entry.relative_to(root).as_posix(), "kind": kind}
+                    )
 
     walk(root, 0)
-    return _Discovery(files=files, directories=directories, candidates=candidates)
+    return _Discovery(
+        entries=entries_found, directories=directories, candidates=candidates
+    )
 
 
-def _iter_source_files(root: Path, state: AppState) -> list[str]:
-    """Return POSIX-relative paths of loadable source files under ``root``.
+def _iter_source_files(root: Path, state: AppState) -> list[dict[str, str]]:
+    """Return the listable source files under ``root``, each with its kind.
+
+    ``kind`` is ``"workspace"`` for a file that can be loaded on its own and
+    ``"fragment"`` for one that only exists to be ``!include``-ed. Fragments
+    are listed because they are valid *edit* targets even though they are
+    not loadable — hiding them made them unreachable from the UI.
 
     Cached on ``state`` — not in a module global, so two apps over one root
     cannot see each other's answer.
@@ -399,11 +409,11 @@ def _iter_source_files(root: Path, state: AppState) -> list[str]:
     """
     cached = state.discovery
     if cached is not None and cached.is_current():
-        return list(cached.files)
+        return list(cached.entries)
 
     discovery = _walk_source_files(root, cached)
     state.discovery = discovery
-    return list(discovery.files)
+    return list(discovery.entries)
 
 
 def _watch_token(files: list[Path]) -> str:
@@ -940,8 +950,14 @@ def create_app(
         }
 
     @app.get("/api/files")
-    def list_files(state: AppState = Depends(_get_state)) -> list[str]:
-        """List relative paths of all source files under the root."""
+    def list_files(state: AppState = Depends(_get_state)) -> list[dict[str, str]]:
+        """List the source files under the root, each with its kind.
+
+        Both kinds are returned: a ``workspace`` can be loaded, a
+        ``fragment`` can only be edited. The client decides what to do with
+        each — the server's job is to stop pretending fragments are not
+        there.
+        """
         return _iter_source_files(state.root, state)
 
     @app.post("/api/load")
@@ -1047,6 +1063,35 @@ def create_app(
 
         state.source_cache = {"files": files, "locations": locations}
         return state.source_cache
+
+    @app.get("/api/file")
+    def get_file(path: str, state: AppState = Depends(_get_state)) -> dict[str, Any]:
+        """Read one source file under the root, loaded or not.
+
+        ``GET /api/source`` serves the *loaded* workspace's files, which
+        left reading as the only asymmetric operation: ``PUT /api/source``
+        and ``POST /api/check`` both already take any path under the root,
+        so a fragment belonging to some other workspace could be written
+        and checked but never opened. This closes that.
+
+        A read, so Viewer serves it too — the guarantee Viewer makes is
+        about writes.
+        """
+        target = _safe_resolve(state.root, path)
+        if not target.is_file():
+            raise HTTPException(status_code=404, detail=f"No such file: {path}")
+        try:
+            content, editable = _read_source(target)
+        except OSError as exc:
+            raise HTTPException(
+                status_code=404, detail=f"Cannot read {path}: {exc}"
+            ) from exc
+        return {
+            "path": target.relative_to(state.root).as_posix(),
+            "content": content,
+            "fingerprint": _fingerprint(target),
+            "editable": editable,
+        }
 
     @app.get("/api/workspace")
     def get_workspace(state: AppState = Depends(_get_state)) -> dict[str, Any]:
