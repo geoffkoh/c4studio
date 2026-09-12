@@ -108,6 +108,10 @@ class Token:
 _TOKEN_RE = re.compile(
     r"(?P<COMMENT>//[^\n]*)|"
     r"(?P<BLOCK_COMMENT>/\*.*?\*/)|"
+    # Full-line only, matching structurizr-java's ^\s*?(//|#) — a mid-line
+    # "#" must stay a token because hex colours use it. Anchored, and placed
+    # before SKIP so the line's leading whitespace cannot consume the anchor.
+    r"(?P<HASH_COMMENT>(?m:^[ \t]*#[^\n]*))|"
     r'(?P<STRING>"(?:[^"\\]|\\.)*")|'
     r"(?P<ARROW>->)|"
     r"(?P<EQEQ>==)|"
@@ -140,7 +144,7 @@ def _tokenize(text: str) -> list[Token]:
         if kind is None:  # pragma: no cover - unreachable with this pattern
             continue
         value = m.group()
-        if kind not in ("COMMENT", "BLOCK_COMMENT", "NEWLINE", "SKIP"):
+        if kind not in ("COMMENT", "BLOCK_COMMENT", "HASH_COMMENT", "NEWLINE", "SKIP"):
             column = m.start() - line_start + 1
             tokens.append(Token(kind, value, line, column, column + len(value)))
         # Any token may span lines — a block comment, or a string with an
