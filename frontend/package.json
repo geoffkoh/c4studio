@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@c4studio/diagram-core": "^0.1.0",
+    "@codemirror/autocomplete": "^6.20.3",
     "@codemirror/commands": "^6.11.0",
     "@codemirror/language": "^6.12.4",
     "@codemirror/lint": "^6.9.7",
