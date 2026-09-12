@@ -207,6 +207,43 @@ later than where a human would point. `_guard` already captures the
 statement's start line for recovery, so if the editor's squiggles land
 awkwardly in practice, that is where to look.
 
+### The editor's buffer model
+
+Settled in B2. The Source page keeps one buffer per file — `{disk, text,
+fingerprint, editable, staleOnDisk}` — where `text !== disk` *is* the
+definition of dirty, so switching files never loses typing and needs no
+prompt.
+
+The rules that matter are what happens when a reload lands under an open
+buffer:
+
+- **Clean buffer** — adopt the new text and fingerprint silently. This is
+  the ordinary case: someone edited the file in VS Code.
+- **Dirty buffer** — keep the user's text and **keep the old
+  fingerprint**. Dropping typing to show a file the user did not change is
+  the worse failure, and the stale fingerprint is what turns the next save
+  into a 409 instead of a silent overwrite. The buffer is flagged
+  `staleOnDisk` so the banner can say so before the save is attempted.
+
+A 409 offers three ways out — overwrite with mine, discard mine and take
+disk, or keep editing — because the conflicting content arrives in the
+409 body and needs no second round trip.
+
+`PUT` returns the generation its own reload produced; the app adopts it,
+so the 2-second poll does not then treat the save as someone else's edit
+and refresh a second time.
+
+**Dependencies added** (frontend only, per the ticket): `@codemirror/state`,
+`view`, `commands`, `language`, `lint` and `@lezer/highlight`. Not the
+`codemirror` meta-package — it pulls autocomplete and search, which belong
+to B4 if at all. The committed bundle grows ~330 KB raw (~100 KB gzipped);
+acceptable for a local-first app served from `127.0.0.1`.
+
+The three-way keyword duplication is now a *two*-way one plus a consumer:
+`highlight.ts` became the vocabulary module and `dslLanguage.ts` builds the
+`StreamLanguage` from it, so the SPA has one copy, not two. See
+[Deferred decision](#deferred-decision).
+
 ---
 
 ## Risks
@@ -297,8 +334,9 @@ State these in the tickets so they don't creep in.
 | A3b — Fragment diagnostic attribution | ✅ Done | PP-123 |
 | A4 — `POST /api/check` | ✅ Done | PP-122 |
 | B1 — `PUT /api/source` | ✅ Done | PP-124 |
-| B2 — CodeMirror editor | ⬜ Next | not yet ticketed |
-| B3–B4, C1–C5, D1–D2, E1–E2, F1 | ⬜ Not started | not yet ticketed |
+| B2 — CodeMirror editor | ✅ Done | PP-125 |
+| B3 — Split authoring view | ⬜ Next | not yet ticketed |
+| B4, C1–C5, D1–D2, E1–E2, F1 | ⬜ Not started | not yet ticketed |
 
 Update this table as tickets land, and file the next phase's tickets when
 the current one is done rather than all at once.

@@ -16,6 +16,7 @@ import {
 import type {
   Capabilities,
   DslDiagnostic,
+  SaveSourceResult,
   ViewInfo,
   Workspace,
 } from "./types";
@@ -180,6 +181,19 @@ export default function App() {
     return () => window.clearInterval(timer);
   }, [currentPath, refresh]);
 
+  /** A save from the editor. The server reloaded synchronously and told us
+      the generation it produced, so adopting it here stops the poll from
+      treating our own write as someone else's edit and refreshing twice. */
+  const handleSaved = useCallback(
+    (result: SaveSourceResult) => {
+      generationRef.current = result.generation;
+      setReloadError(result.error);
+      setDiagnostics(result.diagnostics);
+      if (result.reloaded) void refresh();
+    },
+    [refresh],
+  );
+
   /** Double-click in the Elements tree: open the definition in Source. */
   const handleShowDefinition = useCallback((elementId: string) => {
     setCodeFocus({ elementId, nonce: Date.now() });
@@ -290,7 +304,12 @@ export default function App() {
               onShowDefinition={handleShowDefinition}
             />
           ) : page === "source" ? (
-            <SourcePane reloadTick={reloadTick} focus={codeFocus} />
+            <SourcePane
+              reloadTick={reloadTick}
+              focus={codeFocus}
+              readOnly={readOnly}
+              onSaved={handleSaved}
+            />
           ) : (
             <DocsPane workspace={workspace} mode={page} />
           )}

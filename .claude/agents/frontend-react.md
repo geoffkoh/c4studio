@@ -16,6 +16,7 @@ Core practices:
 - **API integration:** one small `api.ts` with typed `fetch` wrappers returning parsed, typed data; centralise error handling; no fetch calls scattered in components. In dev, rely on Vite's `server.proxy` for `/api`; in production the SPA and API share an origin so relative URLs work unchanged.
 - **State & components:** small, focused components; lift shared state (current file, current view, loaded workspace) to a container or a lightweight hook; avoid heavy state libraries unless asked.
 - **Graph rendering:** use React Flow for interactive node/edge graphs. When backend nodes lack coordinates, compute layout client-side with dagre (or elkjs). Map domain "kind"/type to colours consistently. Support drag/zoom; optionally persist positions back to the API when an endpoint exists.
+- **Text editing:** use CodeMirror 6 for the DSL editor (`frontend/src/dslLanguage.ts` + `components/DslEditor.tsx`). It belongs to `frontend/` **only** — never to `packages/diagram-core`, which is bundled into the headless Node renderer and must never need a DOM. The DSL vocabulary lives once, in `frontend/src/highlight.ts`; build the `StreamLanguage` from it rather than restating keywords.
 - **Quality:** the build must pass `tsc` with no errors and `vite build` must succeed. Prefer semantic HTML and keyboard-accessible controls. Keep bundle lean.
 - **Boundaries:** you own everything under `frontend/` and the emitted static bundle. Do not edit Python source; if the API contract seems wrong or insufficient, report it back rather than guessing.
 
