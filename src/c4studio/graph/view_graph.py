@@ -65,6 +65,7 @@ KIND_COLOURS: dict[str, str] = {
     "container": "#43a047",
     "component": "#fb8c00",
     "boundary": "#90a4ae",
+    "group": "#78909c",
     "infrastructure": "#607d8b",
     "container-instance": "#43a047",
     "system-instance": "#1976d2",
@@ -462,6 +463,7 @@ _KIND_NAMES: dict[str, str] = {
     "infrastructure": "Infrastructure Node",
     "container-instance": "Container Instance",
     "system-instance": "Software System Instance",
+    "group": "Group (collapsed)",
 }
 
 #: What a boundary looks like, for the one entry that explains the dashed
@@ -919,7 +921,10 @@ def _filtered_data(
 
 
 def build_view_graph(
-    workspace: Workspace, view: View, expand: set[str] | None = None
+    workspace: Workspace,
+    view: View,
+    expand: set[str] | None = None,
+    collapse: set[str] | None = None,
 ) -> GraphData:
     """Return graph data ``{nodes, edges}`` for the given view.
 
@@ -935,7 +940,106 @@ def build_view_graph(
             becomes a nested boundary holding its containers, a container
             one holding its components. Expansion cascades, so a container
             inside an expanded system can itself be expanded.
+        collapse: Ids of ``__group__…`` boundary nodes to collapse to a
+            single node, with member edges lifted to it and deduplicated.
     """
+    data = _view_graph_data(workspace, view, expand)
+    if collapse:
+        _collapse_group_nodes(data, collapse)
+        data["legend"] = legend_entries(data["nodes"])
+    return data
+
+
+def _collapse_group_nodes(data: GraphData, collapse: set[str]) -> None:
+    """Collapse the requested group boundaries in place.
+
+    Each collapsed group boundary becomes a plain node (kind ``group``)
+    standing in for its members; members — including nested groups — are
+    removed, and edges touching a member are lifted to the outermost
+    collapsed ancestor. Lifted edges that end up parallel merge into one,
+    labelled with the relationship count when their labels disagree,
+    keeping the first edge's id so persisted waypoints and label offsets
+    stay attached to something real.
+    """
+    nodes = data["nodes"]
+    group_ids = {
+        n["id"]
+        for n in nodes
+        if n["id"] in collapse and n["data"].get("boundaryLabel") == "Group"
+    }
+    if not group_ids:
+        return
+
+    parent_of = {n["id"]: n.get("parentId") for n in nodes}
+
+    def outermost_collapsed(node_id: str) -> str | None:
+        """The outermost collapsed group among ``node_id``'s ancestors."""
+        found: str | None = None
+        current = parent_of.get(node_id)
+        while current is not None:
+            if current in group_ids:
+                found = current
+            current = parent_of.get(current)
+        return found
+
+    swallowed: dict[str, str] = {}
+    member_counts: dict[str, int] = dict.fromkeys(group_ids, 0)
+    for node in nodes:
+        ancestor = outermost_collapsed(node["id"])
+        if ancestor is None:
+            continue
+        swallowed[node["id"]] = ancestor
+        if node["data"].get("kind") != "boundary":
+            member_counts[ancestor] += 1
+
+    kept: list[GraphNode] = []
+    for node in nodes:
+        node_id = node["id"]
+        if node_id in swallowed:
+            continue
+        if node_id in group_ids:
+            count = member_counts[node_id]
+            node["data"]["kind"] = "group"
+            node["data"]["collapsedGroup"] = True
+            node["data"]["expandable"] = True
+            node["data"]["description"] = f"{count} element{'s' if count != 1 else ''}"
+            # A boundary's persisted size would render the stand-in at the
+            # size of the box it replaced; standard element size reads
+            # better and the position (if stored) still applies.
+            style = node.get("style")
+            if style is not None:
+                style.pop("width", None)
+                style.pop("height", None)
+        kept.append(node)
+    data["nodes"] = kept
+
+    merged: dict[tuple[str, str], GraphEdge] = {}
+    merge_counts: dict[tuple[str, str], int] = {}
+    edges: list[GraphEdge] = []
+    for edge in data["edges"]:
+        source = swallowed.get(edge["source"], edge["source"])
+        target = swallowed.get(edge["target"], edge["target"])
+        if source == target and source in group_ids:
+            continue  # internal to a collapsed group
+        key = (source, target)
+        existing = merged.get(key)
+        if existing is not None:
+            merge_counts[key] += 1
+            if existing["data"].get("label") != edge["data"].get("label"):
+                existing["data"]["label"] = f"{merge_counts[key]} relationships"
+            continue
+        edge["source"] = source
+        edge["target"] = target
+        merged[key] = edge
+        merge_counts[key] = 1
+        edges.append(edge)
+    data["edges"] = edges
+
+
+def _view_graph_data(
+    workspace: Workspace, view: View, expand: set[str] | None = None
+) -> GraphData:
+    """Build the uncollapsed graph for ``view`` (see ``build_view_graph``)."""
     if view.type == ViewType.DEPLOYMENT:
         return _with_legend(_deployment_data(workspace, view))
     if view.type == ViewType.DYNAMIC:

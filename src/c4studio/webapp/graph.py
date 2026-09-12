@@ -58,7 +58,10 @@ def is_supported(view: View) -> bool:
 
 
 def react_flow_graph(
-    workspace: Workspace, view: View, expand: set[str] | None = None
+    workspace: Workspace,
+    view: View,
+    expand: set[str] | None = None,
+    collapse: set[str] | None = None,
 ) -> ReactFlowData:
     """Build React Flow ``{nodes, edges}`` data for ``view``.
 
@@ -73,11 +76,12 @@ def react_flow_graph(
         workspace: The workspace the view belongs to.
         view: The view to render.
         expand: For container views, ids of containers to expand in place.
+        collapse: Ids of group boundary nodes to collapse to a single node.
 
     Returns:
         A dict with ``nodes`` and ``edges`` lists in React Flow shape.
     """
-    graph_data = build_view_graph(workspace, view, expand)
+    graph_data = build_view_graph(workspace, view, expand, collapse)
 
     nodes: list[ReactFlowNode] = []
     for graph_node in graph_data["nodes"]:

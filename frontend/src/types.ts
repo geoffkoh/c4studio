@@ -96,6 +96,11 @@ export interface GraphData {
   nodeSeparation?: number;
   /** Distinct element styles used by this view, for the legend. */
   legend?: { label: string; colour: string; shape: string; border?: string }[];
+  /** Expansion state the server applied — the request's explicit lists, or
+      the layout sidecar's saved state when the request named none. Clients
+      seed their toggles from these on first load of a view. */
+  expandedIds?: string[];
+  collapsedIds?: string[];
 }
 
 /** Response body from POST /api/views/{key}/layout. */

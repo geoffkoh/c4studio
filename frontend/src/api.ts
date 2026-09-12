@@ -98,16 +98,38 @@ export function getModelGraph(level: ExplorerLevel): Promise<ModelGraphData> {
   return request<ModelGraphData>(`/api/model/graph?level=${level}`);
 }
 
-/** GET /api/views/{key}/graph -> React Flow graph data for a view. */
+/** GET /api/views/{key}/graph -> React Flow graph data for a view.
+
+    `null` omits a parameter, telling the server to apply the state saved
+    in the layout sidecar; an array — even an empty one — is sent
+    explicitly and overrides what is saved. */
 export function getViewGraph(
   key: string,
-  expand: string[] = [],
+  expand: string[] | null = null,
+  collapse: string[] | null = null,
 ): Promise<GraphData> {
-  const query = expand.length
-    ? `?expand=${encodeURIComponent(expand.join(","))}`
-    : "";
+  const params = new URLSearchParams();
+  if (expand !== null) params.set("expand", expand.join(","));
+  if (collapse !== null) params.set("collapse", collapse.join(","));
+  const query = params.size ? `?${params.toString()}` : "";
   return request<GraphData>(
     `/api/views/${encodeURIComponent(key)}/graph${query}`,
+  );
+}
+
+/** POST /api/views/{key}/expansion -> persist expand/collapse UI state. */
+export function saveExpansion(
+  key: string,
+  expanded: string[],
+  collapsed: string[],
+): Promise<LayoutResult> {
+  return request<LayoutResult>(
+    `/api/views/${encodeURIComponent(key)}/expansion`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ expanded, collapsed }),
+    },
   );
 }
 
