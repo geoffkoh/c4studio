@@ -278,6 +278,39 @@ button {
   line-height: 1.4;
 }
 
+/* Skipped constructs: real information, but not an error — the diagram is
+   still correct as far as it goes. Collapsed by default so it reports
+   without nagging. */
+.diagnostics {
+  margin: 8px 14px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.diagnostics > summary {
+  cursor: pointer;
+  user-select: none;
+}
+
+.diagnostics__list {
+  margin: 6px 0 2px;
+  padding-left: 14px;
+  line-height: 1.45;
+}
+
+.diagnostics__where {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  opacity: 0.85;
+}
+
+.diagnostics__item--error {
+  color: var(--danger);
+}
+
 .muted {
   color: var(--muted);
   font-size: 12px;

@@ -22,7 +22,9 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from c4studio.diagnostics import Diagnostic, Severity
 from c4studio.models import View, Workspace
+from c4studio.parser.dsl import ParseError, parse_dsl
 from c4studio.parser.locations import element_locations
 from c4studio.graph.view_graph import apply_positions, apply_sizes
 from c4studio.webapp import graph, model_graph
@@ -130,6 +132,19 @@ class LayoutRequest(BaseModel):
     # coordinates. Only chrome the user actually moved is sent; anything
     # absent returns to its computed placement.
     chrome: dict[str, tuple[int, int]] = {}
+
+
+class CheckRequest(BaseModel):
+    """Body for ``POST /api/check``."""
+
+    # Root-relative path the buffer belongs to.
+    path: str
+    # The buffer's current text, saved or not.
+    content: str
+    # Which file to parse as the workspace root. Normally inferred: a
+    # buffer that is part of the loaded workspace is checked in its
+    # context, anything else on its own.
+    root: str | None = None
 
 
 class ExpansionRequest(BaseModel):
@@ -301,6 +316,22 @@ def _begin_watching(state: AppState, path: Path) -> None:
     state.watch_token = _watch_token(state.watch_files)
     state.load_error = ""
     state.source_cache = None
+
+
+def _client_diagnostic(root: Path, diagnostic: Diagnostic) -> dict[str, Any]:
+    """``Diagnostic.to_dict()`` with ``path`` made relative to the root.
+
+    The client matches diagnostics against editor tabs, which are keyed by
+    root-relative path. ``to_dict`` stays the single source of key names so
+    this and ``c4 check --json`` never drift apart.
+    """
+    data = diagnostic.to_dict()
+    if diagnostic.path is not None:
+        try:
+            data["path"] = diagnostic.path.relative_to(root).as_posix()
+        except ValueError:
+            data["path"] = diagnostic.path.name
+    return data
 
 
 def _reload_now(state: AppState) -> None:
@@ -606,6 +637,69 @@ def create_app(
             },
         }
 
+    @app.post("/api/check")
+    def check_source(
+        body: CheckRequest, state: AppState = Depends(_get_state)
+    ) -> dict[str, Any]:
+        """Parse DSL text and report its problems, touching nothing.
+
+        Writes no file and mutates no server state — the loaded workspace,
+        the graph caches and the reload generation are all left exactly as
+        they were. It answers a question about some text; that is all.
+
+        Not guarded by :func:`_require_writable`: checking is a read, and
+        Viewer wants diagnostics for the file it is displaying too.
+
+        A fragment is not a valid workspace on its own, so a buffer that
+        belongs to the loaded workspace is parsed *in its root's context*
+        with the buffer standing in for the file on disk. Checking a
+        fragment in isolation would report a missing ``workspace`` block
+        and nothing useful.
+        """
+        target = _safe_resolve(state.root, body.path)
+        if body.root is not None:
+            root = _safe_resolve(state.root, body.root)
+        elif state.current_path is not None and (
+            target == state.current_path or target in state.watch_files
+        ):
+            root = state.current_path
+        else:
+            root = target
+
+        overlay = {target: body.content}
+        # `overlay.get(root)` covers "the buffer is the root"; the overlay
+        # itself covers "the buffer is a fragment of it". One path, both.
+        root_text = overlay.get(root)
+        if root_text is None:
+            try:
+                root_text = root.read_text(encoding="utf-8")
+            except OSError as exc:
+                raise HTTPException(
+                    status_code=404, detail=f"Cannot read {body.path}: {exc}"
+                ) from exc
+
+        workspace: Workspace | None = None
+        try:
+            workspace = parse_dsl(
+                root_text, base_dir=root.parent, path=root, overlay=overlay
+            )
+        except ParseError as error:
+            # Every problem found, not just the one that stopped parsing.
+            diagnostics = list(error.diagnostics)
+        else:
+            diagnostics = list(workspace.diagnostics)
+
+        return {
+            "ok": not any(d.severity is Severity.ERROR for d in diagnostics),
+            "diagnostics": [_client_diagnostic(state.root, d) for d in diagnostics],
+            "name": workspace.name if workspace is not None else None,
+            # Free, since the workspace is already in hand, and it lets the
+            # editor show a view appearing or disappearing as you type —
+            # including a warning that the view you are looking at is about
+            # to go away.
+            "views": _views_index(workspace) if workspace is not None else [],
+        }
+
     @app.get("/api/files")
     def list_files(state: AppState = Depends(_get_state)) -> list[str]:
         """List relative paths of all source files under the root."""
@@ -649,6 +743,13 @@ def create_app(
             "path": state.current_path.relative_to(state.root).as_posix(),
             "generation": state.generation,
             "error": state.load_error or None,
+            # Constructs the parser understood but skipped. Always been in
+            # the model and never surfaced here, so even Viewer showed a
+            # clean diagram for a workspace it had quietly dropped parts of.
+            "diagnostics": [
+                _client_diagnostic(state.root, d)
+                for d in (state.workspace.diagnostics if state.workspace else [])
+            ],
         }
 
     @app.get("/api/source")
