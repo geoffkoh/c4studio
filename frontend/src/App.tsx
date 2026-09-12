@@ -29,6 +29,7 @@ import { FilePicker } from "./components/FilePicker";
 import { GraphPane } from "./components/GraphPane";
 import { ShortcutHelp } from "./components/ShortcutHelp";
 import { SourcePane, type CodeFocus } from "./components/SourcePane";
+import { SplitPane } from "./components/SplitPane";
 import { TopBar, type AppPage } from "./components/TopBar";
 import { ViewList } from "./components/ViewList";
 
@@ -304,11 +305,32 @@ export default function App() {
               onShowDefinition={handleShowDefinition}
             />
           ) : page === "source" ? (
-            <SourcePane
-              reloadTick={reloadTick}
-              focus={codeFocus}
-              readOnly={readOnly}
-              onSaved={handleSaved}
+            // Editor left, the diagram it produces right. Nothing wires the
+            // two together: a save reloads the workspace, `refresh` hands
+            // the view a new identity, and the graph refetches — the same
+            // loop an external editor already drove.
+            <SplitPane
+              rightLabel="diagram"
+              left={
+                <SourcePane
+                  reloadTick={reloadTick}
+                  focus={codeFocus}
+                  readOnly={readOnly}
+                  onSaved={handleSaved}
+                />
+              }
+              right={
+                <GraphPane
+                  view={selectedView}
+                  views={views}
+                  workspace={workspace}
+                  onNavigate={setSelectedView}
+                  loadGraph={getViewGraph}
+                  saveExpansion={saveExpansion}
+                  saveLayout={saveLayout}
+                  resetLayout={deleteLayout}
+                />
+              }
             />
           ) : (
             <DocsPane workspace={workspace} mode={page} />

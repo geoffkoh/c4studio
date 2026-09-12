@@ -307,7 +307,7 @@ export function SourcePane({
 
   return (
     <div className="docs">
-      <nav className="docs__toc">
+      <nav className="docs__toc docs__toc--compact">
         {data.files.map((entry) => {
           const open = buffers[entry.path];
           return (

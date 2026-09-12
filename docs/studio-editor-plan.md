@@ -233,6 +233,26 @@ disk, or keep editing — because the conflicting content arrives in the
 so the 2-second poll does not then treat the save as someone else's edit
 and refresh a second time.
 
+### The split is a layout component, not a feature
+
+B3 added no wiring between the editor and the diagram, and that is the
+point. `SplitPane` takes two nodes and knows nothing about either; App
+composes `SourcePane` and `GraphPane` into it. The diagram follows the
+text through the loop that already existed — save → reload → `refresh()`
+hands the view a new identity → the graph refetches — which is Principle 2
+paying out a second time.
+
+Two layout facts worth keeping, because both fail invisibly in a headless
+check and produce a zero-height pane:
+
+- **CodeMirror and React Flow both measure their container.** Neither may
+  depend on a percentage height resolving inside a flex item; both get
+  their height from an explicit `flex` rule instead.
+- **Fixed chrome adds up.** Sidebar (300px) + file list means the editor
+  and the diagram split what is left, so the file list is narrower on this
+  page and the diagram half collapses to a rail. A real file tree with
+  search is C3's job, not something to solve by widening this column.
+
 **Dependencies added** (frontend only, per the ticket): `@codemirror/state`,
 `view`, `commands`, `language`, `lint` and `@lezer/highlight`. Not the
 `codemirror` meta-package — it pulls autocomplete and search, which belong
@@ -335,8 +355,9 @@ State these in the tickets so they don't creep in.
 | A4 — `POST /api/check` | ✅ Done | PP-122 |
 | B1 — `PUT /api/source` | ✅ Done | PP-124 |
 | B2 — CodeMirror editor | ✅ Done | PP-125 |
-| B3 — Split authoring view | ⬜ Next | not yet ticketed |
-| B4, C1–C5, D1–D2, E1–E2, F1 | ⬜ Not started | not yet ticketed |
+| B3 — Split authoring view | ✅ Done | PP-128 |
+| B4 — DSL autocomplete | ⬜ Next | not yet ticketed |
+| C1–C5, D1–D2, E1–E2, F1 | ⬜ Not started | not yet ticketed |
 
 Update this table as tickets land, and file the next phase's tickets when
 the current one is done rather than all at once.
