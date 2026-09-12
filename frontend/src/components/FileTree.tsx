@@ -1,0 +1,171 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+
+import { buildRows, ancestorsOf, initialExpansion } from "../fileTree";
+import type { SourceEntry } from "../types";
+
+/** Uniform row height, in px. Must match `.tree__row` in index.css.
+
+    Uniformity is what makes windowing tractable without a dependency:
+    row N is always at `N * ROW_HEIGHT`, so the visible slice is arithmetic
+    rather than measurement. */
+const ROW_HEIGHT = 24;
+
+/** Rows rendered beyond each edge, so a fast scroll does not show gaps. */
+const OVERSCAN = 6;
+
+/** Tallest the tree grows before it scrolls within the sidebar. */
+const MAX_VIEWPORT = 320;
+
+interface FileTreeProps {
+  entries: SourceEntry[];
+  currentPath: string | null;
+  loadingPath: string | null;
+  onSelect: (path: string) => void;
+}
+
+/**
+ * The source browser: a searchable, windowed tree over `GET /api/files`.
+ *
+ * Replaces a flat list that rendered every path at full depth, unfiltered
+ * and unvirtualised — fine for the four sample files it was written
+ * against, and the first thing to break as workspaces grow in both
+ * directions.
+ *
+ * Fragments are shown but not loadable: `POST /api/load` would fail on a
+ * file with no `workspace` block. Opening one in the editor is the next
+ * ticket.
+ */
+export function FileTree({
+  entries,
+  currentPath,
+  loadingPath,
+  onSelect,
+}: FileTreeProps) {
+  const [query, setQuery] = useState("");
+  const [expanded, setExpanded] = useState(() => initialExpansion(currentPath));
+  const [scrollTop, setScrollTop] = useState(0);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Loading a workspace reveals where it lives, rather than leaving the
+  // user to find a selection inside a folder that is still shut.
+  useEffect(() => {
+    if (!currentPath) return;
+    setExpanded((previous) => {
+      const ancestors = ancestorsOf(currentPath);
+      if (ancestors.every((path) => previous.has(path))) return previous;
+      const next = new Set(previous);
+      for (const path of ancestors) next.add(path);
+      return next;
+    });
+  }, [currentPath]);
+
+  const rows = useMemo(
+    () => buildRows(entries, { query, expanded }),
+    [entries, query, expanded],
+  );
+
+  // A shorter result must not leave the viewport scrolled past the end.
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
+    setScrollTop(0);
+  }, [query]);
+
+  const viewport = Math.min(MAX_VIEWPORT, Math.max(rows.length, 1) * ROW_HEIGHT);
+  const start = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN);
+  const end = Math.min(
+    rows.length,
+    Math.ceil((scrollTop + viewport) / ROW_HEIGHT) + OVERSCAN,
+  );
+  const visible = rows.slice(start, end);
+
+  const toggle = (path: string) =>
+    setExpanded((previous) => {
+      const next = new Set(previous);
+      if (!next.delete(path)) next.add(path);
+      return next;
+    });
+
+  return (
+    <section className="section">
+      <h2 className="section__title">Files</h2>
+      <input
+        className="tree__search"
+        type="search"
+        value={query}
+        placeholder="Search files…"
+        aria-label="Search files"
+        onChange={(event) => setQuery(event.target.value)}
+      />
+      {entries.length === 0 ? (
+        <p className="muted">No source files found.</p>
+      ) : rows.length === 0 ? (
+        <p className="muted">Nothing matches “{query.trim()}”.</p>
+      ) : (
+        <div
+          className="tree__scroll"
+          ref={scrollRef}
+          style={{ height: viewport }}
+          onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
+        >
+          <div
+            className="tree__spacer"
+            style={{ height: rows.length * ROW_HEIGHT }}
+          >
+            {visible.map((row, index) => {
+              const top = (start + index) * ROW_HEIGHT;
+              const style = {
+                top,
+                paddingLeft: 6 + row.depth * 12,
+              };
+              if (row.kind === "dir") {
+                return (
+                  <button
+                    key={row.path}
+                    type="button"
+                    className="tree__row tree__row--dir"
+                    style={style}
+                    onClick={() => toggle(row.path)}
+                    title={row.path}
+                  >
+                    <span className="tree__twisty">
+                      {row.expanded ? "▾" : "▸"}
+                    </span>
+                    <span className="tree__name">{row.name}</span>
+                    <span className="tree__count">{row.count}</span>
+                  </button>
+                );
+              }
+              const isFragment = row.kind === "fragment";
+              return (
+                <button
+                  key={row.path}
+                  type="button"
+                  className={
+                    "tree__row" +
+                    (row.path === currentPath ? " tree__row--active" : "") +
+                    (isFragment ? " tree__row--fragment" : "")
+                  }
+                  style={style}
+                  disabled={isFragment || loadingPath !== null}
+                  onClick={() => onSelect(row.path)}
+                  title={
+                    isFragment
+                      ? `${row.path} — an !include fragment; open its workspace to edit it`
+                      : row.path
+                  }
+                >
+                  <span className="tree__name">{row.name}</span>
+                  {row.path === loadingPath ? (
+                    <span className="badge">loading…</span>
+                  ) : isFragment ? (
+                    <span className="tree__tag">fragment</span>
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}

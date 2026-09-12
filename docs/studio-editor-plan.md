@@ -122,7 +122,7 @@ endpoint** — `GET /api/source` already enumerates the root plus every
 |---|---|---|
 | C1 | `perf(webapp): cache source discovery` | `/api/files` does a full recursive walk **and reads the first 8 KB of every candidate DSL file** on every call, uncached. Stat-revalidated cache — see [What discovery actually cost](#what-discovery-actually-cost). |
 | C2 | `feat(webapp): file tree with fragments` | `_is_workspace_root` hid `!include` fragments, so they were invisible to the picker while being valid edit targets. `/api/files` now returns `{path, kind}`; `GET /api/file` closes the read asymmetry — see [Reading was the asymmetric one](#reading-was-the-asymmetric-one). |
-| C3 | `feat(frontend): searchable file tree` | Replace the flat, unfiltered, unvirtualised `FilePicker`. |
+| C3 | `feat(frontend): searchable file tree` | Replace the flat, unfiltered, unvirtualised `FilePicker`. Logic in a pure `fileTree.ts`; windowed without a dependency — see [A tree flattens to uniform rows](#a-tree-flattens-to-uniform-rows). |
 | C4 | `perf(webapp): cache hygiene` | `/api/workspace` runs `dataclasses.asdict` over the whole model on every call — on mount *and* every reload. Bound the unbounded per-view graph cache. |
 | C5 | `feat(webapp): file operations` | New file, new folder, rename, delete — capability-guarded and `_safe_resolve`d. |
 
@@ -342,6 +342,30 @@ The shape change to `/api/files` is safe because the SPA is its only
 consumer and ships in the same wheel; the VS Code extension probes
 `/api/status` alone. That was checked rather than assumed.
 
+### A tree flattens to uniform rows
+
+Which is what let C3 virtualise without adding a windowing dependency —
+the constraint in `CLAUDE.md` shaping the solution rather than blocking
+it. Every row is one line of fixed height, so row *N* sits at
+`N * ROW_HEIGHT` and the visible slice is arithmetic, not measurement.
+Roughly 25 rows are in the DOM regardless of the tree's size.
+
+The other deliberate choice is where the thinking lives. `fileTree.ts`
+holds it as pure functions — build, filter, order, flatten — and the
+component only draws what they return. That is what made it checkable:
+the ordering, the counts, the force-expansion during search and the
+2000-file behaviour were all exercised directly, which a tree of DOM
+nodes could not have been in this environment.
+
+Two behaviours worth keeping if this is ever rewritten:
+
+- **Search force-expands, but does not *change*, the expansion.** A match
+  hidden inside a collapsed folder is a search that found nothing;
+  clearing the box returns the tree exactly as the user had it.
+- **Folders start shut**, except those leading to the loaded file. A tree
+  that opens itself completely is the flat list it replaced, which stops
+  being usable at exactly the scale the tree exists for.
+
 ---
 
 ## Risks
@@ -437,7 +461,7 @@ State these in the tickets so they don't creep in.
 | B4 — DSL autocomplete | ✅ Done | PP-129 |
 | C1 — Cache source discovery | ✅ Done | PP-130 |
 | C2 — Fragments in the file listing | ✅ Done | PP-131 |
-| C3 — Searchable file tree | ⬜ Next | not yet ticketed |
+| C3 — Searchable file tree | ✅ Done | PP-132 |
 | C4–C5, D1–D2, E1–E2, F1 | ⬜ Not started | not yet ticketed |
 
 Update this table as tickets land, and file the next phase's tickets when

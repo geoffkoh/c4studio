@@ -1005,6 +1005,99 @@ button {
   color: var(--muted);
 }
 
+/* ---- Source file tree (sidebar) ---- */
+.tree__search {
+  width: 100%;
+  margin-bottom: 6px;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--text);
+  background: var(--bg);
+}
+
+.tree__search:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--panel);
+}
+
+.tree__scroll {
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Rows are absolutely positioned inside a spacer of the full height, so
+   only the visible window is in the DOM. */
+.tree__spacer {
+  position: relative;
+}
+
+.tree__row {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding-right: 8px;
+  border: none;
+  background: none;
+  text-align: left;
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.tree__row:hover:not(:disabled) {
+  background: var(--bg);
+}
+
+.tree__row--active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.tree__row--dir {
+  color: var(--muted);
+}
+
+.tree__row--fragment {
+  color: var(--muted);
+  cursor: default;
+}
+
+.tree__twisty {
+  width: 10px;
+  font-size: 9px;
+  flex: none;
+}
+
+.tree__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tree__count,
+.tree__tag {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--muted);
+  flex: none;
+}
+
+.tree__tag {
+  padding: 0 5px;
+  border-radius: 8px;
+  background: var(--bg);
+}
+
 /* ---- Split authoring layout (editor | diagram) ---- */
 .split {
   display: flex;
