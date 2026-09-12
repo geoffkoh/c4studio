@@ -46,6 +46,8 @@ export interface GraphPayloadNode {
     textColor?: string;
     shape?: string;
     boundaryLabel?: string;
+    /** Per-boundary auto-layout override (`c4studio.autolayout`). */
+    rankDirection?: string;
     showMetadata?: boolean;
     /** A `data:` URI — the Python side embeds theme icons before render. */
     icon?: string;

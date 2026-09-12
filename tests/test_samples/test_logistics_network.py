@@ -202,3 +202,18 @@ def test_workspace_configuration_parses(workspace: Workspace) -> None:
     assert config.scope == "landscape"
     assert config.visibility == "private"
     assert [(u.username, u.role) for u in config.users] == [("geoff", "write")]
+
+
+def test_layout_hints_reach_their_boundaries(workspace: Workspace) -> None:
+    """Both c4studio.autolayout forms land as rankDirection on boundaries."""
+    containers = next(v for v in workspace.views if v.key == "PlatformContainers")
+    data = build_view_graph(workspace, containers)
+    group = next(
+        n for n in data["nodes"] if n["id"] == "__group__platform__Core Services"
+    )
+    assert group["data"]["rankDirection"] == "LR"
+
+    components = next(v for v in workspace.views if v.key == "RoutingComponents")
+    data = build_view_graph(workspace, components)
+    routing = next(n for n in data["nodes"] if n["id"] == "routing")
+    assert routing["data"]["rankDirection"] == "LR"

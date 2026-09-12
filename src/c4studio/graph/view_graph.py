@@ -947,7 +947,48 @@ def build_view_graph(
     if collapse:
         _collapse_group_nodes(data, collapse)
         data["legend"] = legend_entries(data["nodes"])
+    _attach_layout_hints(workspace, view, data)
     return data
+
+
+#: The property that lets a boundary override the view's rank direction for
+#: its own children. On an element: ``properties { "c4studio.autolayout"
+#: "lr" }``. Groups cannot carry properties, so their hint lives on the view:
+#: ``properties { "c4studio.autolayout.<group name>" "lr" }``. Properties
+#: round-trip through Structurizr tooling untouched, which is why the hint
+#: is a property and not a DSL extension.
+LAYOUT_HINT_PROPERTY = "c4studio.autolayout"
+
+_HINT_DIRECTIONS = {"tb": "TB", "bt": "BT", "lr": "LR", "rl": "RL"}
+
+
+def _attach_layout_hints(workspace: Workspace, view: View, data: GraphData) -> None:
+    """Copy ``c4studio.autolayout`` hints onto boundary nodes, in place.
+
+    The layout engine lays out each boundary's children as its own dagre
+    level, so a per-boundary ``rankDirection`` on the node data is all it
+    needs. Unrecognised hint values are ignored — a property is free-form
+    text and must never break a render.
+    """
+    for node in data["nodes"]:
+        if node["data"].get("kind") != "boundary":
+            continue
+        if node["id"].startswith("__group__"):
+            # Synthetic group boundaries: the hint is keyed by group name
+            # on the view, since a `group` has no properties of its own.
+            raw = view.properties.get(
+                f"{LAYOUT_HINT_PROPERTY}.{node['data'].get('label', '')}", ""
+            )
+        else:
+            element = workspace.find_element(node["id"])
+            raw = (
+                getattr(element, "properties", {}).get(LAYOUT_HINT_PROPERTY, "")
+                if element is not None
+                else ""
+            )
+        hint = _HINT_DIRECTIONS.get(raw.strip().lower())
+        if hint is not None:
+            node["data"]["rankDirection"] = hint
 
 
 def _collapse_group_nodes(data: GraphData, collapse: set[str]) -> None:

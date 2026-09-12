@@ -165,8 +165,24 @@ export async function layoutGraph(
   const { parentOf, childrenOf } = buildHierarchy(nodes);
   const positions = new Map<string, Point>();
   const groupSizes = new Map<string, Size>();
+  const byId = new Map(nodes.map((node) => [node.id, node]));
 
   const sizeOf = (node: Node): Size => groupSizes.get(node.id) ?? nodeSize(node);
+
+  // A boundary can override the view's rank direction for its own children
+  // via a `rankDirection` hint on its node data (authored in the DSL as the
+  // `c4studio.autolayout` property). Each level runs its own dagre pass, so
+  // the override is purely local: the boundary still sits in its parent's
+  // flow, laid out by the parent's direction.
+  function levelDirection(parentId: string | undefined): RankDirection {
+    if (parentId === undefined) return direction;
+    const hint = (
+      byId.get(parentId)?.data as { rankDirection?: string } | undefined
+    )?.rankDirection;
+    return hint === "TB" || hint === "BT" || hint === "LR" || hint === "RL"
+      ? hint
+      : direction;
+  }
 
   function edgesAtLevel(
     parentId: string | undefined,
@@ -198,7 +214,7 @@ export async function layoutGraph(
     const laidOut = dagreLevel(
       children.map((c) => ({ id: c.id, size: sizeOf(c) })),
       edgesAtLevel(parentId),
-      direction,
+      levelDirection(parentId),
       spacing,
     );
 
