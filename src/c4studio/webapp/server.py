@@ -76,6 +76,9 @@ class AppState:
             to refetch.
         load_error: Parse error from the last failed live reload, if any.
         source_cache: Cached /api/source payload; cleared on (re)load.
+        discovery: Cached /api/files walk, revalidated by stat rather than
+            invalidated by an event — the tree changes underneath this
+            server, so there is nothing to hook.
         waypoints: Relationship bend points from the layout sidecar, as
             ``{view_key: {edge_id: [[x, y], ...]}}``. Held here rather than
             on the workspace because deployment and dynamic views synthesise
@@ -99,6 +102,7 @@ class AppState:
     generation: int = 0
     load_error: str = ""
     source_cache: dict[str, Any] | None = None
+    discovery: _Discovery | None = None
     waypoints: dict[str, dict[str, list[list[int]]]] = field(default_factory=dict)
     labels: dict[str, dict[str, list[int]]] = field(default_factory=dict)
     # Per-view UI state from the sidecar's `expanded`/`collapsed` sections:
@@ -287,18 +291,75 @@ def _is_workspace_root(path: Path) -> bool:
     return _WORKSPACE_RE.search(head) is not None
 
 
-def _iter_source_files(root: Path) -> list[str]:
-    """Return POSIX-relative paths of loadable source files under ``root``.
+def _signature(path: Path, *, with_size: bool) -> str:
+    """Stat-based change token for one directory or file.
+
+    A directory's mtime moves when an entry is added, removed or renamed in
+    it, which is exactly what would change the walk's result. A file's mtime
+    and size stand in for "might this still be a workspace root?".
+    """
+    try:
+        info = path.stat()
+    except OSError:
+        return "missing"
+    return f"{info.st_mtime_ns}:{info.st_size}" if with_size else str(info.st_mtime_ns)
+
+
+@dataclass
+class _Discovery:
+    """A completed walk, plus everything its result depended on.
+
+    Attributes:
+        files: The walk's answer — POSIX-relative paths of loadable sources.
+        directories: Every directory the walk descended into, with the
+            signature it had at the time.
+        candidates: Every file whose workspace-root test was run, with its
+            signature and the answer, so an unchanged file is never opened
+            and read again.
+    """
+
+    files: list[str]
+    directories: dict[Path, str]
+    candidates: dict[Path, tuple[str, bool]]
+
+    def is_current(self) -> bool:
+        """Whether re-walking would reach the same answer.
+
+        Any addition, removal or rename moves the mtime of the directory
+        holding it, and any edit that could change a file's workspace-root
+        answer moves that file's mtime or size — so re-stat-ing what the
+        walk depended on is enough. Stat is ~40x cheaper than the 8 KB
+        reads it avoids.
+        """
+        return all(
+            _signature(directory, with_size=False) == token
+            for directory, token in self.directories.items()
+        ) and all(
+            _signature(file, with_size=True) == token
+            for file, (token, _) in self.candidates.items()
+        )
+
+
+def _walk_source_files(root: Path, previous: _Discovery | None) -> _Discovery:
+    """Walk ``root`` for loadable sources, reusing ``previous`` where valid.
 
     Recurses up to ``_MAX_DEPTH`` levels, skipping hidden directories,
     well-known noise directories (``node_modules``, ``.venv`` ...) and DSL
     fragment files that only exist to be ``!include``-ed.
+
+    A file whose signature is unchanged keeps the answer the previous walk
+    computed for it, so the 8 KB read happens once per edit rather than once
+    per request.
     """
-    found: list[str] = []
+    known = previous.candidates if previous else {}
+    files: list[str] = []
+    directories: dict[Path, str] = {}
+    candidates: dict[Path, tuple[str, bool]] = {}
 
     def walk(directory: Path, depth: int) -> None:
         if depth > _MAX_DEPTH:
             return
+        directories[directory] = _signature(directory, with_size=False)
         try:
             entries = sorted(directory.iterdir())
         except OSError:
@@ -308,11 +369,41 @@ def _iter_source_files(root: Path) -> list[str]:
                 if entry.name.startswith(".") or entry.name in _SKIP_DIRS:
                     continue
                 walk(entry, depth + 1)
-            elif entry.suffix.lower() in _SOURCE_SUFFIXES and _is_workspace_root(entry):
-                found.append(entry.relative_to(root).as_posix())
+            elif entry.suffix.lower() in _SOURCE_SUFFIXES:
+                token = _signature(entry, with_size=True)
+                cached = known.get(entry)
+                is_root = (
+                    cached[1]
+                    if cached and cached[0] == token
+                    else _is_workspace_root(entry)
+                )
+                candidates[entry] = (token, is_root)
+                if is_root:
+                    files.append(entry.relative_to(root).as_posix())
 
     walk(root, 0)
-    return found
+    return _Discovery(files=files, directories=directories, candidates=candidates)
+
+
+def _iter_source_files(root: Path, state: AppState) -> list[str]:
+    """Return POSIX-relative paths of loadable source files under ``root``.
+
+    Cached on ``state`` — not in a module global, so two apps over one root
+    cannot see each other's answer.
+
+    The cache is deliberately stat-based, which shares the granularity
+    caveat spelled out on :func:`_fingerprint`: a content change that lands
+    within the same mtime tick *and* keeps the byte count identical is not
+    noticed. The consequence is a file missing from, or lingering in, the
+    picker until its next change — never wrong content, and never data loss.
+    """
+    cached = state.discovery
+    if cached is not None and cached.is_current():
+        return list(cached.files)
+
+    discovery = _walk_source_files(root, cached)
+    state.discovery = discovery
+    return list(discovery.files)
 
 
 def _watch_token(files: list[Path]) -> str:
@@ -851,7 +942,7 @@ def create_app(
     @app.get("/api/files")
     def list_files(state: AppState = Depends(_get_state)) -> list[str]:
         """List relative paths of all source files under the root."""
-        return _iter_source_files(state.root)
+        return _iter_source_files(state.root, state)
 
     @app.post("/api/load")
     def load(
