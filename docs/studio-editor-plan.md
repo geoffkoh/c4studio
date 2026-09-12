@@ -99,7 +99,7 @@ conventions in `roadmap.md`.
 | A1 | `feat(webapp): Studio and Viewer modes` | Frozen `AppConfig` on `AppState`; `create_app(..., *, read_only=False)` keyword-only so existing callers are untouched; `c4 webapp --viewer`; `_require_writable` as a **FastAPI dependency** (a route that writes cannot forget to depend on it the way it could forget a call); `GET /api/capabilities`. | — |
 | A2 | `fix(webapp): keep watching includes after a failed reload` | Extract `_reload_now(state)` so the poll path and the save path are one implementation; fix the stale `watch_files` bug. | — |
 | A3 | `feat(parser): in-memory source overlay for !include` | `overlay: Mapping[Path, str] \| None` on `parse_dsl` → `_expand_includes`, consulted **before** `is_file()` so a not-yet-saved fragment also resolves. Default `None` is a no-op. First increment of the `SourceResolver` roadmap row. | — |
-| A3b | `fix(parser): attribute fragment diagnostics to the fragment` | Found while building A3, see [Diagnostic attribution](#diagnostic-attribution). Without it the editor puts squiggles in the wrong file. | A3 |
+| A3b | `fix(parser): carry the position of an unsupported directive` | Found while building A3, see [Diagnostic attribution](#diagnostic-attribution). Smaller than first thought — one call site, not a systemic failure. | A3 |
 | A4 | `feat(webapp): POST /api/check for unsaved buffers` | Structured diagnostics for arbitrary text; no disk writes, no `AppState` mutation. Also surface `workspace.diagnostics` on `/api/status` so **Viewer gains warning display** — useful independent of editing. | A3b |
 
 ### Phase B — The editor
@@ -178,76 +178,34 @@ and `c4 check --json` never drift.
 
 ### Diagnostic attribution
 
-**Established by measurement during A3, not assumed.** A diagnostic from
-inside an `!include`-ed fragment is currently attributed to the **root
-file at the flattened line**, not to the fragment at its own line. This
-is identical whether the include is read from disk or supplied through
-the overlay, so it is not overlay-specific.
+**Measured during A3, and the first reading of it was wrong** — recorded
+here because the correction is the useful part.
 
-The `SourceMap` machinery is correct. Two call-site patterns bypass it:
+`!include` is flattened before tokenising, so every position the parser
+sees is a line of one synthetic source. `SourceMap` maps those back, and
+both `_warn` and `_record_error` run positions through it. That machinery
+is correct, and errors inside a fragment *do* name the fragment. The
+plan previously claimed otherwise, on the strength of one example.
 
-1. `_record_error` resolves through the source map **only when
-   `error.path is None`**, so any `ParseError` raised with an explicit
-   path keeps the root's.
-2. Several `_warn` call sites pass `line=None` and embed a flattened line
-   number in the message text (`"Line 4: unsupported directive ..."`)
-   instead of carrying `path`/`line` as fields.
+That example was misread. A relationship missing its destination reported
+against the root, but only because the parser consumes forward looking for
+the destination and the token it finally rejects genuinely *is* past the
+end of the fragment. Resolution was right; the position was just later
+than the mistake.
 
-An editor cannot place a squiggle from either. Hence A3b, sequenced
-before A4 — there is no point returning diagnostics over HTTP until they
-name the file the user is looking at.
+The one real defect, fixed in A3b: a single `_warn` call site formatted
+the line into the message (`"Line 4: unsupported directive ..."`) rather
+than passing it as a field, so the diagnostic came out with no path and
+no line — and the number in the prose was a *flattened* line, belonging
+to no file the user has open. Unplaceable as a squiggle. It now carries
+`path`, `line`, and a column range spanning the `!` and the directive
+name.
 
-Return the view list too — it is free (`_views_index` on a workspace
-already in hand) and buys a live "this edit adds/removes a view" preview
-plus a warning when the open view is about to disappear.
-
-### `PUT /api/source`
-
-- **Conflict fingerprint is a content hash, not mtime.** Mtimes move on
-  checkout or copy without content changing, and two writes in one clock
-  tick share one mtime. Mtime keeps its existing job in `_watch_token`,
-  where hashing every watched file every 2 seconds would be far too
-  expensive. Two mechanisms, two jobs.
-- `fingerprint: null` means *"this file must not exist"* — that is how a
-  new fragment is created, and it makes an accidental create-over-existing
-  a 409 rather than a clobber. `force: true` is the escape hatch the 409
-  dialog sets.
-- **Atomic write**: sibling dotfile temp then `os.replace`, so the rename
-  stays on one filesystem. `newline=""` keeps the buffer's line endings.
-- **Invalid DSL still saves.** An editor that refuses to save mid-thought
-  is unusable. The response carries `error` and `diagnostics`; the diagram
-  keeps showing the last good render. That is the existing fail-soft
-  contract applied to saving.
-- **`state.source_cache = None` unconditionally after the write**, before
-  the reload attempt. It is otherwise only cleared by `_begin_watching`,
-  which runs only on a *successful* load — so a save whose re-parse fails
-  would keep serving pre-save text and the editor's fingerprints would
-  silently diverge from disk.
-
-### The save ↔ reload race
-
-The editor's own save triggers the reload it is watching. Handle it by
-making the write endpoint **reload synchronously** via `_reload_now`, and
-return the resulting `generation`.
-
-That closes the race in one field: `_reload_now` recomputes `watch_token`
-from the just-written file, so the next poll sees no change and does not
-reload again — one save, one reload. The client sets its generation from
-the **save response** (not from a subsequent `getStatus()`, which could
-swallow a concurrent external change), so the refresh never fires for a
-save the user just made.
-
-Client-side buffer policy, replacing `SourcePane`'s unconditional refetch
-on every reload tick:
-
-- clean buffer + changed disk fingerprint → adopt silently
-- **dirty buffer + changed fingerprint → keep the buffer**, show a
-  non-blocking bar offering Reload / Keep mine / Diff
-- dirty buffer + unchanged fingerprint → do nothing
-
-The backstop: even if all of that is wrong, `PUT` 409s on a stale
-fingerprint, and the 409 body carries the on-disk content so the conflict
-UI has both sides without a second round trip.
+Residual, not worth fixing pre-emptively: an error's position is the token
+where the parser noticed, which for a construct spanning lines can be
+later than where a human would point. `_guard` already captures the
+statement's start line for recovery, so if the editor's squiggles land
+awkwardly in practice, that is where to look.
 
 ---
 
@@ -336,8 +294,8 @@ State these in the tickets so they don't creep in.
 | A1 — Studio/Viewer modes, `GET /api/capabilities` | ✅ Done | #128 (PP-119) |
 | A2 — Keep watching includes after a failed reload | ✅ Done | #129 (PP-120) |
 | A3 — Parser source overlay | ✅ Done | #131 (PP-121) |
-| A3b — Fragment diagnostic attribution | ⬜ Not started | PP-123 |
-| A4 — `POST /api/check` | ⬜ Not started | PP-122, blocked on PP-123 |
+| A3b — Fragment diagnostic attribution | ✅ Done | PP-123 |
+| A4 — `POST /api/check` | ⬜ Next | PP-122 |
 | B1–B4, C1–C5, D1–D2, E1–E2, F1 | ⬜ Not started | not yet ticketed |
 
 Update this table as tickets land, and file the next phase's tickets when
