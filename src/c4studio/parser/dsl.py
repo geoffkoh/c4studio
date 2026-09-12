@@ -12,7 +12,7 @@ import re
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Any
 
 from c4studio.parser.docs import load_decisions, load_sections, markdown_files
@@ -2007,6 +2007,20 @@ def _search_deployment_nodes(
 # !include preprocessing
 # ---------------------------------------------------------------------------
 
+SourceOverlay = Mapping[Path, str]
+"""Resolved absolute paths mapped to text standing in for the file on disk.
+
+The seam an editor needs: a fragment is not a valid workspace on its own,
+so checking an unsaved buffer means parsing its *root* with the buffer
+substituted for one of the files the root includes. Diagnostics still come
+back attributed to the fragment, because ``SourceMap`` already maps
+flattened lines to their origin file.
+
+A first, narrow increment of the ``SourceResolver`` idea in
+``docs/roadmap.md``: enough to type-check a buffer, without committing to
+a full read-through-a-protocol rewrite of include handling.
+"""
+
 _INCLUDE_RE = re.compile(
     r'^[ \t]*!include[ \t]+(?P<target>"[^"]+"|\S+)[ \t]*$', re.MULTILINE
 )
@@ -2024,6 +2038,7 @@ def _expand_includes(
     origin: Path | None = None,
     source_map: SourceMap | None = None,
     flat_line: int = 1,
+    overlay: SourceOverlay | None = None,
 ) -> tuple[str, int]:
     """Replace ``!include <path>`` lines with the referenced file contents.
 
@@ -2044,6 +2059,10 @@ def _expand_includes(
         origin: File ``source`` was read from, recorded in the map.
         source_map: Collects the flattened-line to origin-line runs.
         flat_line: 1-based line the expanded output starts at.
+        overlay: Text to use in place of what is on disk, by resolved
+            path. Consulted before the filesystem, so an editor can check
+            an unsaved buffer — including one for a file that does not
+            exist yet.
 
     Returns:
         The flattened text and the next free flattened line number.
@@ -2080,13 +2099,18 @@ def _expand_includes(
         if included in stack:
             chain = " -> ".join(str(p) for p in (*stack, included))
             raise ParseError(f"Circular !include: {chain}", line=index + 1, path=origin)
-        if not included.is_file():
-            raise ParseError(
-                f"!include target not found: {included}",
-                line=index + 1,
-                path=origin,
-            )
-        text = included.read_text(encoding="utf-8")
+        # The overlay wins over the filesystem, and is checked before
+        # existence: a fragment the user has typed but not yet saved has
+        # no file to find.
+        text = overlay.get(included) if overlay is not None else None
+        if text is None:
+            if not included.is_file():
+                raise ParseError(
+                    f"!include target not found: {included}",
+                    line=index + 1,
+                    path=origin,
+                )
+            text = included.read_text(encoding="utf-8")
         expanded, _ = _expand_includes(
             text,
             included.parent,
@@ -2094,6 +2118,7 @@ def _expand_includes(
             origin=included,
             source_map=source_map,
             flat_line=flat_line + len(out),
+            overlay=overlay,
         )
         out.extend(expanded.split("\n"))
 
@@ -2192,6 +2217,8 @@ def parse_dsl(
     source: str,
     base_dir: str | Path | None = None,
     path: str | Path | None = None,
+    *,
+    overlay: SourceOverlay | None = None,
 ) -> Workspace:
     """Parse a Structurizr DSL string and return a Workspace.
 
@@ -2204,6 +2231,11 @@ def parse_dsl(
             :class:`ParseError`.
         path: File ``source`` was read from, so diagnostics can name it.
             ``None`` when parsing a bare string.
+        overlay: Unsaved text to use in place of what is on disk, keyed by
+            resolved path. Lets an editor check a buffer in the context of
+            the workspace that includes it, rather than on its own — a
+            fragment is not a valid workspace by itself, so checking one
+            in isolation reports nothing useful.
 
     Raises:
         ParseError: Carrying the path and line of the problem.
@@ -2212,7 +2244,7 @@ def parse_dsl(
     root = Path(path).resolve() if path is not None else None
     source_map = SourceMap()
     flattened, _ = _expand_includes(
-        source, resolved, (), origin=root, source_map=source_map
+        source, resolved, (), origin=root, source_map=source_map, overlay=overlay
     )
     preprocess_warnings: list[tuple[int, str]] = []
     flattened = _strip_scripts(flattened, preprocess_warnings)
