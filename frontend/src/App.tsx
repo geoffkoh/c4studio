@@ -17,6 +17,7 @@ import type {
   Capabilities,
   DslDiagnostic,
   SaveSourceResult,
+  SourceEntry,
   ViewInfo,
   Workspace,
 } from "./types";
@@ -42,7 +43,7 @@ function errorMessage(err: unknown, fallback: string): string {
 }
 
 export default function App() {
-  const [files, setFiles] = useState<string[]>([]);
+  const [files, setFiles] = useState<SourceEntry[]>([]);
   const [currentPath, setCurrentPath] = useState<string | null>(null);
   const [loadingPath, setLoadingPath] = useState<string | null>(null);
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
@@ -183,6 +184,13 @@ export default function App() {
     return () => window.clearInterval(timer);
   }, [currentPath, refresh]);
 
+  // The picker offers only what POST /api/load accepts. Fragments come
+  // back from /api/files too, and the tree that uses them is C3.
+  const loadableFiles = useMemo(
+    () => files.filter((f) => f.kind === "workspace").map((f) => f.path),
+    [files],
+  );
+
   // What the editor can complete. Rebuilt only when the model or the view
   // index actually changes, so the editor reconfigures on a reload rather
   // than on every render.
@@ -278,7 +286,7 @@ export default function App() {
             </details>
           ) : null}
           <FilePicker
-            files={files}
+            files={loadableFiles}
             currentPath={currentPath}
             loadingPath={loadingPath}
             onSelect={handleSelectFile}

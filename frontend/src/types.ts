@@ -299,6 +299,26 @@ export interface WorkspaceDocumentation {
   decisions: DocDecision[];
 }
 
+/** One entry from GET /api/files.
+
+    `kind` says what the file is, not merely whether it is offered: a
+    `workspace` can be loaded on its own, a `fragment` only exists to be
+    `!include`-ed and can only be edited. Fragments used to be hidden,
+    which made them unreachable from the UI despite being valid edit
+    targets. */
+export interface SourceEntry {
+  path: string;
+  kind: "workspace" | "fragment";
+}
+
+/** Response body from GET /api/file — one source file, loaded or not. */
+export interface SingleFile {
+  path: string;
+  content: string;
+  fingerprint: string | null;
+  editable: boolean;
+}
+
 /** One DSL file from GET /api/source. */
 export interface SourceFile {
   path: string;
