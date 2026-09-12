@@ -1007,10 +1007,20 @@ button {
   background: var(--panel);
 }
 
+/* A flex row holding the one .cm-editor, rather than relying on CodeMirror's
+   `height: 100%` resolving against a flex-derived height. Same result in
+   every browser that gets the percentage right, and a correct one in any
+   that does not. */
 .editor__surface {
   flex: 1;
   min-height: 0;
+  display: flex;
   overflow: hidden;
+}
+
+.editor__surface > .cm-editor {
+  flex: 1;
+  min-width: 0;
 }
 
 .editor__toolbar {
