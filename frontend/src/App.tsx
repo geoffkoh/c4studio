@@ -13,7 +13,12 @@ import {
   saveExpansion,
   saveLayout,
 } from "./api";
-import type { Capabilities, ViewInfo, Workspace } from "./types";
+import type {
+  Capabilities,
+  DslDiagnostic,
+  ViewInfo,
+  Workspace,
+} from "./types";
 import { buildTrail } from "./navigation";
 import { isTypingTarget } from "./shortcuts";
 import { DocsPane } from "./components/DocsPane";
@@ -42,6 +47,10 @@ export default function App() {
   const [selectedView, setSelectedView] = useState<ViewInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reloadError, setReloadError] = useState<string | null>(null);
+  // Constructs the parser understood but skipped. They have always been in
+  // the model and were never shown, so a workspace could render clean while
+  // quietly missing parts of itself.
+  const [diagnostics, setDiagnostics] = useState<DslDiagnostic[]>([]);
   const [page, setPage] = useState<AppPage>("diagrams");
   const [codeFocus, setCodeFocus] = useState<CodeFocus | null>(null);
   const [reloadTick, setReloadTick] = useState(0);
@@ -126,6 +135,7 @@ export default function App() {
         setWorkspace(ws);
         setViews(vs);
         setCurrentPath(status.path);
+        setDiagnostics(status.diagnostics ?? []);
         generationRef.current = status.generation;
       })
       .catch(() => {
@@ -157,6 +167,7 @@ export default function App() {
       getStatus()
         .then((status) => {
           setReloadError(status.error);
+          setDiagnostics(status.diagnostics ?? []);
           if (status.generation !== generationRef.current) {
             generationRef.current = status.generation;
             void refresh();
@@ -195,6 +206,7 @@ export default function App() {
       setReloadTick((tick) => tick + 1);
       const [ws, status] = await Promise.all([getWorkspace(), getStatus()]);
       setWorkspace(ws);
+      setDiagnostics(status.diagnostics ?? []);
       generationRef.current = status.generation;
     } catch (err) {
       setError(errorMessage(err, "Failed to load file"));
@@ -221,6 +233,25 @@ export default function App() {
             <div className="error">
               <strong>Live reload paused:</strong> {reloadError}
             </div>
+          ) : null}
+          {diagnostics.length > 0 ? (
+            <details className="diagnostics">
+              <summary>
+                {diagnostics.length} skipped{" "}
+                {diagnostics.length === 1 ? "construct" : "constructs"}
+              </summary>
+              <ul className="diagnostics__list">
+                {diagnostics.map((d, index) => (
+                  <li key={index} className={`diagnostics__item--${d.severity}`}>
+                    <span className="diagnostics__where">
+                      {d.path ?? "?"}
+                      {d.line !== null ? `:${d.line}` : ""}
+                    </span>{" "}
+                    {d.message}
+                  </li>
+                ))}
+              </ul>
+            </details>
           ) : null}
           <FilePicker
             files={files}

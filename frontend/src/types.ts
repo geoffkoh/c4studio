@@ -172,6 +172,38 @@ export interface StatusResult {
   generation: number;
   /** Parse error from the last failed reload; old workspace still served. */
   error: string | null;
+  /** Constructs the parser understood but skipped in the loaded workspace.
+      Absent from servers older than PP-122. */
+  diagnostics?: DslDiagnostic[];
+}
+
+/** One problem the parser found, positioned so an editor can place it.
+
+    `path` is root-relative, matching the keys `GET /api/source` uses, so a
+    diagnostic can be matched to the file it belongs to. `column` is
+    1-based and `endColumn` exclusive; both may be null for a whole-line
+    diagnostic. Shape matches `c4 check --json`, which the VS Code
+    extension already consumes — one contract, not two. */
+export interface DslDiagnostic {
+  path: string | null;
+  line: number | null;
+  column: number | null;
+  endColumn: number | null;
+  severity: "error" | "warning";
+  code: string;
+  message: string;
+}
+
+/** Response body from POST /api/check. */
+export interface CheckResult {
+  /** False when any diagnostic is an error; warnings still parse. */
+  ok: boolean;
+  diagnostics: DslDiagnostic[];
+  /** Workspace name from the buffer, or null when it did not parse. */
+  name: string | null;
+  /** Views the buffer would produce — lets the editor preview a view
+      appearing or disappearing before anything is saved. */
+  views: ViewInfo[];
 }
 
 // ---------------------------------------------------------------------------

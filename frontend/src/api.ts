@@ -6,6 +6,7 @@
 
 import type {
   Capabilities,
+  CheckResult,
   ExplorerLevel,
   GraphData,
   LayoutResult,
@@ -87,6 +88,24 @@ export function getSource(): Promise<SourceResult> {
 /** GET /api/workspace -> the full loaded workspace model. */
 export function getWorkspace(): Promise<Workspace> {
   return request<Workspace>("/api/workspace");
+}
+
+/** POST /api/check -> diagnostics for text that may not be on disk.
+
+    `path` is the root-relative file the buffer belongs to; a buffer that
+    is part of the loaded workspace is checked in its root's context, so a
+    fragment reports its own problems rather than "no workspace block".
+    Writes nothing and changes no server state. */
+export function checkSource(
+  path: string,
+  content: string,
+  root?: string,
+): Promise<CheckResult> {
+  return request<CheckResult>("/api/check", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path, content, ...(root ? { root } : {}) }),
+  });
 }
 
 /** GET /api/capabilities -> what this server allows. Needs no workspace. */
