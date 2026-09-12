@@ -27,10 +27,15 @@ export {
   EDGE_PAINT,
   EDGE_COLOUR,
   EDGE_WIDTH,
+  EDGE_LINE_STYLE,
   EDGE_ARROW_SIZE,
   EDGE_HOVER_COLOUR,
   EDGE_HOVER_WIDTH,
   EDGE_HOVER_MARKER,
+  edgePaint,
+  edgeDashArray,
+  type EdgeLineStyle,
+  type EdgePaintOverrides,
 } from "./edgePaint";
 export { insertionIndex } from "./waypoints";
 export {

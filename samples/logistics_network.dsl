@@ -271,8 +271,11 @@ workspace "NorthWind Logistics" "Parcel network: booking, routing, tracking and 
             element "Mobile App" {
                 shape MobileDevicePortrait
             }
+            // Relationships default to dashed (the Structurizr house
+            // style), so async traffic is marked dotted and coloured —
+            // "dashed true" would no longer distinguish anything.
             relationship "Async" {
-                dashed true
+                style dotted
                 color #7b1fa2
             }
         }

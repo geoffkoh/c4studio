@@ -35,7 +35,7 @@ import {
   CHROME_PREFIX,
   chromePlacement,
   isChromeNode,
-  EDGE_PAINT,
+  edgePaint,
   EDGE_HOVER_MARKER,
   ElementNode,
   ExportButtons,
@@ -249,7 +249,9 @@ async function toFlow(
         waypoints: e.waypoints,
         labelOffset: e.labelOffset,
       },
-      ...EDGE_PAINT,
+      // Workspace relationship styles where they matched, the dashed
+      // Structurizr-parity defaults everywhere else.
+      ...edgePaint(e),
     };
   });
 

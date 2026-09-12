@@ -109,6 +109,11 @@ def react_flow_graph(
         }
         if "order" in edge_data:
             edge["order"] = edge_data["order"]
+        # Resolved relationship-style paint; absent fields mean "use the
+        # renderer's default" (dashed, per upstream Structurizr).
+        for field in ("color", "lineStyle", "thickness", "opacity"):
+            if field in edge_data:
+                edge[field] = edge_data[field]
         edges.append(edge)
 
     # Filtered views carry no layout of their own; inherit the base view's.
