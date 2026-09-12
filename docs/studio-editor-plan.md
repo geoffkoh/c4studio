@@ -296,7 +296,9 @@ State these in the tickets so they don't creep in.
 | A3 — Parser source overlay | ✅ Done | #131 (PP-121) |
 | A3b — Fragment diagnostic attribution | ✅ Done | PP-123 |
 | A4 — `POST /api/check` | ✅ Done | PP-122 |
-| **Phase A complete.** B1 (`PUT /api/source`) is next | ⬜ Not started | not yet ticketed |
+| B1 — `PUT /api/source` | ✅ Done | PP-124 |
+| B2 — CodeMirror editor | ⬜ Next | not yet ticketed |
+| B3–B4, C1–C5, D1–D2, E1–E2, F1 | ⬜ Not started | not yet ticketed |
 
 Update this table as tickets land, and file the next phase's tickets when
 the current one is done rather than all at once.
