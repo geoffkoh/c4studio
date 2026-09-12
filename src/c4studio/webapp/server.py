@@ -76,6 +76,11 @@ class AppState:
     source_cache: dict[str, Any] | None = None
     waypoints: dict[str, dict[str, list[list[int]]]] = field(default_factory=dict)
     labels: dict[str, dict[str, list[int]]] = field(default_factory=dict)
+    # Per-view UI state from the sidecar's `expanded`/`collapsed` sections:
+    # element ids expanded in place and group node ids collapsed, as
+    # ``{view_key: [id, ...]}``. Applied when a graph request names neither.
+    expanded: dict[str, list[str]] = field(default_factory=dict)
+    collapsed: dict[str, list[str]] = field(default_factory=dict)
 
 
 class LoadRequest(BaseModel):
@@ -96,6 +101,15 @@ class LayoutRequest(BaseModel):
     # Dragged label offsets, keyed by edge id. An edge present with a zero
     # offset has been dragged back to its default place.
     labels: dict[str, tuple[int, int]] = {}
+
+
+class ExpansionRequest(BaseModel):
+    """Body for ``POST /api/views/{key}/expansion``."""
+
+    # Element ids expanded in place, and group node ids collapsed. Both are
+    # complete lists for the view; empty means none.
+    expanded: list[str] = []
+    collapsed: list[str] = []
 
 
 def _get_state(request: Request) -> AppState:
@@ -309,11 +323,32 @@ def _read_layout_labels(source: Path) -> dict[str, dict[str, list[int]]]:
     return cleaned
 
 
+def _read_layout_ids(source: Path, section: str) -> dict[str, list[str]]:
+    """Read a sidecar section of ``{view_key: [id, ...]}`` string lists.
+
+    Backs the ``expanded`` and ``collapsed`` sections — per-view UI state,
+    each its own additive top-level section so sidecars written before it
+    existed load unchanged.
+    """
+    raw = _read_sidecar_data(source).get(section)
+    if not isinstance(raw, dict):
+        return {}
+    cleaned: dict[str, list[str]] = {}
+    for key, ids in raw.items():
+        if isinstance(ids, list):
+            wanted = [i for i in ids if isinstance(i, str) and i]
+            if wanted:
+                cleaned[key] = wanted
+    return cleaned
+
+
 def _write_layout_sidecar(
     source: Path,
     views: dict[str, dict[str, list[int]]],
     waypoints: dict[str, dict[str, list[list[int]]]],
     labels: dict[str, dict[str, list[int]]] | None = None,
+    expanded: dict[str, list[str]] | None = None,
+    collapsed: dict[str, list[str]] | None = None,
 ) -> Path:
     """Write every sidecar section, removing the file when nothing is left."""
     sidecar = _layout_sidecar(source)
@@ -322,7 +357,11 @@ def _write_layout_sidecar(
         document["edges"] = waypoints
     if labels:
         document["labels"] = labels
-    if not views and not waypoints and not labels:
+    if expanded:
+        document["expanded"] = expanded
+    if collapsed:
+        document["collapsed"] = collapsed
+    if not views and not waypoints and not labels and not expanded and not collapsed:
         sidecar.unlink(missing_ok=True)
         return sidecar
     sidecar.write_text(json.dumps(document, indent=2, sort_keys=True), encoding="utf-8")
@@ -369,6 +408,8 @@ def _apply_saved_layout(state: AppState) -> None:
     # deployment/dynamic edges have no RelationshipView to hold them.
     state.waypoints = _read_layout_waypoints(state.current_path)
     state.labels = _read_layout_labels(state.current_path)
+    state.expanded = _read_layout_ids(state.current_path, "expanded")
+    state.collapsed = _read_layout_ids(state.current_path, "collapsed")
     saved = _read_layout_sidecar(state.current_path)
     if not saved:
         return
@@ -558,22 +599,43 @@ def create_app(
 
     @app.get("/api/views/{key}/graph")
     def get_view_graph(
-        key: str, expand: str = "", state: AppState = Depends(_get_state)
+        key: str,
+        expand: str | None = None,
+        collapse: str | None = None,
+        state: AppState = Depends(_get_state),
     ) -> dict[str, Any]:
         """Return React Flow graph data for the view with ``key``.
 
-        ``expand`` is an optional comma-separated list of container ids to
-        expand in place (container views only).
+        ``expand`` is a comma-separated list of element ids to expand in
+        place; ``collapse`` one of group node ids to collapse. Omitting a
+        parameter (as opposed to sending it empty) applies the state saved
+        in the layout sidecar, and the payload echoes what was applied as
+        ``expandedIds``/``collapsedIds`` so clients can seed their toggles.
         """
         workspace = _require_workspace(state)
-        expand_ids = {part for part in expand.split(",") if part}
-        cache_key = f"{key}::{','.join(sorted(expand_ids))}"
+        expand_ids = (
+            set(state.expanded.get(key, []))
+            if expand is None
+            else {part for part in expand.split(",") if part}
+        )
+        collapse_ids = (
+            set(state.collapsed.get(key, []))
+            if collapse is None
+            else {part for part in collapse.split(",") if part}
+        )
+        cache_key = (
+            f"{key}::{','.join(sorted(expand_ids))}::{','.join(sorted(collapse_ids))}"
+        )
         if cache_key in state.diagrams:
             return state.diagrams[cache_key]
         view = _find_view(workspace, key)
-        data = graph.react_flow_graph(workspace, view, expand_ids or None)
+        data = graph.react_flow_graph(
+            workspace, view, expand_ids or None, collapse_ids or None
+        )
         _attach_waypoints(data, state.waypoints.get(key, {}))
         _attach_labels(data, state.labels.get(key, {}))
+        data["expandedIds"] = sorted(expand_ids)
+        data["collapsedIds"] = sorted(collapse_ids)
         state.diagrams[cache_key] = data
         return data
 
@@ -637,7 +699,12 @@ def create_app(
         state.labels = all_labels
 
         sidecar = _write_layout_sidecar(
-            state.current_path, saved, all_waypoints, all_labels
+            state.current_path,
+            saved,
+            all_waypoints,
+            all_labels,
+            state.expanded,
+            state.collapsed,
         )
         return {"saved": str(sidecar)}
 
@@ -660,16 +727,58 @@ def create_app(
         saved = _read_layout_sidecar(state.current_path)
         all_waypoints = _read_layout_waypoints(state.current_path)
         all_labels = _read_layout_labels(state.current_path)
-        # Reset means back to auto-layout: straight edges and labels at
-        # their default place on the line.
-        if key in saved or key in all_waypoints or key in all_labels:
-            saved.pop(key, None)
-            all_waypoints.pop(key, None)
-            all_labels.pop(key, None)
+        # Reset means back to auto-layout: straight edges, labels at their
+        # default place on the line, and expansion state cleared.
+        sections = (saved, all_waypoints, all_labels, state.expanded, state.collapsed)
+        if any(key in section for section in sections):
+            for section in sections:
+                section.pop(key, None)
+            # The waypoint/label dicts were re-read from disk above; the
+            # popped copies must replace the in-memory state or the next
+            # graph request re-attaches what was just reset.
             state.waypoints = all_waypoints
             state.labels = all_labels
-            _write_layout_sidecar(state.current_path, saved, all_waypoints, all_labels)
+            _write_layout_sidecar(
+                state.current_path,
+                saved,
+                all_waypoints,
+                all_labels,
+                state.expanded,
+                state.collapsed,
+            )
         return {"reset": key}
+
+    @app.post("/api/views/{key}/expansion")
+    def save_expansion(
+        key: str, body: ExpansionRequest, state: AppState = Depends(_get_state)
+    ) -> dict[str, str]:
+        """Persist a view's expanded/collapsed ids to the layout sidecar.
+
+        Sent whenever the user toggles an in-place expansion or collapses a
+        group, so the state survives reloads. Empty lists clear the view's
+        entry — the sidecar records deviations only.
+        """
+        _require_workspace(state)
+        if state.current_path is None:
+            raise HTTPException(status_code=409, detail="No source file loaded")
+        if body.expanded:
+            state.expanded[key] = list(dict.fromkeys(body.expanded))
+        else:
+            state.expanded.pop(key, None)
+        if body.collapsed:
+            state.collapsed[key] = list(dict.fromkeys(body.collapsed))
+        else:
+            state.collapsed.pop(key, None)
+        _invalidate_view_cache(state, key)
+        sidecar = _write_layout_sidecar(
+            state.current_path,
+            _read_layout_sidecar(state.current_path),
+            _read_layout_waypoints(state.current_path),
+            _read_layout_labels(state.current_path),
+            state.expanded,
+            state.collapsed,
+        )
+        return {"saved": str(sidecar)}
 
     _mount_static(app, static_dir)
     return app

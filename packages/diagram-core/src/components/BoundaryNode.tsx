@@ -28,6 +28,8 @@ export interface BoundaryNodeData {
   boundaryType: string;
   /** Set when this boundary is an in-place-expanded element. */
   expanded?: boolean;
+  /** Set on group boundaries, which can collapse to a stand-in node. */
+  collapsible?: boolean;
   /** Key of the parent view to navigate to on double-click, if any. */
   drillKey?: string;
   drillLabel?: string;
@@ -51,7 +53,9 @@ export interface BoundaryNodeData {
 function BoundaryNodeComponent({ id, data, selected }: NodeProps<BoundaryNodeData>) {
   const typeLabel = data.boundaryLabel ?? data.boundaryType;
   const meta = data.technology ? `${typeLabel}: ${data.technology}` : typeLabel;
-  const collapsible = Boolean(data.expanded && data.onToggleExpand);
+  const collapsible = Boolean(
+    (data.expanded || data.collapsible) && data.onToggleExpand,
+  );
   const store = useStoreApi();
 
   // Selecting must not depend on React Flow's wrapper hit-testing (the
@@ -119,7 +123,7 @@ function BoundaryNodeComponent({ id, data, selected }: NodeProps<BoundaryNodeDat
       {collapsible ? (
         <button
           className="boundary__collapse"
-          title="Collapse back in place"
+          title={data.expanded ? "Collapse back in place" : "Collapse group"}
           onClick={handleCollapse}
           onDoubleClick={(event) => event.stopPropagation()}
         >

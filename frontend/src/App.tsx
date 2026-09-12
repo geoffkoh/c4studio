@@ -9,6 +9,7 @@ import {
   listFiles,
   listViews,
   loadFile,
+  saveExpansion,
   saveLayout,
 } from "./api";
 import type { ViewInfo, Workspace } from "./types";
@@ -229,6 +230,7 @@ export default function App() {
               workspace={workspace}
               onNavigate={setSelectedView}
               loadGraph={getViewGraph}
+              saveExpansion={saveExpansion}
               saveLayout={saveLayout}
               resetLayout={deleteLayout}
             />

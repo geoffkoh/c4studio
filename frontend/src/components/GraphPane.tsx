@@ -74,6 +74,10 @@ const EDGE_STYLES: { value: EdgeStyle; label: string }[] = [
   { value: "smoothstep", label: "Smooth step" },
 ];
 
+// Synthetic group boundary ids from the backend's _insert_group_boundaries;
+// the shared expand/collapse toggle tells groups apart by this prefix.
+const GROUP_NODE_PREFIX = "__group__";
+
 const EDGE_STYLE_STORAGE_KEY = "c4studio.edgeStyle";
 const HOVER_EMPHASIS_STORAGE_KEY = "c4studio.hoverEmphasis";
 const SNAP_TO_GRID_STORAGE_KEY = "c4studio.snapToGrid";
@@ -135,7 +139,17 @@ interface GraphPaneProps {
    * Confluence macro reading Forge storage, or github.dev talking to the
    * Pyodide bridge.
    */
-  loadGraph: (key: string, expand: string[]) => Promise<GraphData>;
+  loadGraph: (
+    key: string,
+    expand: string[] | null,
+    collapse: string[] | null,
+  ) => Promise<GraphData>;
+  /** Persist expand/collapse state so it survives reloads. */
+  saveExpansion: (
+    key: string,
+    expanded: string[],
+    collapsed: string[],
+  ) => Promise<unknown>;
   saveLayout: (
     key: string,
     positions: Record<string, [number, number]>,
@@ -163,6 +177,10 @@ async function toFlow(
 
   const nodes: Node[] = data.nodes.map((n) => {
     const isBoundary = n.data.kind === "boundary";
+    // Group boundaries can collapse to a single stand-in node; the flag
+    // gives BoundaryNode its − control.
+    const isGroupBoundary =
+      isBoundary && (n.data as { boundaryLabel?: string }).boundaryLabel === "Group";
     // Only the view's own (root) boundary drills out to the parent view;
     // nested boundaries (expanded containers, deployment nodes) do not.
     const isRootBoundary = isBoundary && !n.parentId;
@@ -184,6 +202,7 @@ async function toFlow(
       data: {
         ...n.data,
         boundaryType,
+        ...(isGroupBoundary ? { collapsible: true } : {}),
         drillKey: target?.key,
         drillLabel: target ? crumbLabel(target, workspace) : undefined,
         onToggleExpand,
@@ -330,6 +349,7 @@ export function GraphPane({
   workspace,
   onNavigate,
   loadGraph,
+  saveExpansion,
   saveLayout,
   resetLayout,
 }: GraphPaneProps) {
@@ -352,14 +372,22 @@ export function GraphPane({
   );
   // Bumped by "reset layout" to force a refetch of the current view.
   const [layoutEpoch, setLayoutEpoch] = useState(0);
-  // Expanded container ids, scoped to the view they were expanded in so a
-  // view switch implicitly resets the expansion.
-  const [expansion, setExpansion] = useState<{ key: string; ids: string[] }>({
-    key: "",
-    ids: [],
-  });
+  // Expanded element ids and collapsed group ids, scoped to the view they
+  // were toggled in. Before the first graph of a view arrives the state is
+  // unknown (`null` from the memos below), which makes loadGraph omit the
+  // parameters so the server applies what the layout sidecar has saved;
+  // the response echo then seeds this state.
+  const [expansion, setExpansion] = useState<{
+    key: string;
+    ids: string[];
+    collapsed: string[];
+  }>({ key: "", ids: [], collapsed: [] });
   const expandedIds = useMemo(
-    () => (view && expansion.key === view.key ? expansion.ids : []),
+    () => (view && expansion.key === view.key ? expansion.ids : null),
+    [view, expansion],
+  );
+  const collapsedIds = useMemo(
+    () => (view && expansion.key === view.key ? expansion.collapsed : null),
     [view, expansion],
   );
 
@@ -437,13 +465,30 @@ export function GraphPane({
   const handleToggleExpand = useCallback(
     (id: string, expand: boolean) => {
       if (!view) return;
-      setExpansion((prev) => {
-        const ids = prev.key === view.key ? prev.ids : [];
-        const next = expand ? [...ids, id] : ids.filter((x) => x !== id);
-        return { key: view.key, ids: next };
-      });
+      const sameView = expansion.key === view.key;
+      const ids = sameView ? expansion.ids : [];
+      const collapsed = sameView ? expansion.collapsed : [];
+      // Group stand-ins share the toggle: "expand" un-collapses the group,
+      // "collapse" adds it to the collapsed set.
+      const isGroup = id.startsWith(GROUP_NODE_PREFIX);
+      const nextIds = isGroup
+        ? ids
+        : expand
+          ? [...ids, id]
+          : ids.filter((x) => x !== id);
+      const nextCollapsed = isGroup
+        ? expand
+          ? collapsed.filter((x) => x !== id)
+          : [...collapsed, id]
+        : collapsed;
+      setExpansion({ key: view.key, ids: nextIds, collapsed: nextCollapsed });
+      // Fire-and-forget: the refetch sends the lists explicitly, so the UI
+      // never waits on persistence (and survives it failing).
+      void Promise.resolve(
+        saveExpansion(view.key, nextIds, nextCollapsed),
+      ).catch(() => undefined);
     },
-    [view],
+    [view, expansion, saveExpansion],
   );
 
   // Autosave the whole layout when a drag or resize finishes. Positions
@@ -957,9 +1002,23 @@ export function GraphPane({
     setStatus("loading");
     setError(null);
 
-    loadGraph(view.key, expandedIds)
+    loadGraph(view.key, expandedIds, collapsedIds)
       .then(async (data) => {
         if (cancelled) return;
+        // First graph of a view: seed the toggles from what the server
+        // applied (the sidecar's saved state). Only non-empty state needs
+        // seeding — empty matches the fresh default already.
+        if (
+          expandedIds === null &&
+          ((data.expandedIds?.length ?? 0) > 0 ||
+            (data.collapsedIds?.length ?? 0) > 0)
+        ) {
+          setExpansion({
+            key: view.key,
+            ids: data.expandedIds ?? [],
+            collapsed: data.collapsedIds ?? [],
+          });
+        }
         const flow = await toFlow(
           data,
           view,
@@ -996,6 +1055,7 @@ export function GraphPane({
     views,
     workspace,
     expandedIds,
+    collapsedIds,
     layoutEpoch,
     handleToggleExpand,
     saveCurrentLayout,
