@@ -1,0 +1,328 @@
+# Studio: the in-app DSL editor
+
+The staged plan for turning c4studio from a viewer into an authoring
+tool — in-app DSL editing, file navigation that survives growth, and a
+designed seam for an AI assistant.
+
+**Status: in progress.** See [Progress](#progress) for what has landed.
+Ticket numbers are Jira `PP`.
+
+---
+
+## Why
+
+c4studio is read-only today. You edit DSL in an external editor and a
+2-second mtime heartbeat re-parses and re-renders — which is why the
+in-browser editor sat parked in `roadmap.md` Phase 4 as "convenience
+rather than capability".
+
+Three things changed that judgement:
+
+1. **Authoring is the job.** The tool is called c4studio; a studio you
+   cannot type in is a viewer with a good name.
+2. **Scale.** Workspaces are growing in both directions — nested folders
+   *and* more workspaces. The flat file picker and the eager directory
+   walk do not survive that.
+3. **An assistant needs somewhere to write.** AI help with DSL is only
+   useful if there is an editor for it to write into.
+
+---
+
+## Principles
+
+These settle most of the design; the rest follows.
+
+### 1. Text-first, never model-first
+
+The editor edits DSL *text*. It never generates DSL from the model.
+
+This is forced, not preferred. `parse_dsl` textually rewrites the source
+before tokenising — `_expand_includes` flattens every `!include` into one
+string, `_strip_scripts` deletes `!script` blocks, `_apply_constants`
+substitutes `${NAME}` away — and the tokeniser then discards comments and
+all whitespace. No CST is retained and no serialiser exists. A model→DSL
+writer would have to reconstruct includes, constants and scripts from
+information that no longer exists, and would destroy the user's comments
+and formatting on every save.
+
+So **the diagram is a preview of the text**, and the existing live-reload
+pipeline is the render loop.
+
+### 2. Reuse the reload loop; don't build a second one
+
+Saving bumps mtime, which already drives re-parse, cache invalidation,
+layout re-application and `generation++`. Save *is* the render trigger.
+The work is making that loop safe against the editor's own writes.
+
+### 3. Capability lives on the server
+
+Viewer mode is not hidden buttons — write routes 403, so the guarantee
+holds against a crafted request.
+
+### 4. No fourth copy of the DSL vocabulary
+
+The keyword and property sets already exist three times: `parser/dsl.py`'s
+tokeniser, `frontend/src/highlight.ts`, and
+`editors/vscode/syntaxes/structurizr-dsl.tmLanguage.json` (whose header
+already documents the sync burden). The CodeMirror layer reuses
+`highlight.ts`'s vocabulary and classifier rather than adding a grammar.
+
+A real grammar is explicitly off the table — `roadmap.md` lists
+ANTLR/tree-sitter under "Rejected options — do not re-litigate".
+
+---
+
+## Modes
+
+| | Command | Behaviour |
+| --- | --- | --- |
+| **Studio** | `c4 webapp <path>` | Full app: browse, edit, save, create. **Default.** |
+| **Viewer** | `c4 webapp <path> --viewer` | No DSL writes (403). Layout dragging, group collapse and title moves **still persist** — you cannot change the model, but you can arrange the view. |
+
+Viewer keeps its sidecar writes because arranging a diagram is part of
+reading it, and the sidecar is gitignored per-user UI state either way.
+
+This flipped the previous default: `c4 webapp` used to be read-only.
+Anyone using it for a kiosk or an embed should add `--viewer`.
+
+---
+
+## Tickets
+
+One Jira ticket each, branch per ticket, PR-first, per the delivery
+conventions in `roadmap.md`.
+
+### Phase A — Foundations (no editing yet)
+
+| # | Ticket | Scope | Deps |
+|---|---|---|---|
+| A1 | `feat(webapp): Studio and Viewer modes` | Frozen `AppConfig` on `AppState`; `create_app(..., *, read_only=False)` keyword-only so existing callers are untouched; `c4 webapp --viewer`; `_require_writable` as a **FastAPI dependency** (a route that writes cannot forget to depend on it the way it could forget a call); `GET /api/capabilities`. | — |
+| A2 | `fix(webapp): keep watching includes after a failed reload` | Extract `_reload_now(state)` so the poll path and the save path are one implementation; fix the stale `watch_files` bug. | — |
+| A3 | `feat(parser): in-memory source overlay for !include` | `overlay: Mapping[Path, str] \| None` on `parse_dsl` → `_expand_includes`, consulted **before** `is_file()` so a not-yet-saved fragment also resolves. Default `None` is a no-op. First increment of the `SourceResolver` roadmap row. | — |
+| A4 | `feat(webapp): POST /api/check for unsaved buffers` | Structured diagnostics for arbitrary text; no disk writes, no `AppState` mutation. Also surface `workspace.diagnostics` on `/api/status` so **Viewer gains warning display** — useful independent of editing. | A3 |
+
+### Phase B — The editor
+
+| # | Ticket | Scope | Deps |
+|---|---|---|---|
+| B1 | `feat(webapp): PUT /api/source` | Atomic write, content-hash fingerprints, 409 conflict flow, synchronous reload, **and the UTF-8 fix** (see Risks). | A1, A2 |
+| B2 | `feat(frontend): CodeMirror 6 DSL editor` | Dependency in `frontend/package.json` — **never** `packages/diagram-core`, which is bundled into the headless Node renderer and must never need a DOM. `dslLanguage.ts` as a `StreamLanguage` built from a refactored `highlight.ts`. Debounced `/api/check` → `@codemirror/lint` squiggles. | A1, A4, B1 |
+| B3 | `feat(frontend): split authoring view` | Source page becomes editor-left / diagram-right. `GraphPane` is reused as-is — already prop-injected for exactly this. | B2 |
+| B4 | `feat(frontend): DSL autocomplete` | Keywords from the shared vocabulary; element ids and aliases from the loaded workspace; view keys in `include`/`exclude`. | B2 |
+
+### Phase C — Scale
+
+Editing files *within* a loaded workspace needs **no new discovery
+endpoint** — `GET /api/source` already enumerates the root plus every
+`!include` fragment with root-relative paths. Phase C is about browsing
+*across* workspaces.
+
+| # | Ticket | Scope |
+|---|---|---|
+| C1 | `perf(webapp): cache source discovery` | `/api/files` does a full recursive walk **and reads the first 8 KB of every candidate DSL file** on every call, uncached. Directory-mtime-keyed cache. |
+| C2 | `feat(webapp): file tree with fragments` | `_is_workspace_root` hides `!include` fragments today, so they are invisible to the picker while being valid edit targets. |
+| C3 | `feat(frontend): searchable file tree` | Replace the flat, unfiltered, unvirtualised `FilePicker`. |
+| C4 | `perf(webapp): cache hygiene` | `/api/workspace` runs `dataclasses.asdict` over the whole model on every call — on mount *and* every reload. Bound the unbounded per-view graph cache. |
+| C5 | `feat(webapp): file operations` | New file, new folder, rename, delete — capability-guarded and `_safe_resolve`d. |
+
+### Phase D — Creating workspaces
+
+| # | Ticket | Scope |
+|---|---|---|
+| D1 | `feat(cli): c4 new and starter templates` | Starter DSLs in the package (minimal, system-context, full C4, deployment), reusing the write path. |
+| D2 | `feat(frontend): new workspace in-app` | Template picker, target folder, open in the editor. |
+
+### Phase E — Assistant (designed now, built last)
+
+| # | Ticket | Scope |
+|---|---|---|
+| E1 | `feat(webapp): assistant endpoint` | Opt-in behind a flag, key from the environment, clearly marked as the one feature that leaves the machine. Context is already available: buffer text, `/api/check` diagnostics, the model summary, and the keyword table in `dsl-support.md`. |
+| E2 | `feat(frontend): propose-a-diff UX` | The assistant returns DSL text; the editor shows it as a diff against the buffer; the user applies or rejects. Nothing AI-specific touches the editor core — it is just another producer of text, which is why Principle 1 matters. |
+
+### Phase F — VS Code
+
+| # | Ticket | Scope |
+|---|---|---|
+| F1 | `feat(vscode): read-only preview` | **Feature-detect `GET /api/capabilities`** rather than passing `--viewer`: `preview.ts` spawns whatever `c4` resolves on the user's machine, which may be an older release that would exit non-zero on an unknown flag. Absent endpoint → old backend → hide editing client-side. Only after A1 is *released*. |
+
+---
+
+## Key designs
+
+### `POST /api/check`
+
+Most of this already exists. `c4 check - --path X` does the job for the
+VS Code extension in ~10 lines: `parse_dsl(text, base_dir=path.parent,
+path=path)`, then `workspace.diagnostics`, or `error.diagnostics` on
+`ParseError` — which carries *every* recovered problem, not just the
+first.
+
+The hard case is an unsaved **fragment**, which is not a valid standalone
+workspace. It must be checked in the context of its root with the buffer
+substituted — hence the overlay in A3. Root inference needs no extra
+client state: if the target is `state.current_path` or in
+`state.watch_files`, the root is the loaded workspace; otherwise the
+target is its own root. One code path covers both:
+
+```python
+overlay = {target: body.content}
+root_text = overlay.get(root) or root.read_text(encoding="utf-8")
+workspace = parse_dsl(root_text, base_dir=root.parent, path=root, overlay=overlay)
+```
+
+Diagnostics already map back to the originating fragment through
+`SourceMap.resolve()`; the only webapp work is relativising `path` to the
+root. Keep `Diagnostic.to_dict()` as the single source of key names so the
+webapp and `c4 check --json` never drift.
+
+Return the view list too — it is free (`_views_index` on a workspace
+already in hand) and buys a live "this edit adds/removes a view" preview
+plus a warning when the open view is about to disappear.
+
+### `PUT /api/source`
+
+- **Conflict fingerprint is a content hash, not mtime.** Mtimes move on
+  checkout or copy without content changing, and two writes in one clock
+  tick share one mtime. Mtime keeps its existing job in `_watch_token`,
+  where hashing every watched file every 2 seconds would be far too
+  expensive. Two mechanisms, two jobs.
+- `fingerprint: null` means *"this file must not exist"* — that is how a
+  new fragment is created, and it makes an accidental create-over-existing
+  a 409 rather than a clobber. `force: true` is the escape hatch the 409
+  dialog sets.
+- **Atomic write**: sibling dotfile temp then `os.replace`, so the rename
+  stays on one filesystem. `newline=""` keeps the buffer's line endings.
+- **Invalid DSL still saves.** An editor that refuses to save mid-thought
+  is unusable. The response carries `error` and `diagnostics`; the diagram
+  keeps showing the last good render. That is the existing fail-soft
+  contract applied to saving.
+- **`state.source_cache = None` unconditionally after the write**, before
+  the reload attempt. It is otherwise only cleared by `_begin_watching`,
+  which runs only on a *successful* load — so a save whose re-parse fails
+  would keep serving pre-save text and the editor's fingerprints would
+  silently diverge from disk.
+
+### The save ↔ reload race
+
+The editor's own save triggers the reload it is watching. Handle it by
+making the write endpoint **reload synchronously** via `_reload_now`, and
+return the resulting `generation`.
+
+That closes the race in one field: `_reload_now` recomputes `watch_token`
+from the just-written file, so the next poll sees no change and does not
+reload again — one save, one reload. The client sets its generation from
+the **save response** (not from a subsequent `getStatus()`, which could
+swallow a concurrent external change), so the refresh never fires for a
+save the user just made.
+
+Client-side buffer policy, replacing `SourcePane`'s unconditional refetch
+on every reload tick:
+
+- clean buffer + changed disk fingerprint → adopt silently
+- **dirty buffer + changed fingerprint → keep the buffer**, show a
+  non-blocking bar offering Reload / Keep mine / Diff
+- dirty buffer + unchanged fingerprint → do nothing
+
+The backstop: even if all of that is wrong, `PUT` 409s on a stale
+fingerprint, and the 409 body carries the on-disk content so the conflict
+UI has both sides without a second round trip.
+
+---
+
+## Risks
+
+**High — lossy reads corrupt files.** `get_source` reads with
+`errors="replace"`. Fine for a viewer; **silent data loss for an editor** —
+a file with one invalid UTF-8 byte round-trips with that byte permanently
+replaced by U+FFFD. Fix in B1: try a strict decode first; on
+`UnicodeDecodeError` keep serving replaced text for display but mark the
+entry `editable: false`, and have `PUT` refuse that path. **Do not ship
+the editor without this.**
+
+**High — version skew in VS Code.** Covered by F1's feature detection.
+
+**Medium — `/api/check` cost on large workspaces.** A full re-parse per
+400 ms debounce. Measure on `samples/hedge_fund/workspace.dsl` during A4;
+memoise on `(root, sha256(content))` only if it bites.
+
+**Low — case-insensitive filesystems.** `Path.resolve()` does not
+case-normalise on macOS, so `!include Model/foo.dsl` against an overlay
+keyed `model/foo.dsl` misses and falls back to disk. Symptom is "my
+fragment edits aren't reflected", not corruption.
+
+**Low — no undo across a save.** CodeMirror's history is client-only; a
+destructive save is recoverable only through git. A `.bak` sidecar was
+considered and rejected — it would collide with the sidecar conventions
+in `CLAUDE.md`.
+
+---
+
+## Verification
+
+Standing gate per PR: `uv run pytest`, `ruff check`,
+`ruff format --check`, `mypy`, plus a rebuilt and committed frontend
+bundle for any frontend change.
+
+The test cases that carry weight:
+
+- **403 in Viewer** — `PUT /api/source` refused **and the file on disk is
+  byte-identical afterwards**; layout routes still 200.
+- **`/api/check` is pure** — post broken text, then assert all four: file
+  unchanged, `/api/workspace` still good, `generation` unchanged, `error`
+  null.
+- **Unsaved fragment names the fragment** — using
+  `tests/fixtures/split_workspace/`, a diagnostic's `path` is the
+  fragment, not the flattened root. The single most important test: it
+  exercises overlay + `SourceMap` + relativisation together.
+- **One save, one reload** — after a successful `PUT`, the *next*
+  `/api/status` returns the same `generation`.
+- **Conflict** — stale fingerprint → 409 carrying the external content,
+  and the file still holds the external text.
+- **Broken save** — 200 with diagnostics, file written, previous workspace
+  still served, and `GET /api/source` returns the **new** text.
+- No `.tmp` files left behind.
+
+Live verification against `samples/hedge_fund/workspace.dsl` — the one
+sample combining `!include` fragments, docs and ADRs, so it exercises
+fragment editing, per-fragment diagnostics and the reload loop together.
+
+---
+
+## Non-goals
+
+State these in the tickets so they don't creep in.
+
+- **Model → DSL generation** (Principle 1).
+- **Multi-user, locking, branches** — ruled out by `CLAUDE.md`. Upstream's
+  DSL editor takes a workspace lock precisely because it is multi-user;
+  ours is not. Worth knowing: upstream's editor is also gated behind a
+  feature flag that defaults off, and Structurizr **Lite** — the closest
+  analogue to c4studio — has no DSL editor at all. This work puts
+  c4studio ahead of its nearest comparator, not behind it.
+- **A real grammar** (ANTLR/tree-sitter) — see `roadmap.md`.
+- **Editing `!docs`/`!adrs` markdown** — `_safe_resolve`'s suffix
+  allowlist rejects `.md`; widening it needs its own design.
+- **`fsync` on write** — unnecessary durability cost for a local
+  single-user editor on a journalling filesystem.
+
+---
+
+## Progress
+
+| Ticket | Status | PR |
+|---|---|---|
+| A1 — Studio/Viewer modes, `GET /api/capabilities` | ✅ Done | #128 (PP-119) |
+| A2 — Keep watching includes after a failed reload | ✅ Done | #129 (PP-120) |
+| A3 — Parser source overlay | 🔨 In progress | PP-121 |
+| A4 — `POST /api/check` | ⬜ Not started | PP-122 |
+| B1–B4, C1–C5, D1–D2, E1–E2, F1 | ⬜ Not started | not yet ticketed |
+
+Update this table as tickets land, and file the next phase's tickets when
+the current one is done rather than all at once.
+
+## Deferred decision
+
+Whether to kill the three-way keyword duplication by generating the
+frontend sets from `dsl.py` at build time. Worth its own ticket *after*
+B2, when there is a concrete fourth consumer to justify it — not as scope
+creep inside the editor work.
