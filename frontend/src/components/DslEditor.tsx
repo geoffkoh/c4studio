@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useRef } from "react";
 import {
+  autocompletion,
+  closeBrackets,
+  closeBracketsKeymap,
+  completionKeymap,
+} from "@codemirror/autocomplete";
+import {
   defaultKeymap,
   history,
   historyKeymap,
@@ -20,6 +26,7 @@ import {
   rectangularSelection,
 } from "@codemirror/view";
 
+import { dslCompletionSource, type DslCompletionModel } from "../dslComplete";
 import { dslEditorTheme, dslHighlighting, dslLanguage } from "../dslLanguage";
 import type { DslDiagnostic } from "../types";
 
@@ -37,6 +44,8 @@ interface DslEditorProps {
   readOnly: boolean;
   /** Diagnostics for *this* file, already filtered by the caller. */
   diagnostics: DslDiagnostic[];
+  /** Identifiers and view keys the loaded workspace offers to completion. */
+  completions: DslCompletionModel;
   flash: EditorFlash | null;
   onChange: (text: string) => void;
   onSave: () => void;
@@ -106,6 +115,7 @@ export function DslEditor({
   value,
   readOnly,
   diagnostics,
+  completions,
   flash,
   onChange,
   onSave,
@@ -113,6 +123,7 @@ export function DslEditor({
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const readOnlyCompartment = useRef(new Compartment());
+  const completionCompartment = useRef(new Compartment());
   const flashTimer = useRef<number | null>(null);
   // Props reach the (long-lived) CodeMirror extensions through refs, so a
   // new closure on every render does not mean rebuilding the editor.
@@ -121,10 +132,12 @@ export function DslEditor({
   const readOnlyRef = useRef(readOnly);
   const valueRef = useRef(value);
   const docKeyRef = useRef(docKey);
+  const completionsRef = useRef(completions);
   onChangeRef.current = onChange;
   onSaveRef.current = onSave;
   readOnlyRef.current = readOnly;
   valueRef.current = value;
+  completionsRef.current = completions;
 
   const buildState = useCallback(
     (doc: string) =>
@@ -138,8 +151,17 @@ export function DslEditor({
           drawSelection(),
           rectangularSelection(),
           bracketMatching(),
+          closeBrackets(),
           lintGutter(),
           flashField,
+          completionCompartment.current.of(
+            autocompletion({
+              override: [dslCompletionSource(completionsRef.current)],
+              // The DSL is short lines of identifiers; an icon column for
+              // every entry is more chrome than the list is worth.
+              icons: false,
+            }),
+          ),
           EditorState.allowMultipleSelections.of(true),
           EditorView.lineWrapping,
           keymap.of([
@@ -151,6 +173,10 @@ export function DslEditor({
                 return true;
               },
             },
+            // Before defaultKeymap, so Enter and Escape reach the open
+            // completion list rather than inserting a newline.
+            ...completionKeymap,
+            ...closeBracketsKeymap,
             ...defaultKeymap,
             ...historyKeymap,
             indentWithTab,
@@ -215,6 +241,22 @@ export function DslEditor({
       ),
     });
   }, [readOnly]);
+
+  // A reload can rename, add or drop elements, so the identifier list is
+  // swapped rather than captured once. A compartment keeps that a
+  // reconfigure instead of a rebuild — the document and undo survive.
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    view.dispatch({
+      effects: completionCompartment.current.reconfigure(
+        autocompletion({
+          override: [dslCompletionSource(completions)],
+          icons: false,
+        }),
+      ),
+    });
+  }, [completions]);
 
   useEffect(() => {
     const view = viewRef.current;

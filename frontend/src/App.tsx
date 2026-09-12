@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   ApiError,
@@ -20,6 +20,7 @@ import type {
   ViewInfo,
   Workspace,
 } from "./types";
+import { completionModel } from "./dslComplete";
 import { buildTrail } from "./navigation";
 import { isTypingTarget } from "./shortcuts";
 import { DocsPane } from "./components/DocsPane";
@@ -182,6 +183,14 @@ export default function App() {
     return () => window.clearInterval(timer);
   }, [currentPath, refresh]);
 
+  // What the editor can complete. Rebuilt only when the model or the view
+  // index actually changes, so the editor reconfigures on a reload rather
+  // than on every render.
+  const completions = useMemo(
+    () => completionModel(workspace, views),
+    [workspace, views],
+  );
+
   /** A save from the editor. The server reloaded synchronously and told us
       the generation it produced, so adopting it here stops the poll from
       treating our own write as someone else's edit and refreshing twice. */
@@ -316,6 +325,7 @@ export default function App() {
                   reloadTick={reloadTick}
                   focus={codeFocus}
                   readOnly={readOnly}
+                  completions={completions}
                   onSaved={handleSaved}
                 />
               }

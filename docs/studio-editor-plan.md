@@ -109,7 +109,7 @@ conventions in `roadmap.md`.
 | B1 | `feat(webapp): PUT /api/source` | Atomic write, content-hash fingerprints, 409 conflict flow, synchronous reload, **and the UTF-8 fix** (see Risks). | A1, A2 |
 | B2 | `feat(frontend): CodeMirror 6 DSL editor` | Dependency in `frontend/package.json` — **never** `packages/diagram-core`, which is bundled into the headless Node renderer and must never need a DOM. `dslLanguage.ts` as a `StreamLanguage` built from a refactored `highlight.ts`. Debounced `/api/check` → `@codemirror/lint` squiggles. | A1, A4, B1 |
 | B3 | `feat(frontend): split authoring view` | Source page becomes editor-left / diagram-right. `GraphPane` is reused as-is — already prop-injected for exactly this. | B2 |
-| B4 | `feat(frontend): DSL autocomplete` | Keywords from the shared vocabulary; element ids and aliases from the loaded workspace; view keys in `include`/`exclude`. | B2 |
+| B4 | `feat(frontend): DSL autocomplete` | Keywords from the shared vocabulary; element ids and aliases from the loaded workspace; view keys after `filtered` (**not** in `include`/`exclude` — see [Completion needs no endpoint](#completion-needs-no-endpoint)). | B2 |
 
 ### Phase C — Scale
 
@@ -253,11 +253,40 @@ check and produce a zero-height pane:
   page and the diagram half collapses to a rail. A real file tree with
   search is C3's job, not something to solve by widening this column.
 
+### Completion needs no endpoint
+
+Two findings from B4, both of which removed work rather than adding it.
+
+**Element ids are already the aliases.** `dsl.py` computes
+`elem_id = alias or name.replace(" ", "_").lower()`, so an element's `id`
+in `/api/workspace` *is* the identifier you type in the DSL whenever one
+was declared. The completion list needed no new endpoint and no parser
+change — the data has been on the wire since the model was first served.
+
+**The plan was wrong about view keys.** This table used to say "view keys
+in `include`/`exclude`". `FilteredViewParser` upstream declares
+`filtered <baseKey> <include|exclude> <tags>`: the view key is the
+argument to `filtered`, and what follows `include|exclude` *there* is
+tags. Inside a view, `include`/`exclude` take element expressions. So
+completion offers view keys after `filtered`, identifiers and expressions
+after a view's `include`/`exclude`, and nothing after a filtered view's —
+those tags are the user's own vocabulary. Checking `../structurizr/`
+settled it in seconds, which is what that checkout is for.
+
+Context comes from a look at the current line, not a parse tree: after
+`->`, at the head of a statement, after `include`/`exclude`, after
+`filtered`. Directive lines are suppressed the way the highlighter
+suppresses keyword colouring on them, except the four that take an
+identifier (`!element`, `!elements`, `!relationship`, `!relationships`).
+Directive *names* are deliberately not offered — that would be a second
+vocabulary to keep in step with `dsl-support.md`.
+
 **Dependencies added** (frontend only, per the ticket): `@codemirror/state`,
-`view`, `commands`, `language`, `lint` and `@lezer/highlight`. Not the
-`codemirror` meta-package — it pulls autocomplete and search, which belong
-to B4 if at all. The committed bundle grows ~330 KB raw (~100 KB gzipped);
-acceptable for a local-first app served from `127.0.0.1`.
+`view`, `commands`, `language`, `lint` and `@lezer/highlight`, plus
+`@codemirror/autocomplete` in B4. Not the `codemirror` meta-package, which
+would also pull search. The committed bundle grows ~370 KB raw (~110 KB
+gzipped) across B2 and B4; acceptable for a local-first app served from
+`127.0.0.1`.
 
 The three-way keyword duplication is now a *two*-way one plus a consumer:
 `highlight.ts` became the vocabulary module and `dslLanguage.ts` builds the
@@ -356,8 +385,9 @@ State these in the tickets so they don't creep in.
 | B1 — `PUT /api/source` | ✅ Done | PP-124 |
 | B2 — CodeMirror editor | ✅ Done | PP-125 |
 | B3 — Split authoring view | ✅ Done | PP-128 |
-| B4 — DSL autocomplete | ⬜ Next | not yet ticketed |
-| C1–C5, D1–D2, E1–E2, F1 | ⬜ Not started | not yet ticketed |
+| B4 — DSL autocomplete | ✅ Done | PP-129 |
+| C1 — Cache source discovery | ⬜ Next | not yet ticketed |
+| C2–C5, D1–D2, E1–E2, F1 | ⬜ Not started | not yet ticketed |
 
 Update this table as tickets land, and file the next phase's tickets when
 the current one is done rather than all at once.

@@ -8,6 +8,7 @@ import type {
   SourceFile,
   SourceResult,
 } from "../types";
+import type { DslCompletionModel } from "../dslComplete";
 import { DslEditor, type EditorFlash } from "./DslEditor";
 
 export interface CodeFocus {
@@ -39,6 +40,8 @@ interface SourcePaneProps {
   focus: CodeFocus | null;
   /** Viewer mode: the server refuses DSL writes, so nothing offers them. */
   readOnly: boolean;
+  /** Identifiers and view keys from the loaded workspace, for completion. */
+  completions: DslCompletionModel;
   /** Called after a successful write so the app can adopt the reload
       generation and refresh the diagram. */
   onSaved: (result: SaveSourceResult) => void;
@@ -94,6 +97,7 @@ export function SourcePane({
   reloadTick,
   focus,
   readOnly,
+  completions,
   onSaved,
 }: SourcePaneProps) {
   const [data, setData] = useState<SourceResult | null>(null);
@@ -389,6 +393,7 @@ export function SourcePane({
           value={buffer.text}
           readOnly={editorReadOnly}
           diagnostics={fileDiagnostics}
+          completions={completions}
           flash={flash}
           onChange={handleChange}
           onSave={handleSave}
