@@ -303,6 +303,39 @@ def _begin_watching(state: AppState, path: Path) -> None:
     state.source_cache = None
 
 
+def _reload_now(state: AppState) -> None:
+    """Re-parse the loaded source, keeping the last good workspace on failure.
+
+    The watch token is claimed *before* the attempt, so a source that does
+    not parse is not re-parsed on every poll until it changes again.
+
+    On failure the watched file list is still refreshed. Without that, a
+    root that fails to parse keeps watching the files it referenced when it
+    last parsed — so adding ``!include model/new.dsl`` before ``new.dsl``
+    exists means nothing ever starts watching ``new.dsl``, and creating it
+    reloads nothing. Rare with an external editor, which touches the root
+    on save anyway; the normal order in an in-app editor.
+
+    Called from the ``/api/status`` heartbeat and, once editing lands, from
+    the save path — one reload implementation, not two.
+    """
+    if state.workspace is None or state.current_path is None:
+        return
+    state.watch_token = _watch_token(state.watch_files)
+    try:
+        workspace = load_workspace(state.current_path)
+    except WorkspaceLoadError as exc:
+        state.load_error = str(exc)
+        state.watch_files = watched_files(state.current_path)
+        state.watch_token = _watch_token(state.watch_files)
+        return
+    state.workspace = workspace
+    state.diagrams.clear()
+    _begin_watching(state, state.current_path)
+    _apply_saved_layout(state)
+    state.generation += 1
+
+
 def _layout_sidecar(source: Path) -> Path:
     """Path of the layout sidecar stored next to a workspace source."""
     return source.with_name(f"{source.stem}.layout.json")
@@ -610,19 +643,8 @@ def create_app(
         """
         if state.workspace is None or state.current_path is None:
             return {"path": None, "generation": state.generation, "error": None}
-        current = _watch_token(state.watch_files)
-        if current != state.watch_token:
-            state.watch_token = current
-            try:
-                workspace = load_workspace(state.current_path)
-            except WorkspaceLoadError as exc:
-                state.load_error = str(exc)
-            else:
-                state.workspace = workspace
-                state.diagrams.clear()
-                _begin_watching(state, state.current_path)
-                _apply_saved_layout(state)
-                state.generation += 1
+        if _watch_token(state.watch_files) != state.watch_token:
+            _reload_now(state)
         return {
             "path": state.current_path.relative_to(state.root).as_posix(),
             "generation": state.generation,
