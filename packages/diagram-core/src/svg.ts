@@ -151,8 +151,11 @@ const LEGEND_PAD = 12;
 const LEGEND_COLUMN_WIDTH = 220;
 const LEGEND_MAX_ROWS = 6;
 
-const EDGE_COLOUR = "#b1b1b7";
-const EDGE_WIDTH = 1;
+// Deliberately duplicated from edgePaint.ts (which imports a runtime value
+// from reactflow, unwanted here) — keep the two in step or headless
+// exports diverge from the screen.
+const EDGE_COLOUR = "#8f8f98";
+const EDGE_WIDTH = 1.8;
 const ARROW = 10;
 const EDGE_LABEL_SIZE = 10;
 const EDGE_LABEL_COLOUR = "#6b7684"; // --muted

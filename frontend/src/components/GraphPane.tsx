@@ -36,6 +36,7 @@ import {
   chromePlacement,
   isChromeNode,
   EDGE_PAINT,
+  EDGE_HOVER_MARKER,
   ElementNode,
   ExportButtons,
   FloatingEdge,
@@ -890,7 +891,10 @@ export function GraphPane({
       const hovered = edge.id === activeHover;
       return {
         ...edge,
-        ...(hovered ? { zIndex: 1000 } : {}),
+        // The marker swap is what lights the arrowhead up with the path:
+        // markers keep their colour from edge definition, not from hover
+        // styling, so the hovered edge gets the highlighted marker def.
+        ...(hovered ? { zIndex: 1000, markerEnd: EDGE_HOVER_MARKER } : {}),
         data: {
           ...edge.data,
           pathStyle: edgeStyle,

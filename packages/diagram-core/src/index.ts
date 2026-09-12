@@ -28,6 +28,9 @@ export {
   EDGE_COLOUR,
   EDGE_WIDTH,
   EDGE_ARROW_SIZE,
+  EDGE_HOVER_COLOUR,
+  EDGE_HOVER_WIDTH,
+  EDGE_HOVER_MARKER,
 } from "./edgePaint";
 export { insertionIndex } from "./waypoints";
 export {

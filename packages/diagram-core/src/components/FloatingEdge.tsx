@@ -11,6 +11,8 @@ import {
   type Node,
 } from "reactflow";
 
+import { EDGE_HOVER_COLOUR, EDGE_HOVER_WIDTH } from "../edgePaint";
+
 export interface FloatingEdgeData {
   /** Dragged offset from the label's computed place, in flow units. */
   labelOffset?: [number, number];
@@ -394,15 +396,16 @@ export function FloatingEdge({
   const animState = data?.animState;
   const hovered = data?.hoverState === "hovered";
   // The hovered edge pops (colour, weight, glow); nothing else changes.
-  // Dynamic-view animation still dims future steps.
+  // Dynamic-view animation still dims future steps. Widths sit above the
+  // resting EDGE_WIDTH so emphasis stays visible as that value is tuned.
   const emphasis = hovered
     ? {
-        stroke: "#1976d2",
-        strokeWidth: 2.6,
+        stroke: EDGE_HOVER_COLOUR,
+        strokeWidth: EDGE_HOVER_WIDTH,
         filter: "drop-shadow(0 0 3px rgba(25, 118, 210, 0.55))",
       }
     : animState === "active"
-      ? { stroke: "#1976d2", strokeWidth: 2.4 }
+      ? { stroke: EDGE_HOVER_COLOUR, strokeWidth: EDGE_HOVER_WIDTH - 0.4 }
       : animState === "future"
         ? { opacity: 0.08 }
         : {};
