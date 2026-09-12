@@ -66,6 +66,13 @@ export interface GraphPayloadEdge {
   target: string;
   label?: string;
   waypoints?: [number, number][];
+  /** Resolved relationship-style paint; absent fields use the defaults
+      (dashed, per upstream Structurizr). */
+  color?: string;
+  lineStyle?: string;
+  thickness?: number;
+  /** Percentage, as Structurizr spells it (0–100). */
+  opacity?: number;
 }
 
 export interface LegendEntry {
@@ -155,9 +162,11 @@ const LEGEND_MAX_ROWS = 6;
 
 // Deliberately duplicated from edgePaint.ts (which imports a runtime value
 // from reactflow, unwanted here) — keep the two in step or headless
-// exports diverge from the screen.
-const EDGE_COLOUR = "#8f8f98";
-const EDGE_WIDTH = 1.8;
+// exports diverge from the screen. Dashed, 2px, #444444 is upstream
+// Structurizr's default relationship style.
+const EDGE_COLOUR = "#444444";
+const EDGE_WIDTH = 2;
+const EDGE_LINE_STYLE = "dashed";
 const ARROW = 10;
 const EDGE_LABEL_SIZE = 10;
 const EDGE_LABEL_COLOUR = "#6b7684"; // --muted
@@ -529,6 +538,27 @@ function paintBoundary(node: Placed): string {
   );
 }
 
+/** One arrowhead marker per line colour, so heads match their lines. */
+function arrowMarkerId(colour: string): string {
+  return `arrow-${colour.replace(/[^A-Za-z0-9]/g, "")}`;
+}
+
+function arrowMarkerDefs(edges: GraphPayloadEdge[]): string {
+  const colours = new Set<string>([EDGE_COLOUR]);
+  for (const edge of edges) {
+    if (edge.color) colours.add(edge.color);
+  }
+  return [...colours]
+    .map(
+      (colour) =>
+        `<marker id="${arrowMarkerId(colour)}" viewBox="0 0 10 10" refX="9" refY="5" ` +
+        `markerWidth="${ARROW}" markerHeight="${ARROW}" markerUnits="userSpaceOnUse" ` +
+        `orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="${colour}"/>` +
+        `</marker>`,
+    )
+    .join("");
+}
+
 function paintEdge(
   edge: GraphPayloadEdge,
   placed: Map<string, Placed>,
@@ -553,9 +583,28 @@ function paintEdge(
     .map((p, i) => `${i === 0 ? "M" : "L"} ${round(p.x)} ${round(p.y)}`)
     .join(" ");
 
+  const colour = edge.color || EDGE_COLOUR;
+  const strokeWidth = edge.thickness ?? EDGE_WIDTH;
+  const lineStyle =
+    edge.lineStyle === "solid" ||
+    edge.lineStyle === "dashed" ||
+    edge.lineStyle === "dotted"
+      ? edge.lineStyle
+      : EDGE_LINE_STYLE;
+  // Same width-scaled ratios as element borders, so dashes look alike
+  // everywhere (and match edgePaint.ts's edgeDashArray).
+  const dash =
+    lineStyle === "dashed"
+      ? ` stroke-dasharray="${round(strokeWidth * 5)} ${round(strokeWidth * 3)}"`
+      : lineStyle === "dotted"
+        ? ` stroke-dasharray="${round(strokeWidth)} ${round(strokeWidth * 2.5)}"`
+        : "";
+  const opacity =
+    edge.opacity !== undefined ? ` opacity="${edge.opacity / 100}"` : "";
   const path =
-    `<path d="${d}" fill="none" stroke="${EDGE_COLOUR}" ` +
-    `stroke-width="${EDGE_WIDTH}" marker-end="url(#arrow)"/>`;
+    `<path d="${d}" fill="none" stroke="${colour}" ` +
+    `stroke-width="${strokeWidth}"${dash}${opacity} ` +
+    `marker-end="url(#${arrowMarkerId(colour)})"/>`;
 
   if (!edge.label) return path;
 
@@ -792,10 +841,7 @@ export async function renderSvg(
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" ` +
     `viewBox="0 0 ${width} ${height}" font-family="${FONT}">` +
     titleTag +
-    `<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" ` +
-    `markerWidth="${ARROW}" markerHeight="${ARROW}" markerUnits="userSpaceOnUse" ` +
-    `orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="${EDGE_COLOUR}"/>` +
-    `</marker></defs>` +
+    `<defs>${arrowMarkerDefs(payload.edges)}</defs>` +
     background +
     heading +
     `<g transform="${shift}">${body}</g>` +

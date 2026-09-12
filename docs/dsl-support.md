@@ -128,7 +128,7 @@ prints. A skipped construct never consumes its enclosing scope.
 | Keyword | Support | Notes |
 | --- | --- | --- |
 | `styles { element … }` | ◐ | Every property parses. Painted: `background`, `color`, `shape`, `icon`, `border`, `stroke`, `strokeWidth`, `opacity`, `metadata`, `description`. Parsed and exported but **not** painted: `width`, `height`, `fontSize`, `iconPosition` — each warns (`ignored-style-property`), as does an unrecognised property name (`unknown-style-property`) |
-| `styles { relationship … }` | ◐ | Parsed and exported in full; the viewer does not yet paint edge styling beyond `metadata`/`description` |
+| `styles { relationship … }` | ◐ | Every property parses and exports. Painted: `color`, `style` / `dashed` (solid/dashed/dotted; `style` wins when both are set), `thickness`, `opacity`, `metadata`, `description`. Parsed and exported but **not** painted: `routing`, `jump`, `position`, `width`, `fontSize`. Unstyled relationships render dashed, 2px, `#444444` — upstream Structurizr's default — so mark special edges with `style dotted`/`style solid` or a colour, not `dashed true` |
 | `light { … }` / `dark { … }` | ◐ | Colour-scheme variants parse; the viewer renders one scheme |
 | `theme <url\|default>` | ✅ | Fetched, cached and merged; workspace styles win |
 | `themes <url> <url…>` | ✅ | |

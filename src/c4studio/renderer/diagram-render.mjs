@@ -9368,8 +9368,9 @@ var LEGEND_GAP = 24;
 var LEGEND_PAD = 12;
 var LEGEND_COLUMN_WIDTH = 220;
 var LEGEND_MAX_ROWS = 6;
-var EDGE_COLOUR = "#8f8f98";
-var EDGE_WIDTH = 1.8;
+var EDGE_COLOUR = "#444444";
+var EDGE_WIDTH = 2;
+var EDGE_LINE_STYLE = "dashed";
 var ARROW = 10;
 var EDGE_LABEL_SIZE = 10;
 var EDGE_LABEL_COLOUR = "#6b7684";
@@ -9590,6 +9591,15 @@ function paintBoundary(node) {
 	const type = meta ? `<tspan font-weight="400" font-style="italic" opacity="0.85"> [${escapeXml(meta)}]</tspan>` : "";
 	return `<rect x="${round(node.x)}" y="${round(node.y)}" width="${round(node.width)}" height="${round(node.height)}" rx="${BOUNDARY_RADIUS}" ry="${BOUNDARY_RADIUS}" fill="${BOUNDARY_FILL}" stroke="${BOUNDARY_STROKE}" stroke-width="2" stroke-dasharray="6 4"/><text x="${round(node.x + 12)}" y="${round(node.y + node.height - 9)}" font-family="${FONT}" font-size="${BOUNDARY_LABEL_SIZE}" font-weight="600" fill="${BOUNDARY_LABEL_COLOUR}">${label}${type}</text>`;
 }
+/** One arrowhead marker per line colour, so heads match their lines. */
+function arrowMarkerId(colour) {
+	return `arrow-${colour.replace(/[^A-Za-z0-9]/g, "")}`;
+}
+function arrowMarkerDefs(edges) {
+	const colours = /* @__PURE__ */ new Set([EDGE_COLOUR]);
+	for (const edge of edges) if (edge.color) colours.add(edge.color);
+	return [...colours].map((colour) => `<marker id="${arrowMarkerId(colour)}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="${ARROW}" markerHeight="${ARROW}" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="${colour}"/></marker>`).join("");
+}
 function paintEdge(edge, placed) {
 	const source = placed.get(edge.source);
 	const target = placed.get(edge.target);
@@ -9613,7 +9623,11 @@ function paintEdge(edge, placed) {
 		...waypoints,
 		end
 	];
-	const path = `<path d="${points.map((p, i) => `${i === 0 ? "M" : "L"} ${round(p.x)} ${round(p.y)}`).join(" ")}" fill="none" stroke="${EDGE_COLOUR}" stroke-width="${EDGE_WIDTH}" marker-end="url(#arrow)"/>`;
+	const d = points.map((p, i) => `${i === 0 ? "M" : "L"} ${round(p.x)} ${round(p.y)}`).join(" ");
+	const colour = edge.color || EDGE_COLOUR;
+	const strokeWidth = edge.thickness ?? EDGE_WIDTH;
+	const lineStyle = edge.lineStyle === "solid" || edge.lineStyle === "dashed" || edge.lineStyle === "dotted" ? edge.lineStyle : EDGE_LINE_STYLE;
+	const path = `<path d="${d}" fill="none" stroke="${colour}" stroke-width="${strokeWidth}"${lineStyle === "dashed" ? ` stroke-dasharray="${round(strokeWidth * 5)} ${round(strokeWidth * 3)}"` : lineStyle === "dotted" ? ` stroke-dasharray="${round(strokeWidth)} ${round(strokeWidth * 2.5)}"` : ""}${edge.opacity !== void 0 ? ` opacity="${edge.opacity / 100}"` : ""} marker-end="url(#${arrowMarkerId(colour)})"/>`;
 	if (!edge.label) return path;
 	const mid = points[Math.floor((points.length - 1) / 2)];
 	const next = points[Math.floor((points.length - 1) / 2) + 1] ?? mid;
@@ -9739,7 +9753,7 @@ async function renderSvg(payload, options = {}) {
 	const heading = drawTitle ? textLine(title, padding, padding + TITLE_SIZE, TITLE_SIZE, TITLE_COLOUR, 1, 600, "start") : "";
 	const background = options.background === null ? "" : `<rect width="100%" height="100%" fill="${options.background ?? "#ffffff"}"/>`;
 	const titleTag = title ? `<title>${escapeXml(title)}</title>` : "";
-	return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" font-family="${FONT}">` + titleTag + `<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="${ARROW}" markerHeight="${ARROW}" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="${EDGE_COLOUR}"/></marker></defs>` + background + heading + `<g transform="${shift}">${body}</g>` + (legend ? legend.markup : "") + `</svg>\n`;
+	return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" font-family="${FONT}">` + titleTag + `<defs>${arrowMarkerDefs(payload.edges)}</defs>` + background + heading + `<g transform="${shift}">${body}</g>` + (legend ? legend.markup : "") + `</svg>\n`;
 }
 //#endregion
 //#region src/cli.ts

@@ -18,7 +18,7 @@ import pytest
 
 from c4studio.graph.view_graph import build_view_graph
 from c4studio.models import Workspace
-from c4studio.models.enums import ColorScheme
+from c4studio.models.enums import ColorScheme, LineStyle
 from c4studio.parser.dsl import parse_dsl_file
 
 SAMPLE = Path(__file__).parent.parent.parent / "samples" / "logistics_network.dsl"
@@ -182,8 +182,10 @@ def test_styles_branding_and_terminology(workspace: Workspace) -> None:
     schemes = {s.color_scheme for s in person_styles}
     assert ColorScheme.DARK in schemes
 
+    # Dashed is every relationship's default, so the sample marks async
+    # traffic dotted — a distinction the default cannot swallow.
     async_style = next(s for s in config.styles.relationship_styles if s.tag == "Async")
-    assert async_style.dashed is True
+    assert async_style.style is LineStyle.DOTTED
 
     assert len(config.themes) == 2
 

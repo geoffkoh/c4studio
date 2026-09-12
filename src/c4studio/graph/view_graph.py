@@ -21,6 +21,7 @@ from typing import Any
 from c4studio.themes import theme_styles
 from c4studio.models import (
     AutomaticLayout,
+    ColorScheme,
     Component,
     Container,
     CustomElement,
@@ -340,7 +341,11 @@ def _edges(
                 "id": rel.id or _pair_edge_id(src, dst, pair_counts),
                 "source": src,
                 "target": dst,
-                "data": {"label": label, "technology": technology},
+                "data": {
+                    "label": label,
+                    "technology": technology,
+                    **_edge_paint(styles, rel),
+                },
             }
         )
     return edges
@@ -533,6 +538,37 @@ def _relationship_styles(workspace: Workspace) -> list[RelationshipStyle]:
     ]
 
 
+def _edge_paint(styles: list[RelationshipStyle], rel: Relationship) -> dict[str, Any]:
+    """Resolved paint for a relationship's edge: only what a style set.
+
+    Mirrors ``_edge_text`` and upstream resolution: every relationship
+    implicitly carries the ``Relationship`` tag, rules apply in declaration
+    order (theme first, so workspace styles win) and each property is
+    copied only when specified. The newer ``style`` line-style property
+    beats the legacy ``dashed`` boolean when a rule sets both. Dark-scheme
+    variants are skipped — the viewer paints one scheme. Defaults live in
+    the renderers, so an unstyled edge contributes nothing here.
+    """
+    paint: dict[str, Any] = {}
+    if not styles:
+        return paint
+    tags = {"Relationship", *rel.tags}
+    for style in styles:
+        if style.tag not in tags or style.color_scheme == ColorScheme.DARK:
+            continue
+        if style.color:
+            paint["color"] = style.color
+        if style.thickness is not None:
+            paint["thickness"] = style.thickness
+        if style.opacity is not None:
+            paint["opacity"] = style.opacity
+        if style.style is not None:
+            paint["lineStyle"] = style.style.value.lower()
+        elif style.dashed is not None:
+            paint["lineStyle"] = "dashed" if style.dashed else "solid"
+    return paint
+
+
 def _edge_text(styles: list[RelationshipStyle], rel: Relationship) -> tuple[str, str]:
     """Return the (description, technology) an edge should show.
 
@@ -721,7 +757,11 @@ def _deployment_data(workspace: Workspace, view: View) -> GraphData:
                 "id": _pair_edge_id(src, dst, pair_counts),
                 "source": src,
                 "target": dst,
-                "data": {"label": label, "technology": technology},
+                "data": {
+                    "label": label,
+                    "technology": technology,
+                    **_edge_paint(rel_styles, rel),
+                },
             }
         )
 
@@ -821,6 +861,11 @@ def _dynamic_data(workspace: Workspace, view: View) -> GraphData:
                     "label": f"{order}. {description}" if description else str(order),
                     "technology": technology,
                     "order": order,
+                    **(
+                        _edge_paint(rel_styles, model_rel)
+                        if model_rel is not None
+                        else {}
+                    ),
                 },
             }
         )

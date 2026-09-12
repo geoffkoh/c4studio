@@ -82,6 +82,12 @@ export interface GEdge {
   waypoints?: [number, number][];
   /** Dragged label offset from its default place, from the sidecar. */
   labelOffset?: [number, number];
+  /** Resolved relationship-style paint; absent fields use the defaults
+      (dashed, per upstream Structurizr). */
+  color?: string;
+  lineStyle?: string;
+  thickness?: number;
+  opacity?: number;
 }
 
 /** Response body from GET /api/views/{key}/graph. */
