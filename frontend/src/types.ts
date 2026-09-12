@@ -107,6 +107,9 @@ export interface GraphData {
       seed their toggles from these on first load of a view. */
   expandedIds?: string[];
   collapsedIds?: string[];
+  /** Dragged title/legend positions from the sidecar, keyed "title" /
+      "legend"; absent chrome keeps its computed placement. */
+  chrome?: Record<string, [number, number]>;
 }
 
 /** Response body from POST /api/views/{key}/layout. */

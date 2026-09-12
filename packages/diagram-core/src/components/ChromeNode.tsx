@@ -59,12 +59,21 @@ function Swatch({ entry }: { entry: LegendEntryData }) {
   );
 }
 
+// Chrome is draggable in the app (out of the way of a hand-arranged
+// diagram) and inert on embedded/export surfaces; the hint is harmless
+// where dragging is off.
+const MOVE_HINT = "Drag to move; double-click to reset";
+
 function ChromeNodeComponent({ data }: NodeProps<ChromeNodeData>) {
   if (data.kind === "title") {
-    return <div className="diagram-title">{data.title}</div>;
+    return (
+      <div className="diagram-title" title={MOVE_HINT}>
+        {data.title}
+      </div>
+    );
   }
   return (
-    <div className="legend">
+    <div className="legend" title={MOVE_HINT}>
       {(data.entries ?? []).map((entry) => (
         <div className="legend__row" key={`${entry.label}-${entry.colour}`}>
           <Swatch entry={entry} />

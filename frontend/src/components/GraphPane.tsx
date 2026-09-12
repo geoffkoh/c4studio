@@ -156,6 +156,7 @@ interface GraphPaneProps {
     sizes: Record<string, [number, number]>,
     waypoints: Record<string, [number, number][]>,
     labels: Record<string, [number, number]>,
+    chrome: Record<string, [number, number]>,
   ) => Promise<unknown>;
   resetLayout: (key: string) => Promise<unknown>;
 }
@@ -264,20 +265,27 @@ async function toFlow(
       })
     : await normalizeStoredPositions(nodes, edges);
 
-  // The diagram's own title and legend. Added after layout and excluded
-  // from saved layouts (see absolutePositions): they describe the diagram
-  // rather than belonging to it. They live inside the viewport, not in a
-  // Panel, so PNG/SVG export captures them.
+  // The diagram's own title and legend. Added after layout and kept out of
+  // the sidecar's `views` section (see absolutePositions): they describe
+  // the diagram rather than belonging to it. They live inside the viewport,
+  // not in a Panel, so PNG/SVG export captures them. Draggable out of the
+  // way — a dragged position arrives via the payload's `chrome` map and
+  // wins over the computed placement; double-click puts one back.
   const placement = chromePlacement(positioned);
+  const stored = data.chrome ?? {};
+  const chromePosition = (name: "title" | "legend") => {
+    const point = stored[name];
+    return point ? { x: point[0], y: point[1] } : placement[name];
+  };
   const chrome: Node[] = [];
   const title = view.title || view.key;
   if (title) {
     chrome.push({
       id: `${CHROME_PREFIX}title`,
       type: "chrome",
-      position: placement.title,
+      position: chromePosition("title"),
       data: { kind: "title", title },
-      draggable: false,
+      draggable: true,
       selectable: false,
       deletable: false,
     });
@@ -286,9 +294,9 @@ async function toFlow(
     chrome.push({
       id: `${CHROME_PREFIX}legend`,
       type: "chrome",
-      position: placement.legend,
+      position: chromePosition("legend"),
       data: { kind: "legend", entries: data.legend },
-      draggable: false,
+      draggable: true,
       selectable: false,
       deletable: false,
     });
@@ -506,6 +514,14 @@ export function GraphPane({
   // Which view the nodes currently on screen belong to; same-view updates
   // (expand/collapse, live reload) animate, view switches jump.
   const shownViewRef = useRef<string | null>(null);
+  // Chrome (title/legend) the user has dragged in this view. Only these
+  // persist to the sidecar — undragged chrome keeps following the computed
+  // placement as the diagram changes shape. Seeded from the payload so a
+  // node-drag save cannot drop positions restored from disk.
+  const movedChromeRef = useRef<{ key: string; ids: Set<string> }>({
+    key: "",
+    ids: new Set(),
+  });
 
   useEffect(() => () => cancelAnimationFrame(animationRef.current), []);
 
@@ -632,12 +648,25 @@ export function GraphPane({
         sizes[node.id] = [Math.round(width), Math.round(height)];
       }
     }
+    const chrome: Record<string, [number, number]> = {};
+    const moved =
+      movedChromeRef.current.key === view.key
+        ? movedChromeRef.current.ids
+        : new Set<string>();
+    for (const node of current) {
+      if (!isChromeNode(node.id) || !moved.has(node.id)) continue;
+      chrome[node.id.slice(CHROME_PREFIX.length)] = [
+        Math.round(node.position.x),
+        Math.round(node.position.y),
+      ];
+    }
     saveLayout(
       view.key,
       absolutePositions(current),
       sizes,
       collectWaypoints(edgeOverride ?? edgesRef.current),
       collectLabelOffsets(edgeOverride ?? edgesRef.current),
+      chrome,
     )
       .then(() => {
         setLayoutState("saved");
@@ -1007,6 +1036,14 @@ export function GraphPane({
     loadGraph(view.key, expandedIds, collapsedIds)
       .then(async (data) => {
         if (cancelled) return;
+        // Chrome restored from the sidecar counts as moved, so the next
+        // layout save keeps it rather than silently dropping the section.
+        movedChromeRef.current = {
+          key: view.key,
+          ids: new Set(
+            Object.keys(data.chrome ?? {}).map((name) => CHROME_PREFIX + name),
+          ),
+        };
         // First graph of a view: seed the toggles from what the server
         // applied (the sidecar's saved state). Only non-empty state needs
         // seeding — empty matches the fresh default already.
@@ -1069,12 +1106,29 @@ export function GraphPane({
 
   const handleNodeDoubleClick = useCallback(
     (_event: unknown, node: Node) => {
+      // Chrome goes back to its computed placement, the same affordance a
+      // dragged edge label has.
+      if (isChromeNode(node.id)) {
+        if (movedChromeRef.current.key === view?.key) {
+          movedChromeRef.current.ids.delete(node.id);
+        }
+        const placement = chromePlacement(
+          nodesRef.current.filter((n) => !isChromeNode(n.id)),
+        );
+        const spot =
+          node.id === `${CHROME_PREFIX}title` ? placement.title : placement.legend;
+        setNodes((current) =>
+          current.map((n) => (n.id === node.id ? { ...n, position: spot } : n)),
+        );
+        saveCurrentLayout();
+        return;
+      }
       const key = (node.data as ElementNodeData | undefined)?.drillKey;
       if (!key) return;
       const target = views.find((v) => v.key === key);
       if (target) onNavigate(target);
     },
-    [views, onNavigate],
+    [views, onNavigate, view, setNodes, saveCurrentLayout],
   );
 
   const selectedCount = useMemo(
@@ -1150,7 +1204,20 @@ export function GraphPane({
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onNodeDoubleClick={handleNodeDoubleClick}
-        onNodeDragStop={() => saveCurrentLayout()}
+        onNodeDragStop={(_, node) => {
+          // A dragged title/legend starts persisting; everything else
+          // keeps following the computed placement.
+          if (isChromeNode(node.id)) {
+            if (movedChromeRef.current.key !== view?.key) {
+              movedChromeRef.current = {
+                key: view?.key ?? "",
+                ids: new Set(),
+              };
+            }
+            movedChromeRef.current.ids.add(node.id);
+          }
+          saveCurrentLayout();
+        }}
         onInit={(instance) => {
           rfRef.current = instance;
         }}

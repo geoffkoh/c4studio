@@ -81,6 +81,10 @@ class AppState:
     # ``{view_key: [id, ...]}``. Applied when a graph request names neither.
     expanded: dict[str, list[str]] = field(default_factory=dict)
     collapsed: dict[str, list[str]] = field(default_factory=dict)
+    # Dragged diagram-chrome positions (title, legend) from the sidecar's
+    # `chrome` section, as ``{view_key: {"title"|"legend": [x, y]}}``.
+    # Absent chrome keeps its computed placement.
+    chrome: dict[str, dict[str, list[int]]] = field(default_factory=dict)
 
 
 class LoadRequest(BaseModel):
@@ -101,6 +105,10 @@ class LayoutRequest(BaseModel):
     # Dragged label offsets, keyed by edge id. An edge present with a zero
     # offset has been dragged back to its default place.
     labels: dict[str, tuple[int, int]] = {}
+    # Dragged diagram-chrome positions ("title", "legend"), absolute flow
+    # coordinates. Only chrome the user actually moved is sent; anything
+    # absent returns to its computed placement.
+    chrome: dict[str, tuple[int, int]] = {}
 
 
 class ExpansionRequest(BaseModel):
@@ -323,6 +331,30 @@ def _read_layout_labels(source: Path) -> dict[str, dict[str, list[int]]]:
     return cleaned
 
 
+def _read_layout_chrome(source: Path) -> dict[str, dict[str, list[int]]]:
+    """Read the sidecar's ``{view_key: {chrome_name: [x, y]}}`` mapping.
+
+    Its own additive top-level ``chrome`` section, like ``edges`` and
+    ``labels``: sidecars written before movable chrome existed have no
+    such key and load unchanged.
+    """
+    chrome = _read_sidecar_data(source).get("chrome")
+    if not isinstance(chrome, dict):
+        return {}
+    cleaned: dict[str, dict[str, list[int]]] = {}
+    for key, by_name in chrome.items():
+        if not isinstance(by_name, dict):
+            continue
+        points = {
+            name: [int(point[0]), int(point[1])]
+            for name, point in by_name.items()
+            if isinstance(point, list) and len(point) == 2
+        }
+        if points:
+            cleaned[key] = points
+    return cleaned
+
+
 def _read_layout_ids(source: Path, section: str) -> dict[str, list[str]]:
     """Read a sidecar section of ``{view_key: [id, ...]}`` string lists.
 
@@ -349,6 +381,7 @@ def _write_layout_sidecar(
     labels: dict[str, dict[str, list[int]]] | None = None,
     expanded: dict[str, list[str]] | None = None,
     collapsed: dict[str, list[str]] | None = None,
+    chrome: dict[str, dict[str, list[int]]] | None = None,
 ) -> Path:
     """Write every sidecar section, removing the file when nothing is left."""
     sidecar = _layout_sidecar(source)
@@ -361,7 +394,9 @@ def _write_layout_sidecar(
         document["expanded"] = expanded
     if collapsed:
         document["collapsed"] = collapsed
-    if not views and not waypoints and not labels and not expanded and not collapsed:
+    if chrome:
+        document["chrome"] = chrome
+    if not any((views, waypoints, labels, expanded, collapsed, chrome)):
         sidecar.unlink(missing_ok=True)
         return sidecar
     sidecar.write_text(json.dumps(document, indent=2, sort_keys=True), encoding="utf-8")
@@ -410,6 +445,7 @@ def _apply_saved_layout(state: AppState) -> None:
     state.labels = _read_layout_labels(state.current_path)
     state.expanded = _read_layout_ids(state.current_path, "expanded")
     state.collapsed = _read_layout_ids(state.current_path, "collapsed")
+    state.chrome = _read_layout_chrome(state.current_path)
     saved = _read_layout_sidecar(state.current_path)
     if not saved:
         return
@@ -634,6 +670,12 @@ def create_app(
         )
         _attach_waypoints(data, state.waypoints.get(key, {}))
         _attach_labels(data, state.labels.get(key, {}))
+        # Dragged title/legend positions; absent chrome is placed by the
+        # client's own computation.
+        if state.chrome.get(key):
+            data["chrome"] = {
+                name: [int(x), int(y)] for name, (x, y) in state.chrome[key].items()
+            }
         data["expandedIds"] = sorted(expand_ids)
         data["collapsedIds"] = sorted(collapse_ids)
         state.diagrams[cache_key] = data
@@ -698,6 +740,14 @@ def create_app(
             all_labels.pop(key, None)
         state.labels = all_labels
 
+        # Only chrome the user dragged arrives; an empty map means every
+        # piece is back on (or never left) its computed placement.
+        chrome_points = {name: [int(x), int(y)] for name, (x, y) in body.chrome.items()}
+        if chrome_points:
+            state.chrome[key] = chrome_points
+        else:
+            state.chrome.pop(key, None)
+
         sidecar = _write_layout_sidecar(
             state.current_path,
             saved,
@@ -705,6 +755,7 @@ def create_app(
             all_labels,
             state.expanded,
             state.collapsed,
+            state.chrome,
         )
         return {"saved": str(sidecar)}
 
@@ -728,8 +779,16 @@ def create_app(
         all_waypoints = _read_layout_waypoints(state.current_path)
         all_labels = _read_layout_labels(state.current_path)
         # Reset means back to auto-layout: straight edges, labels at their
-        # default place on the line, and expansion state cleared.
-        sections = (saved, all_waypoints, all_labels, state.expanded, state.collapsed)
+        # default place on the line, chrome at its computed placement, and
+        # expansion state cleared.
+        sections = (
+            saved,
+            all_waypoints,
+            all_labels,
+            state.expanded,
+            state.collapsed,
+            state.chrome,
+        )
         if any(key in section for section in sections):
             for section in sections:
                 section.pop(key, None)
@@ -745,6 +804,7 @@ def create_app(
                 all_labels,
                 state.expanded,
                 state.collapsed,
+                state.chrome,
             )
         return {"reset": key}
 
@@ -777,6 +837,7 @@ def create_app(
             _read_layout_labels(state.current_path),
             state.expanded,
             state.collapsed,
+            state.chrome,
         )
         return {"saved": str(sidecar)}
 
