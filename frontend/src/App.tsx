@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ApiError,
   deleteLayout,
+  getCapabilities,
   getStatus,
   getViewGraph,
   getWorkspace,
@@ -12,7 +13,7 @@ import {
   saveExpansion,
   saveLayout,
 } from "./api";
-import type { ViewInfo, Workspace } from "./types";
+import type { Capabilities, ViewInfo, Workspace } from "./types";
 import { buildTrail } from "./navigation";
 import { isTypingTarget } from "./shortcuts";
 import { DocsPane } from "./components/DocsPane";
@@ -45,6 +46,11 @@ export default function App() {
   const [codeFocus, setCodeFocus] = useState<CodeFocus | null>(null);
   const [reloadTick, setReloadTick] = useState(0);
   const [helpOpen, setHelpOpen] = useState(false);
+  // `null` until the probe answers, and if it never does. Treated as
+  // read-only, so nothing offers to write against a server that may not
+  // accept it.
+  const [capabilities, setCapabilities] = useState<Capabilities | null>(null);
+  const readOnly = capabilities?.readOnly ?? true;
   const generationRef = useRef(0);
 
   // App-level keyboard shortcuts (diagrams page): j/k cycle views, u goes
@@ -100,6 +106,15 @@ export default function App() {
       .catch((err: unknown) =>
         setError(errorMessage(err, "Failed to list files")),
       );
+  }, []);
+
+  // What this server allows. A server too old to know the endpoint is
+  // treated as read-only: assuming we may write when we cannot is the
+  // failure that loses someone's work.
+  useEffect(() => {
+    getCapabilities()
+      .then(setCapabilities)
+      .catch(() => setCapabilities(null));
   }, []);
 
   // If a workspace is already loaded server-side, hydrate the UI on mount.
@@ -197,6 +212,7 @@ export default function App() {
         onPageChange={setPage}
         sectionCount={workspace?.documentation.sections.length ?? 0}
         decisionCount={workspace?.documentation.decisions.length ?? 0}
+        readOnly={readOnly}
       />
       <div className="body">
         <aside className="sidebar">

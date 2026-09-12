@@ -10,6 +10,7 @@ globals.
 from __future__ import annotations
 
 import dataclasses
+import importlib.metadata
 import importlib.resources
 import json
 import re
@@ -37,11 +38,30 @@ _SKIP_DIRS = frozenset({"node_modules", ".venv", "__pycache__"})
 _MAX_DEPTH = 5
 
 
+@dataclass(frozen=True)
+class AppConfig:
+    """Immutable per-app configuration, fixed at startup.
+
+    Held on :class:`AppState` rather than in a module global so tests can
+    build independent apps, and so every route keeps its single
+    ``Depends(_get_state)``.
+
+    Attributes:
+        read_only: Serve in Viewer mode — DSL cannot be written. Layout
+            and expansion state still persist: you cannot change the
+            model, but you can arrange the view, and the sidecar holding
+            that arrangement is gitignored per-user UI state either way.
+    """
+
+    read_only: bool = False
+
+
 @dataclass
 class AppState:
     """Mutable server state, stored on ``app.state``.
 
     Attributes:
+        config: Immutable startup configuration (see :class:`AppConfig`).
         root: The directory sources are browsed and resolved within.
         current_path: The absolute path of the currently loaded source, if any.
         workspace: The currently loaded workspace, if any.
@@ -66,6 +86,7 @@ class AppState:
     """
 
     root: Path
+    config: AppConfig = field(default_factory=AppConfig)
     current_path: Path | None = None
     workspace: Workspace | None = None
     diagrams: dict[str, dict[str, Any]] = field(default_factory=dict)
@@ -120,6 +141,14 @@ class ExpansionRequest(BaseModel):
     collapsed: list[str] = []
 
 
+def _version() -> str:
+    """The installed distribution version, or ``"unknown"`` from a checkout."""
+    try:
+        return importlib.metadata.version("c4studio")
+    except importlib.metadata.PackageNotFoundError:  # pragma: no cover - source tree
+        return "unknown"
+
+
 def _get_state(request: Request) -> AppState:
     """Return the :class:`AppState` attached to the running app."""
     state: AppState = request.app.state.app_state
@@ -131,6 +160,21 @@ def _require_workspace(state: AppState) -> Workspace:
     if state.workspace is None:
         raise HTTPException(status_code=409, detail="No workspace loaded")
     return state.workspace
+
+
+def _require_writable(state: AppState = Depends(_get_state)) -> AppState:
+    """Return the state, or raise 403 when serving in Viewer mode.
+
+    A dependency rather than a call inside each route body: a route that
+    writes cannot forget to depend on it the way it could forget a call,
+    and the requirement shows up in the generated OpenAPI.
+    """
+    if state.config.read_only:
+        raise HTTPException(
+            status_code=403,
+            detail="Server is running in viewer (read-only) mode",
+        )
+    return state
 
 
 def _safe_resolve(root: Path, rel: str) -> Path:
@@ -470,7 +514,11 @@ def _apply_saved_layout(state: AppState) -> None:
 
 
 def create_app(
-    root: Path, initial: Path | None = None, static_dir: Path | None = None
+    root: Path,
+    initial: Path | None = None,
+    static_dir: Path | None = None,
+    *,
+    read_only: bool = False,
 ) -> FastAPI:
     """Build the FastAPI app serving the web backend.
 
@@ -479,13 +527,16 @@ def create_app(
         initial: Optional source to load eagerly on startup.
         static_dir: Directory holding the built SPA. When ``None`` the
             packaged ``c4studio/webapp/static`` directory is used.
+        read_only: Serve in Viewer mode — routes that write DSL refuse
+            with 403. Keyword-only, so existing positional callers are
+            unaffected.
 
     Returns:
         A configured :class:`fastapi.FastAPI` instance.
     """
     root = root.resolve()
     app = FastAPI(title="c4studio webapp")
-    state = AppState(root=root)
+    state = AppState(root=root, config=AppConfig(read_only=read_only))
 
     if initial is not None:
         initial = initial.resolve()
@@ -495,6 +546,32 @@ def create_app(
         _apply_saved_layout(state)
 
     app.state.app_state = state
+
+    @app.get("/api/capabilities")
+    def capabilities(state: AppState = Depends(_get_state)) -> dict[str, Any]:
+        """Report what this server allows, so the SPA can gate its UI.
+
+        Answers with no workspace loaded — it describes the server, not a
+        workspace. ``features`` is an open map for the same reason the
+        layout sidecar's sections are additive: a later release can add a
+        key without a shape change, and an older client ignores what it
+        does not recognise.
+        """
+        read_only = state.config.read_only
+        return {
+            "readOnly": read_only,
+            "mode": "viewer" if read_only else "studio",
+            "version": _version(),
+            "features": {
+                "editSource": not read_only,
+                # Arranging a diagram is part of reading it, so Viewer
+                # keeps its layout writes (the sidecar is gitignored
+                # per-user UI state regardless).
+                "saveLayout": True,
+                "checkSource": True,
+                "assistant": False,
+            },
+        }
 
     @app.get("/api/files")
     def list_files(state: AppState = Depends(_get_state)) -> list[str]:
@@ -869,7 +946,14 @@ def _mount_static(app: FastAPI, static_dir: Path | None) -> None:
             return {"detail": "frontend not built - run npm run build in frontend/"}
 
 
-def run_server(root: Path, initial: Path | None, host: str, port: int) -> None:
+def run_server(
+    root: Path,
+    initial: Path | None,
+    host: str,
+    port: int,
+    *,
+    read_only: bool = False,
+) -> None:
     """Run the web backend with uvicorn.
 
     Args:
@@ -877,7 +961,13 @@ def run_server(root: Path, initial: Path | None, host: str, port: int) -> None:
         initial: Optional source to load eagerly on startup.
         host: Interface to bind to.
         port: TCP port to listen on.
+        read_only: Serve in Viewer mode (see :func:`create_app`).
     """
     import uvicorn
 
-    uvicorn.run(create_app(root, initial), host=host, port=port, log_level="info")
+    uvicorn.run(
+        create_app(root, initial, read_only=read_only),
+        host=host,
+        port=port,
+        log_level="info",
+    )

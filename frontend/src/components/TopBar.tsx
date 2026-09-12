@@ -13,6 +13,8 @@ interface TopBarProps {
   /** Counts drive which tabs appear; docs tabs hide when empty. */
   sectionCount: number;
   decisionCount: number;
+  /** Server mode. Viewer is badged; Studio is the default and unlabelled. */
+  readOnly: boolean;
 }
 
 /**
@@ -27,6 +29,7 @@ export function TopBar({
   onPageChange,
   sectionCount,
   decisionCount,
+  readOnly,
 }: TopBarProps) {
   const tabs: { id: AppPage; label: string }[] = [
     { id: "diagrams", label: "Diagrams" },
@@ -43,6 +46,14 @@ export function TopBar({
   return (
     <header className="topbar">
       <span className="topbar__title">c4studio</span>
+      {readOnly ? (
+        <span
+          className="topbar__mode"
+          title="Read-only: the DSL cannot be edited here. Diagrams can still be arranged."
+        >
+          Viewer
+        </span>
+      ) : null}
       {tabs.length > 1 ? (
         <nav className="topbar__tabs">
           {tabs.map((tab) => (
