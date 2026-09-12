@@ -122,6 +122,7 @@ endpoint** — `GET /api/source` already enumerates the root plus every
 |---|---|---|
 | C1 | `perf(webapp): cache source discovery` | `/api/files` does a full recursive walk **and reads the first 8 KB of every candidate DSL file** on every call, uncached. Stat-revalidated cache — see [What discovery actually cost](#what-discovery-actually-cost). |
 | C2 | `feat(webapp): file tree with fragments` | `_is_workspace_root` hid `!include` fragments, so they were invisible to the picker while being valid edit targets. `/api/files` now returns `{path, kind}`; `GET /api/file` closes the read asymmetry — see [Reading was the asymmetric one](#reading-was-the-asymmetric-one). |
+| C3b | `feat(frontend): open any source file` | Clicking any file in the tree opens it in the editor, which is what gives `GET /api/file` a caller. Detached buffers survive reloads; `/api/check` is skipped for a fragment whose workspace is not loaded — see [A fragment out of context](#a-fragment-out-of-context). | C2, C3 |
 | C3 | `feat(frontend): searchable file tree` | Replace the flat, unfiltered, unvirtualised `FilePicker`. Logic in a pure `fileTree.ts`; windowed without a dependency — see [A tree flattens to uniform rows](#a-tree-flattens-to-uniform-rows). |
 | C4 | `perf(webapp): cache hygiene` | `/api/workspace` runs `dataclasses.asdict` over the whole model on every call — on mount *and* every reload. Bound the unbounded per-view graph cache. |
 | C5 | `feat(webapp): file operations` | New file, new folder, rename, delete — capability-guarded and `_safe_resolve`d. |
@@ -366,6 +367,34 @@ Two behaviours worth keeping if this is ever rewritten:
   that opens itself completely is the flat list it replaced, which stops
   being usable at exactly the scale the tree exists for.
 
+### A fragment out of context
+
+Opening any file from the tree raised a question the loaded-workspace-only
+editor never had to answer: **what does `/api/check` say about a fragment
+whose workspace is not loaded?**
+
+Measured rather than guessed. With `hedge_fund` loaded, checking a
+fragment belonging to a *different* workspace returns:
+
+```
+error unexpected-keyword "expected keyword 'workspace', got 'customer'"
+```
+
+A confident error about a perfectly good file. The server can only infer a
+root for the loaded workspace — that is exactly what A3's overlay and A4's
+root inference do — and it has no way to know which of several workspaces
+includes some arbitrary fragment.
+
+So the buffer carries a `checkable` flag and the editor **says nothing**
+rather than something false: *"Not checked — open its workspace for
+diagnostics."* A detached file that is itself a workspace root stays
+checkable, because standalone is the right context for it.
+
+The other rule worth keeping: detached buffers are **refreshed on reload**
+like attached ones. `/api/source` says nothing about them, so left alone
+they would drift out of date silently and the next save would 409 for no
+visible reason.
+
 ---
 
 ## Risks
@@ -462,7 +491,9 @@ State these in the tickets so they don't creep in.
 | C1 — Cache source discovery | ✅ Done | PP-130 |
 | C2 — Fragments in the file listing | ✅ Done | PP-131 |
 | C3 — Searchable file tree | ✅ Done | PP-132 |
-| C4–C5, D1–D2, E1–E2, F1 | ⬜ Not started | not yet ticketed |
+| C3b — Open any source file | ✅ Done | PP-133 |
+| C4 — Cache hygiene | ⬜ Next | not yet ticketed |
+| C5, D1–D2, E1–E2, F1 | ⬜ Not started | not yet ticketed |
 
 Update this table as tickets land, and file the next phase's tickets when
 the current one is done rather than all at once.

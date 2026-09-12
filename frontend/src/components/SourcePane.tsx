@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { ApiError, checkSource, getSource, saveConflict, saveSource } from "../api";
+import {
+  ApiError,
+  checkSource,
+  getFile,
+  getSource,
+  saveConflict,
+  saveSource,
+} from "../api";
 import type {
   CheckResult,
   SaveConflict,
@@ -29,6 +36,26 @@ interface Buffer {
   editable: boolean;
   /** The file changed on disk while this buffer had unsaved edits. */
   staleOnDisk: boolean;
+  /** False for a buffer opened from the tree rather than served by
+      `/api/source` — a file belonging to some other workspace, or to none.
+      It is kept across reloads instead of being dropped by the merge. */
+  attached: boolean;
+  /** Whether `POST /api/check` can say anything true about this file.
+
+      The server infers a root only for the loaded workspace. A fragment
+      belonging to some *other* workspace, checked standalone, would be
+      reported as missing a `workspace` block — a confident error about a
+      perfectly good file. Saying nothing is better than saying that. */
+  checkable: boolean;
+}
+
+/** What the tree asks the editor to open. */
+export interface OpenRequest {
+  path: string;
+  /** From `/api/files`: a workspace root can be checked on its own. */
+  kind: "workspace" | "fragment";
+  /** Changes per click, so re-opening the same file re-selects it. */
+  nonce: number;
 }
 
 /** How long typing has to pause before the buffer is sent to /api/check. */
@@ -42,17 +69,30 @@ interface SourcePaneProps {
   readOnly: boolean;
   /** Identifiers and view keys from the loaded workspace, for completion. */
   completions: DslCompletionModel;
+  /** A file the tree asked to open, which may not belong to the loaded
+      workspace at all. */
+  open: OpenRequest | null;
   /** Called after a successful write so the app can adopt the reload
       generation and refresh the diagram. */
   onSaved: (result: SaveSourceResult) => void;
 }
 
-/** Fold a fresh /api/source payload into the buffers already open. */
+/** Fold a fresh payload into the buffers already open.
+
+    `attached` distinguishes the two sources: files the server listed for
+    the loaded workspace, and files opened from the tree. Detached buffers
+    survive a merge — the reload did not mention them because they were
+    never the workspace's, not because they closed. */
 function mergeBuffers(
   previous: Record<string, Buffer>,
   files: SourceFile[],
+  attached: boolean,
 ): Record<string, Buffer> {
-  const next: Record<string, Buffer> = {};
+  const next: Record<string, Buffer> = attached
+    ? Object.fromEntries(
+        Object.entries(previous).filter(([, buffer]) => !buffer.attached),
+      )
+    : { ...previous };
   for (const file of files) {
     const open = previous[file.path];
     const editable = file.editable ?? true;
@@ -64,6 +104,7 @@ function mergeBuffers(
       next[file.path] = {
         ...open,
         editable,
+        attached: attached || open.attached,
         staleOnDisk: open.staleOnDisk || file.content !== open.disk,
       };
       continue;
@@ -74,6 +115,10 @@ function mergeBuffers(
       fingerprint: file.fingerprint ?? null,
       editable,
       staleOnDisk: false,
+      attached,
+      // A file the workspace includes is checked in its root's context.
+      // One opened on its own keeps whatever it was opened with.
+      checkable: attached || (open?.checkable ?? false),
     };
   }
   return next;
@@ -98,6 +143,7 @@ export function SourcePane({
   focus,
   readOnly,
   completions,
+  open,
   onSaved,
 }: SourcePaneProps) {
   const [data, setData] = useState<SourceResult | null>(null);
@@ -112,6 +158,7 @@ export function SourcePane({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [conflict, setConflict] = useState<SaveConflict | null>(null);
   const appliedFocus = useRef<number | null>(null);
+  const appliedOpen = useRef<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -120,9 +167,11 @@ export function SourcePane({
         if (cancelled) return;
         setData(result);
         setError(null);
-        setBuffers((previous) => mergeBuffers(previous, result.files));
+        setBuffers((previous) => mergeBuffers(previous, result.files, true));
         setSelectedPath((previous) =>
-          previous && result.files.some((f) => f.path === previous)
+          previous &&
+          (result.files.some((f) => f.path === previous) ||
+            detachedRef.current.has(previous))
             ? previous
             : (result.files[0]?.path ?? null),
         );
@@ -131,6 +180,53 @@ export function SourcePane({
         if (cancelled) return;
         setError(err instanceof ApiError ? err.message : "Failed to load source");
       });
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadTick]);
+
+  // A reload refreshes the workspace's own files through /api/source, which
+  // says nothing about detached ones. Left alone they would drift out of
+  // date silently, and the next save would 409 for no visible reason.
+  useEffect(() => {
+    const paths = [...detachedRef.current];
+    if (paths.length === 0) return;
+    let cancelled = false;
+    void Promise.all(
+      paths.map((path) =>
+        getFile(path)
+          .then((file) => [path, file] as const)
+          .catch(() => null),
+      ),
+    ).then((results) => {
+      if (cancelled) return;
+      setBuffers((previous) => {
+        const next = { ...previous };
+        for (const result of results) {
+          if (!result) continue;
+          const [path, file] = result;
+          const open = next[path];
+          if (!open) continue;
+          if (open.text !== open.disk) {
+            // Same rule as the attached merge: typing wins, and the stale
+            // fingerprint turns the next save into a conflict.
+            if (file.content !== open.disk) {
+              next[path] = { ...open, staleOnDisk: true };
+            }
+            continue;
+          }
+          next[path] = {
+            ...open,
+            disk: file.content,
+            text: file.content,
+            fingerprint: file.fingerprint,
+            editable: file.editable,
+            staleOnDisk: false,
+          };
+        }
+        return next;
+      });
+    });
     return () => {
       cancelled = true;
     };
@@ -148,6 +244,59 @@ export function SourcePane({
     setFlash({ line: location.line, nonce: focus.nonce });
   }, [focus, data]);
 
+  // Read inside the /api/source callback, which must not re-run when a
+  // file is opened — a ref rather than a dependency.
+  const detachedRef = useRef<Set<string>>(new Set());
+  detachedRef.current = new Set(
+    Object.entries(buffers)
+      .filter(([, value]) => !value.attached)
+      .map(([path]) => path),
+  );
+
+  // Open a file the tree asked for. One already served by /api/source is
+  // just selected; anything else is fetched and kept as a detached buffer.
+  useEffect(() => {
+    if (!open || appliedOpen.current === open.nonce) return;
+    appliedOpen.current = open.nonce;
+    setFlash(null);
+    setConflict(null);
+    setSaveError(null);
+    if (buffers[open.path]) {
+      setSelectedPath(open.path);
+      return;
+    }
+    let cancelled = false;
+    getFile(open.path)
+      .then((file) => {
+        if (cancelled) return;
+        setBuffers((previous) =>
+          previous[open.path]
+            ? previous
+            : {
+                ...previous,
+                [open.path]: {
+                  disk: file.content,
+                  text: file.content,
+                  fingerprint: file.fingerprint,
+                  editable: file.editable,
+                  staleOnDisk: false,
+                  attached: false,
+                  checkable: open.kind === "workspace",
+                },
+              },
+        );
+        setSelectedPath(open.path);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setError(err instanceof ApiError ? err.message : "Failed to open file");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, buffers]);
+
   const buffer = selectedPath ? (buffers[selectedPath] ?? null) : null;
   const text = buffer?.text ?? null;
   const dirty = buffer !== null && buffer.text !== buffer.disk;
@@ -155,8 +304,9 @@ export function SourcePane({
   // Diagnostics for the buffer as it stands, not as it was last parsed
   // from disk. Cheap enough to re-run on a pause in typing; if it ever
   // bites on a large workspace, memoise on (root, hash) server-side.
+  const checkable = buffer?.checkable ?? false;
   useEffect(() => {
-    if (selectedPath === null || text === null) return;
+    if (selectedPath === null || text === null || !checkable) return;
     let cancelled = false;
     const timer = window.setTimeout(() => {
       checkSource(selectedPath, text)
@@ -171,7 +321,7 @@ export function SourcePane({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [selectedPath, text]);
+  }, [selectedPath, text, checkable]);
 
   // Browsers only honour this when the page has been interacted with, which
   // by definition it has if there is anything unsaved.
@@ -275,6 +425,19 @@ export function SourcePane({
     setSaveError(null);
   }, []);
 
+  // The workspace's files first, then anything opened from the tree.
+  const listed = useMemo(() => {
+    const own = data?.files.map((file) => file.path) ?? [];
+    const detached = Object.entries(buffers)
+      .filter(([path, value]) => !value.attached && !own.includes(path))
+      .map(([path]) => path)
+      .sort();
+    return [
+      ...own.map((path) => ({ path, attached: true })),
+      ...detached.map((path) => ({ path, attached: false })),
+    ];
+  }, [data, buffers]);
+
   const current = check?.path === selectedPath ? check.result : null;
   const fileDiagnostics = useMemo(
     () => (current?.diagnostics ?? []).filter((d) => d.path === selectedPath),
@@ -312,7 +475,7 @@ export function SourcePane({
   return (
     <div className="docs">
       <nav className="docs__toc docs__toc--compact">
-        {data.files.map((entry) => {
+        {listed.map((entry) => {
           const open = buffers[entry.path];
           return (
             <button
@@ -322,7 +485,17 @@ export function SourcePane({
                 (entry.path === selectedPath ? " docs__toc-item--active" : "")
               }
               onClick={() => handleSelectFile(entry.path)}
+              title={
+                entry.attached
+                  ? entry.path
+                  : `${entry.path} — not part of the loaded workspace`
+              }
             >
+              {entry.attached ? null : (
+                <span className="editor__detached" aria-hidden="true">
+                  ↗{" "}
+                </span>
+              )}
               {entry.path}
               {open && open.text !== open.disk ? (
                 <span className="editor__dot" title="Unsaved changes">
@@ -400,7 +573,14 @@ export function SourcePane({
         />
 
         <div className="editor__status">
-          {current === null ? (
+          {!buffer.checkable ? (
+            <span
+              className="editor__status-item"
+              title="Its workspace is not loaded, so there is no context to check it in"
+            >
+              Not checked — open its workspace for diagnostics
+            </span>
+          ) : current === null ? (
             <span className="editor__status-item">Checking…</span>
           ) : errorCount === 0 && warningCount === 0 ? (
             <span className="editor__status-item">No problems</span>

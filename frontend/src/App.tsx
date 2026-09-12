@@ -30,7 +30,11 @@ import { ExplorerPane } from "./components/ExplorerPane";
 import { FileTree } from "./components/FileTree";
 import { GraphPane } from "./components/GraphPane";
 import { ShortcutHelp } from "./components/ShortcutHelp";
-import { SourcePane, type CodeFocus } from "./components/SourcePane";
+import {
+  SourcePane,
+  type CodeFocus,
+  type OpenRequest,
+} from "./components/SourcePane";
 import { SplitPane } from "./components/SplitPane";
 import { TopBar, type AppPage } from "./components/TopBar";
 import { ViewList } from "./components/ViewList";
@@ -57,6 +61,7 @@ export default function App() {
   const [diagnostics, setDiagnostics] = useState<DslDiagnostic[]>([]);
   const [page, setPage] = useState<AppPage>("diagrams");
   const [codeFocus, setCodeFocus] = useState<CodeFocus | null>(null);
+  const [openRequest, setOpenRequest] = useState<OpenRequest | null>(null);
   const [reloadTick, setReloadTick] = useState(0);
   const [helpOpen, setHelpOpen] = useState(false);
   // `null` until the probe answers, and if it never does. Treated as
@@ -211,6 +216,18 @@ export default function App() {
     setPage("source");
   }, []);
 
+  /** A file picked in the tree: show it in the editor, whatever it is.
+
+      A workspace root is loaded as well (see handleSelectFile); a fragment
+      only opens, because POST /api/load would fail on it. */
+  const handleOpenFile = useCallback(
+    (path: string, kind: "workspace" | "fragment") => {
+      setOpenRequest({ path, kind, nonce: Date.now() });
+      if (kind === "fragment") setPage("source");
+    },
+    [],
+  );
+
   /** "Appears in" link in the Explorer: jump to the view's diagram. */
   const handleOpenView = useCallback((view: ViewInfo) => {
     setSelectedView(view);
@@ -283,6 +300,7 @@ export default function App() {
             currentPath={currentPath}
             loadingPath={loadingPath}
             onSelect={handleSelectFile}
+            onOpen={handleOpenFile}
           />
           <ViewList
             views={views}
@@ -327,6 +345,7 @@ export default function App() {
                   focus={codeFocus}
                   readOnly={readOnly}
                   completions={completions}
+                  open={openRequest}
                   onSaved={handleSaved}
                 />
               }

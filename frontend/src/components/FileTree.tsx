@@ -20,7 +20,11 @@ interface FileTreeProps {
   entries: SourceEntry[];
   currentPath: string | null;
   loadingPath: string | null;
+  /** A loadable workspace was picked. */
   onSelect: (path: string) => void;
+  /** Any file was picked, for opening in the editor. Fired for workspaces
+      too, so clicking one both loads it and shows its source. */
+  onOpen: (path: string, kind: "workspace" | "fragment") => void;
 }
 
 /**
@@ -31,15 +35,15 @@ interface FileTreeProps {
  * against, and the first thing to break as workspaces grow in both
  * directions.
  *
- * Fragments are shown but not loadable: `POST /api/load` would fail on a
- * file with no `workspace` block. Opening one in the editor is the next
- * ticket.
+ * Fragments are shown and can be opened in the editor, but never loaded:
+ * `POST /api/load` would fail on a file with no `workspace` block.
  */
 export function FileTree({
   entries,
   currentPath,
   loadingPath,
   onSelect,
+  onOpen,
 }: FileTreeProps) {
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState(() => initialExpansion(currentPath));
@@ -135,7 +139,11 @@ export function FileTree({
                   </button>
                 );
               }
-              const isFragment = row.kind === "fragment";
+              // Bound to a const so the narrowing from the `dir` branch
+              // above survives into the click handler: TypeScript resets
+              // narrowing on a parameter captured by a closure.
+              const kind = row.kind;
+              const isFragment = kind === "fragment";
               return (
                 <button
                   key={row.path}
@@ -146,11 +154,14 @@ export function FileTree({
                     (isFragment ? " tree__row--fragment" : "")
                   }
                   style={style}
-                  disabled={isFragment || loadingPath !== null}
-                  onClick={() => onSelect(row.path)}
+                  disabled={loadingPath !== null}
+                  onClick={() => {
+                    if (!isFragment) onSelect(row.path);
+                    onOpen(row.path, kind);
+                  }}
                   title={
                     isFragment
-                      ? `${row.path} — an !include fragment; open its workspace to edit it`
+                      ? `${row.path} — an !include fragment: opens in the editor, but cannot be loaded on its own`
                       : row.path
                   }
                 >
