@@ -478,9 +478,14 @@ class _Parser:
                 ws.description = value
         elif kw == "properties":
             self._advance()
-            # structurizr-java stores workspace properties on the views
-            # configuration.
-            ws.views.configuration.properties.update(self._parse_properties_block())
+            # These belong on the workspace. The comment that used to sit
+            # here said structurizr-java put them on the views configuration,
+            # and that is where they went — but upstream reads
+            # `properties` in a workspace context as
+            # `PropertiesDslContext(workspace)`. The views configuration is
+            # the target of `views { properties … }`, a different statement,
+            # which is handled in _parse_views.
+            ws.properties.update(self._parse_properties_block())
         else:
             self._skip_unknown("workspace")
 
@@ -1549,6 +1554,14 @@ class _Parser:
             elif kw == "terminology":
                 self._advance()
                 self._parse_terminology(ws)
+            elif kw == "properties":
+                # This is what upstream routes to the views configuration
+                # (`PropertiesDslContext(workspace.getViews().getConfiguration())`).
+                # It used to be skipped as an unsupported block, while
+                # *workspace*-level properties were written here instead —
+                # the two were the wrong way round.
+                self._advance()
+                ws.views.configuration.properties.update(self._parse_properties_block())
             else:
                 self._skip_unknown("views")
         self._expect(RBRACE)

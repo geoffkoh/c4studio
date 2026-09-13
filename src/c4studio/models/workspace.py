@@ -123,6 +123,11 @@ class Workspace:
     created_date: str = ""
     created_by: str = ""
     documentation: Documentation = field(default_factory=Documentation)
+    #: Workspace-level ``properties { … }``. Upstream holds these on
+    #: ``AbstractWorkspace`` as a ``Map<String, String>`` and serialises them
+    #: at the top level, so they are neither the model's properties nor the
+    #: views configuration's — both of which already exist separately.
+    properties: dict[str, str] = field(default_factory=dict)
     # Non-fatal warnings collected while parsing (e.g. unsupported DSL
     # features that were skipped); never serialised to workspace JSON.
     parse_warnings: list[str] = field(default_factory=list)

@@ -48,7 +48,7 @@ prints. A skipped construct never consumes its enclosing scope.
 | `workspace extends <file\|url>` | ⛔ | Parse error rather than a skip — the whole file fails. Workspace composition is a roadmap item (Phase 4) |
 | `!identifiers hierarchical\|flat` | ◐ | Accepted, but identifier resolution is always flat; the requested mode is ignored |
 | `!impliedRelationships <true\|false>` | ✅ | |
-| `properties { … }` (workspace level) | ⚠️ | Parses, stored nowhere. Element- and view-level `properties` do work |
+| `properties { … }` (workspace level) | ✅ | On `Workspace.properties`, exported at the top level of the JSON as upstream's `AbstractWorkspace.properties` is. Previously written to the *views* configuration instead, which is a different statement's target — see the Views table |
 | `configuration { … }` | ✅ | `scope`, `visibility`, `users` all parse |
 | `!include <file\|directory>` | ✅ | Works from a file (`parse_dsl_file`); a string parsed with no file context cannot resolve relative paths |
 | `!docs <path>` | ✅ | Needs a file context; raises a clear error when parsed from a string |
@@ -122,7 +122,7 @@ prints. A skipped construct never consumes its enclosing scope.
 | `autoLayout [rankDirection] [rankSep] [nodeSep]` | ✅ | Direction *and* separations are honoured by the viewer and by `render` |
 | `default` | ✅ | The default view opens first |
 | `animation { … }` | ✅ | |
-| `title` / `description` / `properties` | ✅ | |
+| `title` / `description` / `properties` | ✅ | Per-view. Distinct from `views { properties … }`, the views *configuration*'s own properties, which was skipped as an unsupported block until PP-105 — while workspace-level properties were being written there by mistake. The two were the wrong way round |
 
 ## Styles, themes and terminology
 
@@ -230,10 +230,9 @@ composition and the ordering rule.
 
 ## The gaps worth knowing about
 
-Two constructs **parse silently and do nothing** — no warning, no effect.
-They are the worst kind of gap, because nothing tells you:
+One construct **parses silently and does nothing** — no warning, no effect.
+It is the worst kind of gap, because nothing tells you:
 
-- workspace-level `properties`
 - `!relationships` with wildcard expressions
 
 `!relationship <alias> { … }` was listed here and should not have been. It

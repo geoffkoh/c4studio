@@ -2,7 +2,7 @@
 
 import json
 
-from c4studio.generators.json_export import workspace_to_json
+from c4studio.generators.json_export import export_json, workspace_to_json
 from c4studio.models import ColorScheme, IconPosition, LineStyle, Routing
 from c4studio.parser.dsl import parse_dsl
 from c4studio.parser.json_parser import parse_json
@@ -232,4 +232,65 @@ def test_workspace_body_name_description_properties() -> None:
     )
     assert ws.name == "Renamed"
     assert ws.description == "New description"
-    assert ws.views.configuration.properties == {"ws.key": "ws.value"}
+    # This used to assert `ws.views.configuration.properties`, pinning the
+    # bug rather than the behaviour: workspace properties were being written
+    # to the views configuration, which is where `views { properties … }`
+    # belongs. Upstream reads a workspace-context `properties` as
+    # `PropertiesDslContext(workspace)`.
+    assert ws.properties == {"ws.key": "ws.value"}
+    assert ws.views.configuration.properties == {}
+
+
+def test_the_three_properties_scopes_stay_separate() -> None:
+    """`workspace`, `model` and `views` each have their own properties.
+
+    They were not separate: workspace-level properties were written to the
+    views configuration, and `views { properties … }` — the statement that
+    actually belongs there — was skipped as an unsupported block. So the two
+    were the wrong way round, and one of them was silently discarded.
+    """
+    ws = parse_dsl(
+        """
+        workspace "W" {
+            properties { "ws" "1" }
+            model {
+                properties { "model" "2" }
+            }
+            views {
+                properties { "views" "3" }
+            }
+        }
+        """
+    )
+
+    assert ws.properties == {"ws": "1"}
+    assert ws.model.properties == {"model": "2"}
+    assert ws.views.configuration.properties == {"views": "3"}
+    assert ws.diagnostics == []
+
+
+def test_workspace_properties_round_trip_through_json() -> None:
+    """Top level in the JSON, as `AbstractWorkspace.properties` is upstream.
+
+    Without the export half they would parse into a field nothing wrote out,
+    which is the same invisibility in a different place.
+    """
+    ws = parse_dsl(
+        """
+        workspace "W" {
+            properties { "owner" "platform-team" }
+            model { }
+            views {
+                properties { "hide" "true" }
+            }
+        }
+        """
+    )
+
+    document = json.loads(export_json(ws))["workspace"]
+    assert document["properties"] == {"owner": "platform-team"}
+    assert document["views"]["configuration"]["properties"] == {"hide": "true"}
+
+    restored = parse_json(json.dumps({"workspace": document}))
+    assert restored.properties == {"owner": "platform-team"}
+    assert restored.views.configuration.properties == {"hide": "true"}
