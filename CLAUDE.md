@@ -235,5 +235,6 @@ the finding in the code or docs so the answer survives without it.
 
 Project-scoped agents live in `.claude/agents/`: `c4-architect` (C4 modeling and
 tool-fit review), `python-pro` (typed async Python), `frontend-react` (the Vite +
-React Flow SPA). Skills live in `.claude/skills/`: `run-webapp` (launch the
+React Flow SPA), `ux-reviewer` (information architecture and screen real estate —
+**read-only**, so the agent that judges a layout is not the one that wrote it). Skills live in `.claude/skills/`: `run-webapp` (launch the
 viewer on a sample) and `release` (cut a PyPI + `.vsix` release).
