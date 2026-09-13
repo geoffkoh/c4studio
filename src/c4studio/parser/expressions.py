@@ -87,8 +87,15 @@ def parse_terms(tokens: list[tuple[str, str]]) -> list[Term]:
     while i < n:
         kind = tt(i)
         if kind == "WILDCARD":
-            terms.append(("wildcard",))
-            i += 1
+            # `* -> x`, `* -> *`. A wildcard endpoint is not an identifier,
+            # so without this the arrow form never became a `between` term
+            # at all and the line matched nothing.
+            if tt(i + 1) == "ARROW" and tt(i + 2) in ("IDENT", "WILDCARD"):
+                terms.append(("between", "*", tv(i + 2)))
+                i += 3
+            else:
+                terms.append(("wildcard",))
+                i += 1
         elif kind == "STRING":
             term = _parse_string_term(tv(i).strip('"'))
             if term is not None:
@@ -128,6 +135,10 @@ def parse_terms(tokens: list[tuple[str, str]]) -> list[Term]:
                 if tt(i + 2) == "IDENT" and tt(i + 3) != "ARROW":
                     terms.append(("between", tv(i), tv(i + 2)))
                     i += 3
+                elif tt(i + 2) == "WILDCARD":
+                    # `x -> *`: every relationship out of x.
+                    terms.append(("between", tv(i), "*"))
+                    i += 3
                 else:
                     terms.append(("efferent", tv(i)))
                     i += 2
@@ -141,7 +152,16 @@ def parse_terms(tokens: list[tuple[str, str]]) -> list[Term]:
 
 def _parse_string_term(text: str) -> Term | None:
     """Parse a quoted expression such as ``"element.tag==Software System"``."""
-    match = _STRING_TERM_RE.match(text.strip())
+    text = text.strip()
+    # `"*->*"` and friends arrive quoted, so they never reach the tokenizer's
+    # arrow handling. They used to fall through to the identifier branch
+    # below and be looked up as an element literally named "*->*".
+    if "->" in text and not _STRING_TERM_RE.match(text):
+        source, _, destination = text.partition("->")
+        source, destination = source.strip(), destination.strip()
+        if source and destination:
+            return ("between", source, destination)
+    match = _STRING_TERM_RE.match(text)
     if match is None:
         return ("ident", text) if text else None
     values = [v.strip() for v in match.group("values").split(",") if v.strip()]
@@ -160,6 +180,12 @@ def is_expression_term(tokens: list[tuple[str, str]]) -> bool:
         if token_type in ("DOT", "EQEQ", "NEQ", "ARROW", "COMMA"):
             return True
         if token_type == "STRING" and _STRING_TERM_RE.match(value.strip('"')):
+            return True
+        # A quoted relationship expression has no ARROW *token* — the arrow
+        # is inside the string — so it used to fail every test above and be
+        # treated as a plain identifier. `exclude "a->b"` then looked for an
+        # element named "a->b" and quietly matched nothing.
+        if token_type == "STRING" and "->" in value.strip('"'):
             return True
     return False
 
@@ -240,11 +266,17 @@ def evaluate(
                 if kind in ("efferent", "both") and rel_source(rel) == eid:
                     result.element_ids.add(rel_dest(rel))
         elif kind == "between":
-            src, dst = resolve(term[1]), resolve(term[2])
+            # `*` on either side means "any", the way upstream's
+            # ExpressionParser treats a wildcard endpoint. Resolving it as an
+            # identifier, which is what used to happen, could only miss.
+            raw_src, raw_dst = term[1], term[2]
+            src = None if raw_src == "*" else resolve(raw_src)
+            dst = None if raw_dst == "*" else resolve(raw_dst)
             result.relationships.extend(
                 rel
                 for rel in relationships
-                if rel_source(rel) == src and rel_dest(rel) == dst
+                if (src is None or rel_source(rel) == src)
+                and (dst is None or rel_dest(rel) == dst)
             )
         elif kind == "compare":
             _, subject, prop, negate, values = term

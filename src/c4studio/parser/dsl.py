@@ -733,11 +733,25 @@ class _Parser:
             return
         matched: list[Relationship] = []
         if self._ws is not None and tokens:
+            terms = parse_terms(tokens)
+            # A bare `*` here means every relationship, not every element.
+            # Upstream rewrites it literally — `expr = WILDCARD +
+            # RELATIONSHIP + WILDCARD` — and the same rewrite is what makes
+            # the term reach the relationship half of the evaluator at all.
+            terms = [("between", "*", "*") if t[0] == "wildcard" else t for t in terms]
             outcome = evaluate_expression(
-                parse_terms(tokens), self._ws, self._rel_buffer, self._resolve_id
+                terms, self._ws, self._rel_buffer, self._resolve_id
             )
             matched = outcome.relationships
         if not matched:
+            # Silence here meant a typo and a correctly-empty match looked
+            # identical, which is how the wildcard forms went unnoticed.
+            expression = " ".join(value for _, value in tokens) or "(empty)"
+            self._warn(
+                f"!relationships {expression} matched no relationship; block ignored",
+                line=line,
+                code="no-relationships-matched",
+            )
             self._skip_block()
             return
         start = self._pos

@@ -208,3 +208,87 @@ def test_bang_relationships_bulk_mutation() -> None:
     by_desc = {r.description: r for r in ws.relationships}
     assert "Outbound" in by_desc["Calls"].tags
     assert "Outbound" not in by_desc["Uses"].tags
+
+
+WILDCARD_RELATIONSHIPS = """
+workspace "W" {{
+    model {{
+        a = softwareSystem "A"
+        b = softwareSystem "B"
+        c = softwareSystem "C"
+        a -> b "one"
+        b -> c "two"
+        !relationships {expression} {{
+            tags "bulk"
+        }}
+    }}
+}}
+"""
+
+
+def _tagged(expression: str) -> list[str]:
+    ws = parse_dsl(WILDCARD_RELATIONSHIPS.format(expression=expression))
+    return [r.description for r in ws.relationships if "bulk" in r.tags]
+
+
+def test_bare_wildcard_matches_every_relationship() -> None:
+    """`!relationships *` means every relationship, not every element.
+
+    The bare wildcard produced an element-only result, so the relationship
+    half of the outcome stayed empty and the block applied to nothing.
+    Upstream rewrites the token literally to `*->*` for this reason.
+    """
+    assert _tagged("*") == ["one", "two"]
+
+
+def test_quoted_wildcard_arrow_matches_every_relationship() -> None:
+    """`"*->*"` is quoted, so the arrow never reaches the tokenizer.
+
+    It used to fall through to the identifier branch and be looked up as an
+    element literally named `*->*`.
+    """
+    assert _tagged('"*->*"') == ["one", "two"]
+
+
+def test_wildcard_endpoints_match_one_side() -> None:
+    """Half-wildcards were not in the report, and had the same cause."""
+    assert _tagged("a -> *") == ["one"]
+    assert _tagged('"*->c"') == ["two"]
+    # And a fully-specified pair still means just that pair.
+    assert _tagged("a -> b") == ["one"]
+
+
+def test_an_expression_matching_nothing_is_reported() -> None:
+    """Silence made a typo and a correctly-empty match indistinguishable."""
+    ws = parse_dsl(WILDCARD_RELATIONSHIPS.format(expression="nothing -> here"))
+
+    [diagnostic] = ws.diagnostics
+    assert diagnostic.code == "no-relationships-matched"
+
+
+def test_quoted_relationship_expressions_work_in_views_too() -> None:
+    """Adjacent to the reported bug, and the same cause.
+
+    A quoted expression has no ARROW *token*, so `is_expression_term` never
+    routed it to the engine: `exclude "a->b"` looked for an element named
+    `a->b`. Unquoted `exclude a -> b` always worked, which is what made this
+    hard to see.
+    """
+    dsl = """
+    workspace "W" {{
+        model {{
+            a = softwareSystem "A"
+            b = softwareSystem "B"
+            a -> b "one"
+        }}
+        views {{
+            systemLandscape "L" {{
+                include *
+                exclude {expression}
+            }}
+        }}
+    }}
+    """
+    for expression in ("a -> b", '"a->b"', '"*->*"', '"a->*"'):
+        ws = parse_dsl(dsl.format(expression=expression))
+        assert ws.views[0].excluded_relationship_ids, expression
