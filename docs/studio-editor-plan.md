@@ -132,7 +132,7 @@ endpoint** — `GET /api/source` already enumerates the root plus every
 | # | Ticket | Scope |
 |---|---|---|
 | D1 | `feat(cli): c4 new and starter templates` | Starter DSLs in the package (minimal, system-context, full C4, deployment), reusing the write path. Templates are valid DSL **as shipped** — see [A template you cannot parse is a template you cannot trust](#a-template-you-cannot-parse-is-a-template-you-cannot-trust). |
-| D2 | `feat(frontend): new workspace in-app` | Template picker, target folder, open in the editor. |
+| D2 | `feat(frontend): new workspace in-app` | Template picker, target folder, open in the editor — through two *read* routes and the existing save path, with no create endpoint. See [Creating a workspace is a save](#creating-a-workspace-is-a-save). |
 
 ### Phase E — Assistant (designed now, built last)
 
@@ -529,6 +529,28 @@ run from a source tree cannot tell whether they ship. Built the wheel,
 installed it into a clean venv, ran `c4 new --template deployment` from
 it, and listed the views.
 
+### Creating a workspace is a save
+
+D2 adds **no writable route**. Creating a workspace in the app is
+`GET /api/templates/{name}` followed by `PUT /api/source` — the same write
+every other edit makes.
+
+That is worth stating because the obvious design is a
+`POST /api/workspace/new` that takes a template and a path. It would have
+needed its own capability guard, its own clobber check and its own
+conflict semantics, and each of those is a chance to get it subtly
+different from the one the editor already uses. Going through the save
+path instead means creating a workspace over an existing file is a 409
+because *every* write is, not because someone remembered.
+
+The two routes it does add are reads. Rendering stays on the server so
+the `"My Workspace"` substitution keeps the single implementation D1 gave
+it, rather than gaining a second copy in TypeScript.
+
+Small thing worth keeping: the filename follows the workspace name
+(`Acme Platform` → `acme-platform.dsl`) until the user edits it, and then
+stops moving under them.
+
 ---
 
 ## Risks
@@ -630,8 +652,9 @@ State these in the tickets so they don't creep in.
 | C5 — File operations (backend) | ✅ Done | PP-135 |
 | C5b — File operations in the UI | ✅ Done | PP-136 |
 | D1 — `c4 new` and starter templates | ✅ Done | PP-137 |
-| D2 — New workspace in-app | ⬜ Next | not yet ticketed |
-| E1–E2, F1 | ⬜ Not started | not yet ticketed |
+| D2 — New workspace in-app | ✅ Done | PP-139 |
+| E1–E2 — Assistant | ⬜ Not started | not yet ticketed |
+| F1 — VS Code read-only preview | ⬜ Blocked on a release | not yet ticketed |
 
 Update this table as tickets land, and file the next phase's tickets when
 the current one is done rather than all at once.

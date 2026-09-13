@@ -33,6 +33,7 @@ import { DocsPane } from "./components/DocsPane";
 import { ElementTree } from "./components/ElementTree";
 import { ExplorerPane } from "./components/ExplorerPane";
 import { FileTree, type FileOperations } from "./components/FileTree";
+import { NewWorkspaceDialog } from "./components/NewWorkspaceDialog";
 import { GraphPane } from "./components/GraphPane";
 import { ShortcutHelp } from "./components/ShortcutHelp";
 import {
@@ -67,6 +68,7 @@ export default function App() {
   const [page, setPage] = useState<AppPage>("diagrams");
   const [codeFocus, setCodeFocus] = useState<CodeFocus | null>(null);
   const [openRequest, setOpenRequest] = useState<OpenRequest | null>(null);
+  const [newWorkspaceOpen, setNewWorkspaceOpen] = useState(false);
   const [reloadTick, setReloadTick] = useState(0);
   const [helpOpen, setHelpOpen] = useState(false);
   // `null` until the probe answers, and if it never does. Treated as
@@ -225,6 +227,16 @@ export default function App() {
     [readOnly],
   );
 
+  /** Folders already in the tree, for the new-workspace dialog's picker. */
+  const folders = useMemo(() => {
+    const seen = new Set<string>();
+    for (const entry of files) {
+      const parts = entry.path.split("/").slice(0, -1);
+      parts.forEach((_, index) => seen.add(parts.slice(0, index + 1).join("/")));
+    }
+    return [...seen].sort();
+  }, [files]);
+
   // What the editor can complete. Rebuilt only when the model or the view
   // index actually changes, so the editor reconfigures on a reload rather
   // than on every render.
@@ -293,6 +305,21 @@ export default function App() {
     }
   }, []);
 
+  /** Create a workspace from a starter template, then open it.
+
+      Deliberately the ordinary save path rather than a create endpoint:
+      conflict detection and the Viewer guard come with it. */
+  const handleCreateWorkspace = useCallback(
+    async (path: string, content: string) => {
+      await saveSource(path, content, null);
+      refreshFiles();
+      await handleSelectFile(path);
+      setOpenRequest({ path, kind: "workspace", nonce: Date.now() });
+      setPage("source");
+    },
+    [handleSelectFile, refreshFiles],
+  );
+
   return (
     <div className="app">
       <TopBar
@@ -339,6 +366,7 @@ export default function App() {
             onOpen={handleOpenFile}
             fileOps={fileOps}
             onChanged={refreshFiles}
+            onNewWorkspace={() => setNewWorkspaceOpen(true)}
           />
           <ViewList
             views={views}
@@ -406,6 +434,13 @@ export default function App() {
         </main>
       </div>
       {helpOpen ? <ShortcutHelp onClose={() => setHelpOpen(false)} /> : null}
+      {newWorkspaceOpen ? (
+        <NewWorkspaceDialog
+          folders={folders}
+          onCreate={handleCreateWorkspace}
+          onClose={() => setNewWorkspaceOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }

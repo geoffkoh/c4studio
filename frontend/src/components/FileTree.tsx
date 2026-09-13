@@ -44,6 +44,8 @@ interface FileTreeProps {
   fileOps: FileOperations | null;
   /** Called after an operation changes the tree on disk. */
   onChanged: () => void;
+  /** Opens the new-workspace dialog. Absent in Viewer. */
+  onNewWorkspace: () => void;
 }
 
 /**
@@ -65,6 +67,7 @@ export function FileTree({
   onOpen,
   fileOps,
   onChanged,
+  onNewWorkspace,
 }: FileTreeProps) {
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState(() => initialExpansion(currentPath));
@@ -184,7 +187,18 @@ export function FileTree({
 
   return (
     <section className="section">
-      <h2 className="section__title">Files</h2>
+      <div className="section__header">
+        <h2 className="section__title">Files</h2>
+        {fileOps ? (
+          <button
+            className="section__action"
+            onClick={onNewWorkspace}
+            title="Create a workspace from a starter template"
+          >
+            + New
+          </button>
+        ) : null}
+      </div>
       <input
         className="tree__search"
         type="search"
