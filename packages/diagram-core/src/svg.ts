@@ -21,6 +21,11 @@
 import type { Edge, Node } from "reactflow";
 
 import {
+  EDGE_COLOUR,
+  EDGE_LINE_STYLE,
+  EDGE_WIDTH,
+} from "./edgeDefaults";
+import {
   layoutGraph,
   normalizeStoredPositions,
   type RankDirection,
@@ -166,13 +171,8 @@ const LEGEND_PAD = 12;
 const LEGEND_COLUMN_WIDTH = 220;
 const LEGEND_MAX_ROWS = 6;
 
-// Deliberately duplicated from edgePaint.ts (which imports a runtime value
-// from reactflow, unwanted here) — keep the two in step or headless
-// exports diverge from the screen. Dashed, 2px, #444444 is upstream
-// Structurizr's default relationship style.
-const EDGE_COLOUR = "#444444";
-const EDGE_WIDTH = 2;
-const EDGE_LINE_STYLE = "dashed";
+// From edgeDefaults.ts, which deliberately imports no reactflow so this
+// headless path can share it. They used to be separate copies.
 const ARROW = 10;
 const EDGE_LABEL_SIZE = 10;
 const EDGE_LABEL_COLOUR = "#6b7684"; // --muted

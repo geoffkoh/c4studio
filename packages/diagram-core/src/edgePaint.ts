@@ -10,16 +10,24 @@
 
 import { MarkerType } from "reactflow";
 
-// Upstream Structurizr's default relationship style: dashed, thickness 2,
-// #444444 (structurizr-ui.js, findRelationshipStyle). Matching it keeps
-// diagrams recognisable to anyone coming from the Java UI. svg.ts (headless
-// export) keeps its own copies of these values — change them together or
-// exports diverge from the screen.
-export const EDGE_COLOUR = "#444444";
-export const EDGE_WIDTH = 2;
+// Defaults live in edgeDefaults.ts, which svg.ts (the headless exporter)
+// also imports — one definition rather than two copies kept in step by
+// hope. Re-exported here so existing importers are unaffected.
+import {
+  EDGE_COLOUR,
+  EDGE_LINE_STYLE,
+  EDGE_WIDTH,
+  edgeDashArray,
+  type EdgeLineStyle,
+} from "./edgeDefaults";
 
-export type EdgeLineStyle = "solid" | "dashed" | "dotted";
-export const EDGE_LINE_STYLE: EdgeLineStyle = "dashed";
+export {
+  EDGE_COLOUR,
+  EDGE_LINE_STYLE,
+  EDGE_WIDTH,
+  edgeDashArray,
+  type EdgeLineStyle,
+};
 
 // Hover emphasis, shared by the live edge component and the edge list so
 // the path, the label and the arrowhead marker all pop together.
@@ -34,20 +42,6 @@ export const EDGE_HOVER_WIDTH = 3.2;
 // size always — and hover stays legible through colour and line weight
 // alone. One number to tune if it wants to be bigger.
 export const EDGE_ARROW_SIZE = 20;
-
-/**
- * Dash pattern for a line style, scaled to the stroke width — the same
- * ratios svg.ts uses for element borders, so dashes look alike everywhere.
- * `undefined` means a solid line.
- */
-export function edgeDashArray(
-  width: number,
-  lineStyle: EdgeLineStyle,
-): string | undefined {
-  if (lineStyle === "dashed") return `${width * 5} ${width * 3}`;
-  if (lineStyle === "dotted") return `${width} ${width * 2.5}`;
-  return undefined;
-}
 
 /** Per-edge overrides from a resolved workspace relationship style. */
 export interface EdgePaintOverrides {

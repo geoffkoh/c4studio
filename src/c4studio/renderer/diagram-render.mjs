@@ -25,6 +25,26 @@ var __require = /* @__PURE__ */ ((x) => typeof require !== "undefined" ? require
 	throw Error("Calling `require` for \"" + x + "\" in an environment that doesn't expose the `require` function. See https://rolldown.rs/in-depth/bundling-cjs#require-external-modules for more details.");
 });
 //#endregion
+//#region src/edgeDefaults.ts
+/**
+* Relationship line colour.
+*
+* **A deliberate divergence from upstream**, which is worth knowing before
+* anyone "corrects" it. Structurizr's light-mode default is `#444444`
+* (`structurizr-ui.js`, `LIGHT_MODE_DEFAULTS.color`), and this used to
+* match it — but at 9.7:1 against white it reads as heavy ink, and
+* relationships are supporting detail rather than the subject of a C4
+* diagram.
+*
+* `#707070` is 4.95:1 on white: clearly lighter, still well above the 3:1
+* WCAG 1.4.11 floor for non-text. Going further washes out fast — `#999999`
+* is 2.85:1 and fails it. A workspace that wants upstream's weight back can
+* say so in its own `styles`, which override this.
+*/
+var EDGE_COLOUR = "#707070";
+/** Upstream's default, and unchanged. */
+var EDGE_LINE_STYLE = "dashed";
+//#endregion
 //#region ../../node_modules/lodash/_listCacheClear.js
 var require__listCacheClear = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	/**
@@ -9488,9 +9508,6 @@ var LEGEND_GAP = 24;
 var LEGEND_PAD = 12;
 var LEGEND_COLUMN_WIDTH = 220;
 var LEGEND_MAX_ROWS = 6;
-var EDGE_COLOUR = "#444444";
-var EDGE_WIDTH = 2;
-var EDGE_LINE_STYLE = "dashed";
 var ARROW = 10;
 var EDGE_LABEL_SIZE = 10;
 var EDGE_LABEL_COLOUR = "#6b7684";
@@ -9693,8 +9710,8 @@ function paintEdge(edge, placed) {
 		end
 	];
 	const d = points.map((p, i) => `${i === 0 ? "M" : "L"} ${round(p.x)} ${round(p.y)}`).join(" ");
-	const colour = edge.color || EDGE_COLOUR;
-	const strokeWidth = edge.thickness ?? EDGE_WIDTH;
+	const colour = edge.color || "#707070";
+	const strokeWidth = edge.thickness ?? 2;
 	const lineStyle = edge.lineStyle === "solid" || edge.lineStyle === "dashed" || edge.lineStyle === "dotted" ? edge.lineStyle : EDGE_LINE_STYLE;
 	const path = `<path d="${d}" fill="none" stroke="${colour}" stroke-width="${strokeWidth}"${lineStyle === "dashed" ? ` stroke-dasharray="${round(strokeWidth * 5)} ${round(strokeWidth * 3)}"` : lineStyle === "dotted" ? ` stroke-dasharray="${round(strokeWidth)} ${round(strokeWidth * 2.5)}"` : ""}${edge.opacity !== void 0 ? ` opacity="${edge.opacity / 100}"` : ""} marker-end="url(#${arrowMarkerId(colour)})"/>`;
 	if (!edge.label) return path;
