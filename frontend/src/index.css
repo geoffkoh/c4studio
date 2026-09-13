@@ -1587,8 +1587,14 @@ button {
 /* ---- DSL editor (Source page) ---- */
 /* The Source page is now the editor alone; the file list that used to sit
    beside it in its own 200px column is the sidebar tree, and what is open
-   is the tab strip. */
-.source {
+   is the tab strip.
+
+   Named `source-page`, not `source`: React Flow puts a bare `source` class
+   on every source handle, so a `.source { height: 100% }` rule here
+   stretched the connection point down the side of every node. Vendor
+   classes are in the same global namespace as ours — anything this file
+   defines needs a name no library would pick. */
+.source-page {
   display: flex;
   height: 100%;
   min-height: 0;
