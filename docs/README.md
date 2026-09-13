@@ -18,6 +18,7 @@ examples:
 
 - `internet_banking.dsl`, `saas_monitoring.dsl`, `ecommerce_platform.dsl` — the common cases.
 - `hedge_fund/` — the richest model: documentation, ADRs, deployment, groups and themes, split across `!include`-ed files.
+- `c4studio/` — **c4studio described in its own DSL**, down to component level: 10 containers, 42 components, 13 views including two dynamic ones tracing the save loop and the headless render path. Dogfooding, and the shortest route to understanding the codebase.
 - `delta_release.dsl` — marking elements as new, existing or deprecated, and getting that into the legend. See [Marking elements as new, existing or deprecated](./dsl-support.md#marking-elements-as-new-existing-or-deprecated).
 
 ## Quick Start
