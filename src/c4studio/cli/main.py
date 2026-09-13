@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import click
@@ -14,6 +15,27 @@ from c4studio.render import RenderError, render_view
 from c4studio import templates
 from c4studio.webapp.graph import is_supported
 from c4studio.webapp.loader import WorkspaceLoadError, load_workspace
+
+
+def _read_stdin_text() -> str:
+    """Read the whole of stdin as UTF-8.
+
+    DSL is read from disk as UTF-8 everywhere else (`parse_dsl_file` and the
+    `!include` resolver both pass `encoding="utf-8"`), so a piped buffer has
+    to be decoded the same way. `sys.stdin.read()` alone would not: its
+    encoding follows the locale, so the same DSL that parses from a file
+    would mangle non-ASCII when piped under a non-UTF-8 locale.
+
+    This replaces `click.get_text_stream("stdin")`, which did approximately
+    this and is deprecated in Click 8.5 for removal in 9.0.
+    """
+    buffer = getattr(sys.stdin, "buffer", None)
+    if buffer is None:
+        # Something has replaced stdin with a text-only object. Nothing to
+        # re-decode, so take it as it comes.
+        return sys.stdin.read()
+    raw: bytes = buffer.read()
+    return raw.decode("utf-8")
 
 
 def _load_workspace(path: Path) -> Workspace:
@@ -254,7 +276,7 @@ def check(
         if from_stdin:
             resolved = source_path.resolve() if source_path is not None else None
             workspace = parse_dsl(
-                click.get_text_stream("stdin").read(),
+                _read_stdin_text(),
                 base_dir=resolved.parent if resolved is not None else None,
                 path=resolved,
             )
