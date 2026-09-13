@@ -28,10 +28,9 @@ from c4studio.parser.dsl import (
     LBRACE,
     RBRACE,
     STRING,
-    collect_source_files,
     _tokenize,
+    collect_source_files,
 )
-
 
 _DSL_SUFFIXES = frozenset({".dsl", ".structurizr"})
 

@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional
 
+from c4studio.diagnostics import Diagnostic
 from c4studio.models.deployment import DeploymentNode, InfrastructureNode
 from c4studio.models.documentation import Documentation
 from c4studio.models.elements import (
@@ -17,8 +17,6 @@ from c4studio.models.elements import (
     SoftwareSystem,
 )
 from c4studio.models.views import Configuration, ViewSet
-from c4studio.diagnostics import Diagnostic
-
 
 # ---------------------------------------------------------------------------
 # Model — static structure container
@@ -35,7 +33,7 @@ class Model:
     relationships: list[Relationship] = field(default_factory=list)
     deployment_nodes: list[DeploymentNode] = field(default_factory=list)
     deployment_environments: list[str] = field(default_factory=list)
-    enterprise: Optional[Enterprise] = None
+    enterprise: Enterprise | None = None
     properties: dict[str, str] = field(default_factory=dict)
 
     def find_element(
@@ -163,11 +161,11 @@ class Workspace:
         return self.model.deployment_environments
 
     @property
-    def enterprise(self) -> Optional[Enterprise]:
+    def enterprise(self) -> Enterprise | None:
         return self.model.enterprise
 
     @enterprise.setter
-    def enterprise(self, value: Optional[Enterprise]) -> None:
+    def enterprise(self, value: Enterprise | None) -> None:
         self.model.enterprise = value
 
     @property

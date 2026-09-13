@@ -58,7 +58,7 @@ class AssistantError(RuntimeError):
     """Raised when a request cannot be made, or the API refuses it."""
 
 
-class AssistantUnavailable(AssistantError):
+class AssistantUnavailableError(AssistantError):
     """Raised when the optional dependency or the API key is missing.
 
     Separate from :class:`AssistantError` because the fix is different:
@@ -122,8 +122,10 @@ def _render_context(request: AssistantRequest) -> str:
     parts = [
         f"The file to rewrite is: {request.target}",
         "",
-        "The workspace source follows. Each file is preceded by its "
-        "root-relative path.",
+        (
+            "The workspace source follows. Each file is preceded by its "
+            "root-relative path."
+        ),
     ]
     for file in request.files:
         parts += ["", f"--- {file.path} ---", file.content]
@@ -135,19 +137,19 @@ def propose(request: AssistantRequest) -> AssistantReply:
     """Ask for a rewritten file. Returns text; executes nothing.
 
     Raises:
-        AssistantUnavailable: The optional dependency or the key is missing.
+        AssistantUnavailableError: The optional dependency or the key is missing.
         AssistantError: The request failed, or produced no usable text.
     """
     try:
         import anthropic
     except ImportError as exc:  # pragma: no cover - exercised via sdk_installed
-        raise AssistantUnavailable(
+        raise AssistantUnavailableError(
             "The assistant needs the optional dependency: "
             "pip install 'c4studio[assistant]'"
         ) from exc
 
     if not key_present():
-        raise AssistantUnavailable(
+        raise AssistantUnavailableError(
             "ANTHROPIC_API_KEY is not set. The assistant reads it from the "
             "environment at the moment of use and never stores it."
         )

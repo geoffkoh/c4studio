@@ -7,12 +7,12 @@ from pathlib import Path
 
 import click
 
+from c4studio import templates
 from c4studio.diagnostics import Diagnostic, Severity
 from c4studio.generators.flowchart import FlowchartGenerator
 from c4studio.generators.mermaid import MermaidGenerator
 from c4studio.models import Workspace
 from c4studio.render import RenderError, render_view
-from c4studio import templates
 from c4studio.webapp.graph import is_supported
 from c4studio.webapp.loader import WorkspaceLoadError, load_workspace
 
@@ -223,7 +223,7 @@ def export(input_file: Path, output: Path | None) -> None:
     if output is None:
         click.echo(export_json(workspace), nl=False)
     else:
-        if output.parent != Path(""):
+        if output.parent != Path():
             output.parent.mkdir(parents=True, exist_ok=True)
         export_json_file(workspace, output)
         click.echo(f"Written: {output}")
@@ -371,7 +371,7 @@ def new(
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(content, encoding="utf-8")
     click.echo(f"Wrote {output} from the {template_name!r} template.")
-    click.echo(f"Next: c4 webapp {output.parent if output.parent != Path('') else '.'}")
+    click.echo(f"Next: c4 webapp {output.parent if output.parent != Path() else '.'}")
 
 
 @cli.command("webapp")

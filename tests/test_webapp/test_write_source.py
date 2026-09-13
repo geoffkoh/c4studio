@@ -12,7 +12,6 @@ resulting ``generation`` comes back in the response.
 
 from __future__ import annotations
 
-import os
 import shutil
 from pathlib import Path
 from typing import Any
@@ -318,7 +317,7 @@ def test_os_replace_keeps_the_file_readable_throughout(
 ) -> None:
     """A sibling temp plus rename: a reader never sees a partial file."""
     target = root / "example.dsl"
-    inode_before = os.stat(target).st_ino
+    inode_before = target.stat().st_ino
     _put(
         client,
         path="example.dsl",
@@ -326,4 +325,4 @@ def test_os_replace_keeps_the_file_readable_throughout(
         fingerprint=_fingerprint_of(client, "example.dsl"),
     )
     # A rename swaps the inode; an in-place truncate-and-write would not.
-    assert os.stat(target).st_ino != inode_before
+    assert target.stat().st_ino != inode_before

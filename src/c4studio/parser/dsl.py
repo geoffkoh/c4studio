@@ -10,20 +10,12 @@ from __future__ import annotations
 
 import re
 import warnings
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from collections.abc import Callable, Mapping
 from typing import Any
 
-from c4studio.parser.docs import load_decisions, load_sections, markdown_files
-from c4studio.parser.expressions import (
-    evaluate as evaluate_expression,
-    is_expression_term,
-    parse_terms,
-)
 from c4studio.diagnostics import Diagnostic, Severity
-from c4studio.parser.implied import apply_implied_relationships
-from c4studio.parser.sourcemap import SourceMap
 from c4studio.models import (
     Animation,
     AutomaticLayout,
@@ -37,8 +29,8 @@ from c4studio.models import (
     DeploymentNode,
     ElementStyle,
     Enterprise,
-    Font,
     FilterMode,
+    Font,
     HttpHealthCheck,
     IconPosition,
     InfrastructureNode,
@@ -59,7 +51,16 @@ from c4studio.models import (
     ViewType,
     Workspace,
 )
-
+from c4studio.parser.docs import load_decisions, load_sections, markdown_files
+from c4studio.parser.expressions import (
+    evaluate as evaluate_expression,
+)
+from c4studio.parser.expressions import (
+    is_expression_term,
+    parse_terms,
+)
+from c4studio.parser.implied import apply_implied_relationships
+from c4studio.parser.sourcemap import SourceMap
 
 # ---------------------------------------------------------------------------
 # Tokeniser

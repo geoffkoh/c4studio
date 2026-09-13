@@ -9,10 +9,9 @@ from __future__ import annotations
 import base64
 from pathlib import Path
 from typing import Any
+from urllib.request import urlopen
 
 import pytest
-
-from urllib.request import urlopen
 
 from c4studio import icons
 from c4studio.icons import MAX_ICON_BYTES, data_uri, inline_icons

@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+
 from c4studio.models import Location
 from c4studio.parser.json_parser import parse_json, parse_json_file
 

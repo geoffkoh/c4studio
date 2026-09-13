@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 
+from c4studio.graph.view_graph import apply_positions, build_view_graph
 from c4studio.models import (
     Component,
     Container,
@@ -17,8 +19,6 @@ from c4studio.models import (
     Workspace,
 )
 from c4studio.parser.dsl import parse_dsl_file
-from c4studio.graph.view_graph import apply_positions, build_view_graph
-from typing import Any, cast
 
 JsonDict = dict[str, Any]
 

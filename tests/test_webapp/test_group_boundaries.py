@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from c4studio.parser.dsl import parse_dsl
-from c4studio.graph.view_graph import build_view_graph
 from typing import Any, cast
+
+from c4studio.graph.view_graph import build_view_graph
+from c4studio.parser.dsl import parse_dsl
 
 JsonDict = dict[str, Any]
 

@@ -3,7 +3,6 @@
 from c4studio.generators.mermaid import MermaidGenerator
 from c4studio.parser.dsl import parse_dsl
 
-
 GROUPED_DSL = """
 workspace "W" {
     model {

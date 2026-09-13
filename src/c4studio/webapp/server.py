@@ -26,10 +26,10 @@ from pydantic import BaseModel
 
 from c4studio import templates
 from c4studio.diagnostics import Diagnostic, Severity
+from c4studio.graph.view_graph import apply_positions, apply_sizes
 from c4studio.models import View, Workspace
 from c4studio.parser.dsl import ParseError, parse_dsl
 from c4studio.parser.locations import element_locations
-from c4studio.graph.view_graph import apply_positions, apply_sizes
 from c4studio.webapp import assistant as assistant_module
 from c4studio.webapp import graph, model_graph
 from c4studio.webapp.loader import (
@@ -37,7 +37,6 @@ from c4studio.webapp.loader import (
     load_workspace,
     watched_files,
 )
-
 
 _SOURCE_SUFFIXES = frozenset({".dsl", ".json", ".structurizr"})
 # Most graph payloads this many back. The cache key carries the expand and
@@ -626,7 +625,11 @@ def _atomic_write(path: Path, content: str) -> None:
     tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
     try:
         tmp.write_text(content, encoding="utf-8", newline="")
-        os.replace(tmp, path)
+        # noqa'd rather than rewritten as `Path.replace`. The two are the
+        # same syscall, but this line *is* the atomicity guarantee — the
+        # docstring above names it, and so does the test that pins it —
+        # and rewriting it for a style rule buys nothing.
+        os.replace(tmp, path)  # noqa: PTH105
     finally:
         tmp.unlink(missing_ok=True)
 
@@ -982,7 +985,7 @@ def create_app(
                     instruction=body.instruction, target=body.path, files=files
                 )
             )
-        except assistant_module.AssistantUnavailable as exc:
+        except assistant_module.AssistantUnavailableError as exc:
             # 503: the server is willing, the operator has something to fix.
             raise HTTPException(status_code=503, detail=str(exc)) from exc
         except assistant_module.AssistantError as exc:

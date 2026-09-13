@@ -65,12 +65,76 @@ module-name = "c4studio"
 # findings to 116. Dependabot proposed exactly that bump (#167), bundled
 # with five unrelated packages, where it read as a routine patch update.
 #
-# So this list is 0.15's default, written down: the same rules the gate has
-# actually been enforcing, verified by diffing `--show-settings` against the
-# bare 0.15 default. Upgrading ruff is now just an upgrade. Adopting 0.16's
-# wider set is a separate, reviewable decision — PP-158, which works through
-# those 116 findings on their merits.
-select = ["E4", "E7", "E9", "F"]
+# PP-157 set this to `E4, E7, E9, F` — 0.15's default, written down — so
+# that upgrading ruff stopped being a change of contract. PP-158 then took
+# 0.16's 116 findings one family at a time, on merit rather than by
+# inheriting them. What is here was chosen; what is not is listed below
+# with the reason, so the next person does not have to re-derive it.
+select = [
+    # The 0.15 baseline.
+    "E4", "E7", "E9", "F",
+    # 35 findings. CLAUDE.md already mandates stdlib / third-party / local
+    # ordering as a convention; nothing enforced it until now.
+    "I",
+    # 48. `Optional[X]` → `X | None` and one deprecated import, on a
+    # codebase that requires 3.13.
+    "UP",
+    # 22, every one a FastAPI `Depends()` in a signature — see
+    # flake8-bugbear below. The rest of the family was already clean.
+    "B",
+    # Small and real: one collapsible `if`, five `re.I` → `re.IGNORECASE`,
+    # one implicit concatenation in a list, four manual comprehensions, two
+    # naming slips, four os.path calls with a pathlib equivalent.
+    "SIM", "FURB", "ISC", "PERF", "N", "PTH",
+    # One `subprocess.run` with no `check=`, the single finding in all 116
+    # that looked like a latent bug rather than style.
+    "PLW",
+    # Currently zero findings. Adopted as guard rails: they cost nothing
+    # today and catch real errors (PLE), dead comprehension work (C4) and
+    # unreachable `else` branches after `return` (RET).
+    "C4", "PLE", "RET",
+    # Two specific rules rather than all of RUF: an unsorted `__all__`, and
+    # a list built only to take its first element. RUF001/RUF002 flag the
+    # em dashes and ✅ this project uses deliberately in prose.
+    "RUF015", "RUF022",
+]
+
+# Considered and declined, with the count each would have added:
+#
+#   PLC0415 import-outside-top-level (28) — local imports here are
+#       deliberate. `assistant.py` imports `anthropic` lazily so the
+#       optional extra stays optional; that is the architecture, not a slip.
+#   TRY003  raise-vanilla-args (37) — this project writes long, specific
+#       exception messages on purpose. The rule wants them moved into
+#       exception classes, which would make them harder to read, not safer.
+#   PLR2004 magic-value-comparison (210) and the PLR complexity metrics
+#       (too-many-branches and friends, 42) — overwhelmingly in tests,
+#       where a literal in an assertion is the point.
+#   D       pydocstyle (~700, mostly D103 on test functions) — CLAUDE.md's
+#       docstring rule is about public API in `src/`, not test bodies.
+#       Worth revisiting with per-file-ignores for `tests/`; too large to
+#       bundle into a lint-adoption change.
+#   S       flake8-bandit (1741, almost all S101 `assert` in tests).
+
+ignore = [
+    # UP042 wants `class Severity(str, Enum)` rewritten as `StrEnum`, on 17
+    # enums. It is presented as a modernisation and is a behaviour change:
+    # `str()` and f-string interpolation of a `(str, Enum)` member give
+    # `ViewType.SYSTEM_CONTEXT`, and of a `StrEnum` member give the value.
+    # `c4 list-views` prints exactly that, so the CLI's output would change
+    # under a lint fix. JSON is unaffected — `json.dumps` gives the value
+    # either way — which is what makes it easy to wave through.
+    #
+    # Possibly worth doing deliberately, with the output change intended and
+    # the tests updated. Not as a side effect of adopting a rule set.
+    "UP042",
+]
+
+[tool.ruff.lint.flake8-bugbear]
+# B008 flags every `Depends()` in a signature — 22 of them in server.py.
+# That is how FastAPI declares a dependency, not a mutable default shared
+# between calls, so the rule is wrong here rather than the code.
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Path"]
 
 [tool.ruff.format]
 # 0.16's formatter reaches into Python blocks in Markdown, which is new and
