@@ -69,7 +69,11 @@ function ContainerNode({
   container: Container;
   onShowDefinition: (elementId: string) => void;
 }) {
-  const [open, setOpen] = useState(true);
+  // Closed by default. Open, a component-level model renders every
+  // component in the sidebar on first paint — samples/c4studio has 42 of
+  // them — which buries the sections below and makes the tree unscannable
+  // at exactly the scale it exists for.
+  const [open, setOpen] = useState(false);
   const hasComponents = container.components.length > 0;
   return (
     <li>
@@ -116,7 +120,10 @@ function SystemNode({
   system: SoftwareSystem;
   onShowDefinition: (elementId: string) => void;
 }) {
-  const [open, setOpen] = useState(true);
+  // Closed by default, for the same reason. The People and Software
+  // Systems groups stay open — those are the map, and the map should be
+  // visible; what is inside a system is the detail you go looking for.
+  const [open, setOpen] = useState(false);
   const hasContainers = system.containers.length > 0;
   return (
     <li>
@@ -174,7 +181,7 @@ export function ElementTree({ workspace, onShowDefinition }: ElementTreeProps) {
   return (
     <section className="section">
       <h2 className="section__title">Elements</h2>
-      <ul className="tree">
+      <ul className="tree section__scroll section__scroll--elements">
         <li>
           <Toggle
             open={peopleOpen}

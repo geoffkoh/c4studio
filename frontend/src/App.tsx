@@ -42,6 +42,19 @@ import { SplitPane } from "./components/SplitPane";
 import { TopBar, type AppPage } from "./components/TopBar";
 import { ViewList } from "./components/ViewList";
 
+/** Sidebar visibility, remembered like the split's ratio and collapsed
+    state — the same per-user UI state, so the same storage. */
+const SIDEBAR_KEY = "c4studio.sidebarOpen";
+
+function storedSidebarOpen(): boolean {
+  try {
+    return window.localStorage.getItem(SIDEBAR_KEY) !== "closed";
+  } catch {
+    // Private windows and blocked site data throw rather than return null.
+    return true;
+  }
+}
+
 /** How often to ask the server whether the loaded source changed on disk. */
 const RELOAD_POLL_MS = 2000;
 
@@ -66,6 +79,7 @@ export default function App() {
   const [codeFocus, setCodeFocus] = useState<CodeFocus | null>(null);
   const [openRequest, setOpenRequest] = useState<OpenRequest | null>(null);
   const [newWorkspaceOpen, setNewWorkspaceOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(storedSidebarOpen);
   const [reloadTick, setReloadTick] = useState(0);
   const [helpOpen, setHelpOpen] = useState(false);
   // `null` until the probe answers, and if it never does. Treated as
@@ -83,6 +97,14 @@ export default function App() {
   // live in KeyboardShortcuts inside the graph pane.
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
+      // The editor idiom, and it has to run before the guard below — this
+      // is the one shortcut that *wants* a modifier.
+      if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key === "b") {
+        if (isTypingTarget(event.target)) return;
+        setSidebarOpen((open) => !open);
+        event.preventDefault();
+        return;
+      }
       if (event.metaKey || event.ctrlKey || event.altKey) return;
       if (isTypingTarget(event.target)) return;
       if (event.key === "Escape") {
@@ -123,6 +145,14 @@ export default function App() {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [page, views, workspace]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(SIDEBAR_KEY, sidebarOpen ? "open" : "closed");
+    } catch {
+      // Nothing to do: the preference simply will not persist.
+    }
+  }, [sidebarOpen]);
 
   // Load the file list once on mount.
   useEffect(() => {
@@ -343,9 +373,25 @@ export default function App() {
         sectionCount={workspace?.documentation.sections.length ?? 0}
         decisionCount={workspace?.documentation.decisions.length ?? 0}
         readOnly={readOnly}
+        sidebarOpen={sidebarOpen}
+        onToggleSidebar={() => setSidebarOpen((open) => !open)}
       />
       <div className="body">
-        <aside className="sidebar">
+        {sidebarOpen ? null : (
+          <button
+            className="rail rail--left"
+            onClick={() => setSidebarOpen(true)}
+            aria-expanded={false}
+            title="Show the sidebar  (⌘B)"
+          >
+            <span className="rail__label">Files</span>
+          </button>
+        )}
+        {/* `hidden` rather than unmounting: collapsing the sidebar must
+            not throw away the file tree's expansion and search, which is
+            exactly the state someone collapses it to get out of the way
+            of, not to lose. */}
+        <aside className="sidebar" hidden={!sidebarOpen}>
           {error ? <div className="error">{error}</div> : null}
           {reloadError ? (
             <div className="error">
