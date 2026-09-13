@@ -77,6 +77,9 @@ export default function App() {
   const [capabilities, setCapabilities] = useState<Capabilities | null>(null);
   const readOnly = capabilities?.readOnly ?? true;
   const generationRef = useRef(0);
+  // Read inside handleSelectFile, which is memoised with no dependencies.
+  const currentPathRef = useRef<string | null>(null);
+  currentPathRef.current = currentPath;
 
   // App-level keyboard shortcuts (diagrams page): j/k cycle views, u goes
   // up a level, ? toggles the help overlay. Graph-scoped keys (f/p/s/h)
@@ -283,6 +286,9 @@ export default function App() {
   }, []);
 
   const handleSelectFile = useCallback(async (path: string) => {
+    // Read before the await, so it cannot depend on when React commits the
+    // setCurrentPath below.
+    const firstLoad = currentPathRef.current === null;
     setLoadingPath(path);
     setError(null);
     setReloadError(null);
@@ -291,7 +297,12 @@ export default function App() {
       setCurrentPath(result.path);
       setViews(result.views);
       setSelectedView(null);
-      setPage("diagrams");
+      // Land on Diagrams only when there was nothing loaded before — that
+      // first load has nowhere sensible to stay. Afterwards, stay where the
+      // user is: loading a second workspace from the tree while editing
+      // used to throw them out of the editor, which made browsing files and
+      // writing DSL mutually exclusive.
+      if (firstLoad) setPage("diagrams");
       setCodeFocus(null);
       setReloadTick((tick) => tick + 1);
       const [ws, status] = await Promise.all([getWorkspace(), getStatus()]);
