@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import io
 import json
+import sys
 from pathlib import Path
 
+import pytest
 from click.testing import CliRunner
 
-from c4studio.cli.main import cli
+from c4studio.cli.main import _read_stdin_text, cli
+from c4studio.parser.dsl import parse_dsl
 
 WARNING_DSL = (
     'workspace "T" {\n'
@@ -109,6 +113,28 @@ def test_check_reads_dsl_from_stdin(tmp_path: Path) -> None:
     [record] = json.loads(result.output)
     assert record["code"] == "unsupported-block"
     assert record["line"] == 3
+
+
+def test_stdin_is_decoded_as_utf8_whatever_the_locale(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A piped buffer decodes like a file on disk, not like the locale.
+
+    Every DSL read from disk is decoded UTF-8 explicitly, so stdin has to
+    match or the same workspace parses two ways depending on where it came
+    from. `sys.stdin.read()` would not: its encoding follows the locale.
+
+    The stdin built here is what a latin-1 locale hands a process — correct
+    UTF-8 bytes wrapped in a stream that will mis-decode them. Read through
+    the text layer, "Ünïcodé" arrives as "ÃœnÃ¯codÃ©".
+    """
+    dsl = 'workspace "T" {\n    model {\n        u = person "Ünïcodé"\n    }\n}\n'
+    mis_decoding = io.TextIOWrapper(io.BytesIO(dsl.encode("utf-8")), encoding="latin-1")
+    monkeypatch.setattr(sys, "stdin", mis_decoding)
+
+    workspace = parse_dsl(_read_stdin_text())
+
+    assert [p.name for p in workspace.people] == ["Ünïcodé"]
 
 
 def test_stdin_diagnostics_are_attributed_to_the_real_path(tmp_path: Path) -> None:
