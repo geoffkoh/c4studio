@@ -17,7 +17,7 @@ export function ViewList({ views, selectedKey, onSelect }: ViewListProps) {
       {views.length === 0 ? (
         <p className="muted">Load a file to see its views.</p>
       ) : (
-        <ul className="list">
+        <ul className="list section__scroll section__scroll--views">
           {views.map((view) => {
             const isActive = view.key === selectedKey;
             const disabled = !view.supported;

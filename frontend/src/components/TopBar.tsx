@@ -15,6 +15,9 @@ interface TopBarProps {
   decisionCount: number;
   /** Server mode. Viewer is badged; Studio is the default and unlabelled. */
   readOnly: boolean;
+  /** Sidebar visibility, owned by App and persisted. */
+  sidebarOpen: boolean;
+  onToggleSidebar: () => void;
 }
 
 /**
@@ -23,6 +26,8 @@ interface TopBarProps {
  * between the diagram, documentation and decision pages.
  */
 export function TopBar({
+  sidebarOpen,
+  onToggleSidebar,
   workspaceName,
   filePath,
   page,
@@ -45,6 +50,15 @@ export function TopBar({
 
   return (
     <header className="topbar">
+      <button
+        className="topbar__toggle"
+        onClick={onToggleSidebar}
+        aria-expanded={sidebarOpen}
+        aria-label={sidebarOpen ? "Hide the sidebar" : "Show the sidebar"}
+        title={`${sidebarOpen ? "Hide" : "Show"} the sidebar  (⌘B)`}
+      >
+        ☰
+      </button>
       <span className="topbar__title">c4studio</span>
       {readOnly ? (
         <span

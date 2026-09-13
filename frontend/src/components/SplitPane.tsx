@@ -136,11 +136,11 @@ export function SplitPane({ left, right, rightLabel }: SplitPaneProps) {
         </>
       ) : (
         <button
-          className="split__rail"
+          className="rail rail--right"
           onClick={() => setOpen(true)}
           title={`Show the ${rightLabel}`}
         >
-          <span className="split__rail-label">{rightLabel}</span>
+          <span className="rail__label">{rightLabel}</span>
         </button>
       )}
     </div>
