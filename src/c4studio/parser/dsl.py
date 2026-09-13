@@ -293,6 +293,26 @@ class UnsupportedFeatureWarning(UserWarning):
     """Warning issued when the DSL uses a feature the parser ignores."""
 
 
+# Everything :meth:`_Parser._parse_element` knows how to build. Named once
+# so the aliased and unaliased statement paths cannot drift apart — which
+# is how an aliased block came to be parsed as an element and leak its
+# enclosing scope (PP-138).
+_ELEMENT_KEYWORDS = frozenset(
+    {
+        "person",
+        "softwaresystem",
+        "container",
+        "component",
+        "deploymentnode",
+        "infrastructurenode",
+        "softwaresysteminstance",
+        "containerinstance",
+        "deploymentgroup",
+        "element",
+    }
+)
+
+
 class _Parser:
     def __init__(
         self, tokens: list[Token], source_map: SourceMap | None = None
@@ -320,6 +340,10 @@ class _Parser:
         self._ws: Workspace | None = None
         # relationship aliases (`rel = a -> b ...`) for !relationship
         self._rel_aliases: dict[str, Relationship] = {}
+        # deploymentEnvironment aliases -> environment name. Upstream
+        # registers these as identifiers, and a deployment view resolves
+        # one in its environment slot back to the name.
+        self._env_aliases: dict[str, str] = {}
         self._implied_relationships = False
         # include/exclude expression lines, resolved once the model is built
         self._pending_expressions: list[tuple[View, str, list[tuple[str, str]]]] = []
@@ -828,24 +852,42 @@ class _Parser:
                 self._parse_relationship()
                 self._rel_aliases[alias] = self._rel_buffer[-1]
                 return
+            # `prod = deploymentEnvironment "..." { ... }` is not an
+            # element and cannot go through _parse_element: that path would
+            # read the name, meet the `{` it does not expect, and skip a
+            # single token — leaving the body to be parsed as model
+            # statements and the closing brace to end `model` early.
+            # Upstream accepts the alias (StructurizrDslParser registers a
+            # DeploymentEnvironment identifier for it), so accept it here
+            # and remember what it points at.
+            if (
+                self._peek().type == IDENT
+                and self._peek().value.lower() == "deploymentenvironment"
+            ):
+                env_name = self._parse_deployment_environment(ws)
+                if env_name:
+                    self._env_aliases[alias] = env_name
+                return
+            # Anything else aliased that is not an element keyword — an
+            # aliased `group`, a stray `enterprise`, some future block —
+            # must be skipped *whole*. _parse_element would read a name,
+            # meet the `{` it does not expect and drop one token, leaving
+            # the body to be parsed as model statements and the closing
+            # brace to end `model` early.
+            following = self._peek()
+            if (
+                following.type != IDENT
+                or following.value.lower() not in _ELEMENT_KEYWORDS
+            ):
+                self._skip_construct("model")
+                return
             self._parse_element(ws, alias, parent_id)
             return
 
         # keyword elements without alias
         if tok.type == IDENT:
             kw = tok.value.lower()
-            if kw in (
-                "person",
-                "softwaresystem",
-                "container",
-                "component",
-                "deploymentnode",
-                "infrastructurenode",
-                "softwaresysteminstance",
-                "containerinstance",
-                "deploymentgroup",
-                "element",
-            ):
+            if kw in _ELEMENT_KEYWORDS:
                 self._parse_element(ws, alias=None, parent_id=parent_id)
                 return
             if kw == "enterprise":
@@ -1319,11 +1361,15 @@ class _Parser:
             self._expect(RBRACE)
         self._group_stack.pop()
 
-    def _parse_deployment_environment(self, ws: Workspace) -> None:
+    def _parse_deployment_environment(self, ws: Workspace) -> str:
         """Parse ``deploymentEnvironment "Name" { ... }``.
 
         Deployment nodes and instances created inside the block are stamped
         with the environment name so deployment views can filter on it.
+
+        Returns:
+            The environment name, so an aliased declaration can record what
+            its identifier refers to.
         """
         kw_tok = self._advance()  # consume keyword
         env_name = self._optional_string() or self._optional_ident()
@@ -1345,6 +1391,7 @@ class _Parser:
                 self._parse_model_item(ws, parent_id=None)
             self._expect(RBRACE)
         self._current_environment = previous
+        return env_name
 
     def _unique_id(self, base: str) -> str:
         """Return ``base`` or a numbered variant not yet used as an id."""
@@ -1722,6 +1769,10 @@ class _Parser:
                 environment = self._advance().value.strip('"')
             elif self._match(IDENT):
                 environment = self._advance().value
+                # An identifier here may name a deploymentEnvironment
+                # rather than be the environment's own name, which is how
+                # upstream resolves it too.
+                environment = self._env_aliases.get(environment, environment)
         key = ""
         if self._match(IDENT):
             key = self._advance().value
@@ -1963,6 +2014,34 @@ class _Parser:
             column=tok.column,
             end_column=tok.end_column,
             code="unexpected-token",
+        )
+
+    def _skip_construct(self, scope: str) -> None:
+        """Skip a whole construct from its keyword, block included.
+
+        :meth:`_skip_unknown` handles the ``keyword {`` shape, where the
+        brace follows immediately. This handles the general one, where a
+        name and other arguments sit between — ``group "Team" {`` — by
+        consuming the statement's own line and then, if it opened a block,
+        the block.
+
+        Same contract either way, and the one `CLAUDE.md` states: a skipped
+        construct must never consume its enclosing scope.
+        """
+        start = self._peek()
+        while not self._match(EOF):
+            if self._match(LBRACE):
+                self._skip_block()
+                break
+            if self._peek().line != start.line:
+                break
+            self._advance()
+        self._warn(
+            f"skipped unsupported {start.value!r} in {scope}",
+            line=start.line,
+            column=start.column,
+            end_column=start.end_column,
+            code="unsupported-block",
         )
 
     def _skip_block(self) -> None:

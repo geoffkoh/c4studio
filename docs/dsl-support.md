@@ -12,7 +12,8 @@ settles it — each parser there declares a literal `GRAMMAR` string.
 for each keyword and inspecting the resulting model, not by reading the
 parser. Verified August 2026 against the parser in
 `src/c4studio/parser/dsl.py`; re-probed September 2026, which corrected
-`instanceOf` and caught the `deploymentEnvironment` alias leak below.
+`instanceOf` and caught the `deploymentEnvironment` alias leak, since
+fixed (PP-138).
 
 **Living coverage:** `samples/logistics_network.dsl` exercises most ✅
 keywords in one workspace — groups, custom elements, `this ->`,
@@ -71,7 +72,7 @@ prints. A skipped construct never consumes its enclosing scope.
 | `<identifier> -> <identifier> [description] [technology] [tags]` | ✅ | Including `this ->` and implicit-source forms |
 | `<identifier> -/> <identifier>` | ⛔ | Relationship removal is not implemented |
 | `archetypes { … }` | ⛔ | A newer upstream feature; the whole block is skipped |
-| `deploymentEnvironment <name> { … }` | ◐ | The plain form works. The aliased form `prod = deploymentEnvironment "Production" { … }` is rejected — and its body then **leaks into model scope**, so the nodes inside land in the model with no environment and the closing brace ends the `model` block early. A fail-soft violation, not a decision |
+| `deploymentEnvironment <name> { … }` | ✅ | Both forms. The aliased form `prod = deploymentEnvironment "Production" { … }` used to be rejected *and* leak its body into model scope; fixed in PP-138, and the alias now resolves in a deployment view's environment slot the way upstream resolves it |
 | `deploymentGroup <name>` | ✅ | Declarations and instance membership |
 | `deploymentNode <name> […] [instances] { … }` | ✅ | Positional `instances` supported, including ranges like `"0..N"` |
 | `infrastructureNode <name> […]` | ✅ | |
