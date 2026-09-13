@@ -180,9 +180,15 @@ workspace (`packages/*`, `frontend/`) and `editors/vscode/` alike.
 
 CI runs the standing gate on every PR (`.github/workflows/checks.yml`):
 ruff, mypy, pytest, a rebuild of the frontend that **fails if the committed
-bundle is stale**, and the Playwright layout assertions. Screenshot
-comparison is deliberately local-only — the baselines are `-darwin` and a
-Linux set would be churn for no extra signal.
+bundle is stale**, the Playwright layout assertions, and `vsce package` for
+the extension. Screenshot comparison is deliberately local-only — the
+baselines are `-darwin` and a Linux set would be churn for no extra signal.
+
+The extension job exists because `editors/vscode` is a separate install
+that the frontend job never touches, so nothing built it. A dependency bump
+raised `@types/vscode` above `engines.vscode`; `typecheck` and `esbuild`
+both passed, `vsce package` rejects it outright, and the break surfaced
+only when a release tried to cut a `.vsix` by hand (PP-163).
 
 Tests alone are not sufficient for webapp or parser changes. Before opening a PR:
 
