@@ -16,6 +16,7 @@ import type {
   SaveSourceResult,
   SingleFile,
   SourceEntry,
+  TemplateInfo,
   SourceResult,
   StatusResult,
   ViewInfo,
@@ -199,6 +200,28 @@ export function deleteFolder(path: string): Promise<{ deleted: string }> {
   return request<{ deleted: string }>(
     `/api/folder?path=${encodeURIComponent(path)}`,
     { method: "DELETE" },
+  );
+}
+
+/** GET /api/templates -> the starter workspaces this server ships. */
+export function listTemplates(): Promise<TemplateInfo[]> {
+  return request<TemplateInfo[]>("/api/templates");
+}
+
+/** GET /api/templates/{name} -> one starter workspace, optionally renamed.
+
+    Rendered server-side so the name substitution has one implementation,
+    the one `c4 new` uses. The caller writes the result through the normal
+    save path, which is why creating a workspace needs no route of its own. */
+export function getTemplate(
+  name: string,
+  workspaceName?: string,
+): Promise<{ name: string; content: string }> {
+  const query = workspaceName
+    ? `?workspace=${encodeURIComponent(workspaceName)}`
+    : "";
+  return request<{ name: string; content: string }>(
+    `/api/templates/${encodeURIComponent(name)}${query}`,
   );
 }
 

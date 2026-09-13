@@ -299,6 +299,12 @@ export interface WorkspaceDocumentation {
   decisions: DocDecision[];
 }
 
+/** One starter workspace from GET /api/templates. */
+export interface TemplateInfo {
+  name: string;
+  summary: string;
+}
+
 /** One entry from GET /api/files.
 
     `kind` says what the file is, not merely whether it is offered: a

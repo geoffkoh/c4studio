@@ -24,6 +24,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from c4studio import templates
 from c4studio.diagnostics import Diagnostic, Severity
 from c4studio.models import View, Workspace
 from c4studio.parser.dsl import ParseError, parse_dsl
@@ -902,6 +903,37 @@ def create_app(
         _apply_saved_layout(state)
 
     app.state.app_state = state
+
+    @app.get("/api/templates")
+    def list_starter_templates() -> list[dict[str, str]]:
+        """List the starter workspaces shipped with the package.
+
+        A read, and not gated: knowing what exists is harmless, and Viewer
+        is stopped at the write it would need to use one.
+        """
+        return [
+            {"name": template.name, "summary": template.summary}
+            for template in templates.list_templates()
+        ]
+
+    @app.get("/api/templates/{name}")
+    def read_starter_template(
+        name: str, workspace: str | None = None
+    ) -> dict[str, str]:
+        """Render one starter workspace, optionally renamed.
+
+        Rendering stays here rather than in the client so the name
+        substitution has exactly one implementation — the one ``c4 new``
+        already uses. The client writes the result through
+        ``PUT /api/source``, which is why creating a workspace needs no
+        writable route of its own and inherits the 409-on-clobber and the
+        Viewer guard for free.
+        """
+        try:
+            content = templates.render(name, workspace)
+        except templates.TemplateError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        return {"name": name, "content": content}
 
     @app.get("/api/capabilities")
     def capabilities(state: AppState = Depends(_get_state)) -> dict[str, Any]:
