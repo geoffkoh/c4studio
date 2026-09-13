@@ -152,6 +152,12 @@ workspace (`packages/*`, `frontend/`) and `editors/vscode/` alike.
 
 ## Verification
 
+CI runs the standing gate on every PR (`.github/workflows/checks.yml`):
+ruff, mypy, pytest, a rebuild of the frontend that **fails if the committed
+bundle is stale**, and the Playwright layout assertions. Screenshot
+comparison is deliberately local-only — the baselines are `-darwin` and a
+Linux set would be churn for no extra signal.
+
 Tests alone are not sufficient for webapp or parser changes. Before opening a PR:
 
 1. `uv run pytest`, `uv run ruff check .`, `uv run mypy .` — all green.
