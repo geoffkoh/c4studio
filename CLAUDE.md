@@ -198,9 +198,24 @@ the finding in the code or docs so the answer survives without it.
 
 ## Git & Workflow
 
-- **One Jira ticket per item** in the `PP` project (Jira access is via the
-  `jira` skill; `JIRA_INSTANCE`, `JIRA_USER_EMAIL`, `JIRA_API_TOKEN` are in the
-  environment). Reference the ticket in the commit subject: `... (PP-70)`.
+- **One Jira ticket per item** in the `PP` project. Reference the ticket in
+  the commit subject: `... (PP-70)`.
+
+  Jira lives in the **workspace-level** skill `../.claude/skills/jira/`, which
+  is shared with `bizkit/`. Being workspace-level, it is *not* discoverable as
+  `/jira` while working inside this repo — invoking it by name fails with
+  "Unknown skill". Call the helper directly instead:
+
+  ```bash
+  cd ../.claude/skills/jira
+  python3 jira_helper.py query "project = PP AND status != Done"
+  python3 jira_helper.py create PP Task "Summary" --description "..."
+  python3 jira_helper.py comment PP-157 "Merged in PR #169."
+  python3 jira_helper.py transition PP-157 Done
+  ```
+
+  `JIRA_INSTANCE`, `JIRA_USER_EMAIL` and `JIRA_API_TOKEN` are in the
+  environment. `JIRA_INSTANCE` is a bare host, not a URL.
 - **Branch per ticket**, cut from `main`: `feature/<name>` or `fix/<name>`.
 - **Semantic commits:** `feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, with an
   optional scope — `feat(parser): ...`, `feat(webapp): ...`.
