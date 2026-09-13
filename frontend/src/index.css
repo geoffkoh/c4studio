@@ -1,4 +1,6 @@
 :root {
+  /* One definition, so a breakpoint changes the sidebar in one place. */
+  --sidebar-w: 300px;
   --bg: #f5f6f8;
   --panel: #ffffff;
   --border: #e2e5ea;
@@ -75,6 +77,12 @@ button {
 .topbar__file {
   color: var(--muted);
   font-size: 13px;
+  /* Truncate rather than squash the tabs beside it; the full path stays in
+     the title attribute. */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .topbar__file strong {
@@ -103,6 +111,14 @@ button {
   display: flex;
   gap: 2px;
   margin-left: 10px;
+  /* The tab row scrolls rather than compressing; the path beside it
+     truncates instead. */
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.topbar__tabs > * {
+  flex-shrink: 0;
 }
 
 .topbar__tab {
@@ -132,8 +148,8 @@ button {
 }
 
 .sidebar {
-  width: 300px;
-  min-width: 300px;
+  width: var(--sidebar-w);
+  min-width: var(--sidebar-w);
   background: var(--panel);
   border-right: 1px solid var(--border);
   overflow-y: auto;
@@ -2381,4 +2397,47 @@ button {
   background: var(--border);
   margin: 0 4px;
   flex-shrink: 0;
+}
+
+
+/* ---- Narrow surfaces ----------------------------------------------------
+   The first breakpoints in this project. They exist because the VS Code
+   preview embeds the whole SPA in a panel around 500px wide, where the
+   fixed chrome used to exceed 100% of the width.
+
+   They cover what depends on the *window*. What depends on the pane — the
+   editor/diagram split — is measured with a ResizeObserver in SplitPane
+   instead, because that panel is dragged independently of the window and a
+   media query would never see it. */
+
+@media (max-width: 1099px) {
+  :root {
+    --sidebar-w: 240px;
+  }
+}
+
+@media (max-width: 699px) {
+  :root {
+    --sidebar-w: 220px;
+  }
+
+  /* Reclaim vertical space the narrow surfaces cannot spare. */
+  .topbar {
+    padding: 8px 10px;
+    gap: 8px;
+  }
+
+  .topbar__title {
+    font-size: 14px;
+  }
+
+  /* The workspace name is enough; the path is in the tab titles and the
+     file tree, and at this width it only crowds the tabs. */
+  .topbar__file {
+    display: none;
+  }
+
+  .breadcrumb {
+    max-width: calc(100% - 120px);
+  }
 }

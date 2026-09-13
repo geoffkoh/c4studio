@@ -15,9 +15,29 @@ const OPEN_STORAGE_KEY = "c4studio.splitOpen";
 const MIN_RATIO = 0.2;
 const MAX_RATIO = 0.8;
 
-function clamp(ratio: number): number {
-  return Math.min(MAX_RATIO, Math.max(MIN_RATIO, ratio));
+/** ...nor below this many px, which a ratio alone cannot express.
+
+    The ratio was written for a browser window. In the VS Code preview the
+    whole SPA lives in a panel around 500px wide, where 0.2 is a 100px pane
+    — narrower than the editor's own gutter. Below twice this (plus the
+    divider) there is no honest split to draw, so one pane takes the width
+    and the other becomes the rail it already knows how to be. */
+const MIN_PANE = 320;
+
+function clamp(ratio: number, width = 0): number {
+  const bounded = Math.min(MAX_RATIO, Math.max(MIN_RATIO, ratio));
+  if (width < MIN_PANE * 2) return bounded;
+  // Tighten the ratio bounds so neither pane falls under MIN_PANE.
+  const floor = MIN_PANE / width;
+  return Math.min(1 - floor, Math.max(floor, bounded));
 }
+
+/** Whether the container can hold two panes at all. */
+function fits(width: number): boolean {
+  return width === 0 || width >= MIN_PANE * 2 + DIVIDER_PX;
+}
+
+const DIVIDER_PX = 6;
 
 function storedRatio(): number {
   const raw = Number(window.localStorage.getItem(RATIO_STORAGE_KEY));
@@ -54,6 +74,24 @@ export function SplitPane({ left, right, rightLabel }: SplitPaneProps) {
   const [ratio, setRatio] = useState(storedRatio);
   const [open, setOpen] = useState(storedOpen);
   const [dragging, setDragging] = useState(false);
+  // The container, not the viewport. The VS Code panel is dragged
+  // independently of the window, so a media query would miss it entirely.
+  const [width, setWidth] = useState(0);
+  // Which pane has the width when there is only room for one. Not
+  // persisted: it is a momentary answer to "which am I looking at now",
+  // not a preference, and it must not survive back to a wide window.
+  const [narrowPane, setNarrowPane] = useState<"left" | "right">("left");
+
+  useEffect(() => {
+    const element = containerRef.current;
+    if (!element) return;
+    const observer = new ResizeObserver((entries) => {
+      const measured = entries[0]?.contentRect.width;
+      if (typeof measured === "number") setWidth(measured);
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     window.localStorage.setItem(RATIO_STORAGE_KEY, String(ratio));
@@ -68,7 +106,7 @@ export function SplitPane({ left, right, rightLabel }: SplitPaneProps) {
     const onMove = (event: MouseEvent) => {
       const box = containerRef.current?.getBoundingClientRect();
       if (!box || box.width === 0) return;
-      setRatio(clamp((event.clientX - box.left) / box.width));
+      setRatio(clamp((event.clientX - box.left) / box.width, box.width));
     };
     const onUp = () => setDragging(false);
     window.addEventListener("mousemove", onMove);
@@ -89,7 +127,7 @@ export function SplitPane({ left, right, rightLabel }: SplitPaneProps) {
   const onKeyDown = useCallback((event: ReactKeyboardEvent) => {
     if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
     const step = event.key === "ArrowLeft" ? -0.02 : 0.02;
-    setRatio((value) => clamp(value + step));
+    setRatio((value) => clamp(value + step, width));
     event.preventDefault();
   }, []);
 
@@ -99,15 +137,35 @@ export function SplitPane({ left, right, rightLabel }: SplitPaneProps) {
     setOpen(false);
   }, []);
 
+  // The user's choice is honoured only when it is drawable. It is never
+  // rewritten, so widening the panel restores the split they asked for.
+  const roomy = fits(width);
+  const showBoth = open && roomy;
+  const effectiveRatio = clamp(ratio, width);
+
   return (
     <div className="split" ref={containerRef}>
-      <div
-        className="split__pane"
-        style={{ flex: open ? `0 0 ${ratio * 100}%` : "1 1 0" }}
-      >
-        {left}
-      </div>
-      {open ? (
+      {/* Narrow: one pane at a time, with the other as a rail to swap to.
+          The rail is the same affordance as the collapsed diagram, so
+          there is one thing to learn rather than two. */}
+      {!roomy && narrowPane === "right" ? (
+        <button
+          className="rail rail--left"
+          onClick={() => setNarrowPane("left")}
+          title="Back to the editor"
+        >
+          <span className="rail__label">editor</span>
+        </button>
+      ) : (
+        <div
+          className="split__pane"
+          style={{ flex: showBoth ? `0 0 ${effectiveRatio * 100}%` : "1 1 0" }}
+        >
+          {left}
+        </div>
+      )}
+
+      {showBoth ? (
         <>
           <div
             className={
@@ -115,7 +173,7 @@ export function SplitPane({ left, right, rightLabel }: SplitPaneProps) {
             }
             role="separator"
             aria-orientation="vertical"
-            aria-valuenow={Math.round(ratio * 100)}
+            aria-valuenow={Math.round(effectiveRatio * 100)}
             tabIndex={0}
             onMouseDown={() => setDragging(true)}
             onDoubleClick={() => setRatio(0.5)}
@@ -134,11 +192,17 @@ export function SplitPane({ left, right, rightLabel }: SplitPaneProps) {
           </div>
           <div className="split__pane split__pane--right">{right}</div>
         </>
+      ) : !roomy && narrowPane === "right" ? (
+        <div className="split__pane split__pane--right">{right}</div>
       ) : (
         <button
           className="rail rail--right"
-          onClick={() => setOpen(true)}
-          title={`Show the ${rightLabel}`}
+          onClick={() => (roomy ? setOpen(true) : setNarrowPane("right"))}
+          title={
+            roomy
+              ? `Show the ${rightLabel}`
+              : `Show the ${rightLabel} — only one fits at this width`
+          }
         >
           <span className="rail__label">{rightLabel}</span>
         </button>
