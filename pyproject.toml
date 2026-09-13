@@ -56,6 +56,31 @@ build-backend = "uv_build"
 [tool.uv.build-backend]
 module-name = "c4studio"
 
+[tool.ruff.lint]
+# The rule set is declared here rather than inherited from ruff's defaults,
+# because inheriting it made a version bump a silent change of contract.
+#
+# ruff 0.15's default selection is `E4, E7, E9, F`. 0.16 replaced that with
+# a much broader curated set, and this code — unchanged — went from zero
+# findings to 116. Dependabot proposed exactly that bump (#167), bundled
+# with five unrelated packages, where it read as a routine patch update.
+#
+# So this list is 0.15's default, written down: the same rules the gate has
+# actually been enforcing, verified by diffing `--show-settings` against the
+# bare 0.15 default. Upgrading ruff is now just an upgrade. Adopting 0.16's
+# wider set is a separate, reviewable decision — PP-158, which works through
+# those 116 findings on their merits.
+select = ["E4", "E7", "E9", "F"]
+
+[tool.ruff.format]
+# 0.16's formatter reaches into Python blocks in Markdown, which is new and
+# unwanted here. Prose snippets are written to be read, not to satisfy a
+# formatter: it collapsed a deliberately line-per-argument README example
+# onto one long line, and padded the compact `# Before` / `# After`
+# fragments in COMPATIBILITY_ROADMAP.md with module-level blank lines. Those
+# are illustrations, not modules. Formatting stays on real source files.
+exclude = ["*.md"]
+
 [tool.mypy]
 # Strict by default, so `uv run mypy .` — the command in CLAUDE.md and the
 # one run before every PR — is the strict one. Without this it ran with
@@ -84,9 +109,10 @@ dev = [
     # all in CI, where the first run of the gate failed with
     # "Failed to spawn: ruff". The project's own gate tools have to be
     # project dependencies.
-    # Pinned to the 0.15 line, which is what the gate has actually been
-    # run with. Declaring it unpinned pulled 0.16 and its new rules, and
-    # 89 findings — a lint upgrade is its own change, not a side effect of
-    # writing a CI workflow. Dependabot can propose the bump on its own.
-    "ruff>=0.15.22,<0.16",
+    # The 0.15 pin was here because an unpinned declaration pulled 0.16 and
+    # a pile of new findings. That was the right call, but it treated the
+    # symptom: the rules were coming from ruff's defaults, so the *version*
+    # was the contract. [tool.ruff.lint] now states the rules outright, and
+    # the upgrade is just an upgrade — hence the wider bound.
+    "ruff>=0.15.22,<0.17",
 ]
