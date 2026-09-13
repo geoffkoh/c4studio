@@ -53,10 +53,12 @@ governance and overlay features are UI/reporting work, not model work.
 | **Perspectives overlays** — security/data/infra per-element overlays | Med-High | M | Parsed already; toolbar overlay selector + badge/tint rendering. |
 | **Workspace composition / landscape roll-up** — stitch per-team workspaces (`extends`/federation) into one enterprise landscape | High | L | The real "enterprise" scope gap; align DSL semantics with upstream `extends`. |
 | **ADR workflow tooling** — CLI create/supersede, ADR↔element links, status dashboard | Med | M | Templates + git already cover much; links add traceability. |
-| **In-browser DSL editor** — diagnostics + element-id autocomplete | Med | L | Live reload + external editor already tight; needs an editor component dep (ask first). |
-| **Scaffolding** — `c4studio init` org templates; deterministic diff-friendly layout sidecars | Med | S-M | Onboarding ergonomics. |
+| ~~**In-browser DSL editor** — diagnostics + element-id autocomplete~~ | — | — | ✅ **Shipped in 0.3.0.** The judgement that this was "convenience rather than capability" was revisited and reversed — see `studio-editor-plan.md`. CodeMirror 6 went in as a `frontend/` dependency, asked for and agreed. |
+| **Scaffolding** — org templates; deterministic diff-friendly layout sidecars | Med | S-M | ◐ **Half shipped in 0.3.0**: `c4 new` writes one of four starter workspaces, and the app creates one from a picker (PP-137, PP-139). What remains is *org* templates and diff-friendly sidecar ordering. |
 
-**Previously parked, now shipped:** manual edge vertices (PP-76). The
+**Previously parked, now shipped:** the in-browser DSL editor (PP-119 …
+PP-142, the whole of `studio-editor-plan.md`) and manual edge vertices
+(PP-76). The
 original reasoning — auto-layout plus curve separation already solve edge
 readability, and hand-placed vertices rot on every model change — missed
 that the metamodel already carries `Vertex` and `RelationshipView.vertices`,

@@ -1,11 +1,11 @@
 ---
 name: run-webapp
-description: Launch the c4studio viewer (FastAPI + React SPA) against a sample workspace and exercise it over the API, for manual checks or live verification of a change. Use when the user wants to run, demo, screenshot, or verify the web app.
+description: Launch the c4studio Studio or Viewer (FastAPI + React SPA) against a sample workspace and exercise it over the API, for manual checks or live verification of a change. Use when the user wants to run, demo, screenshot, or verify the web app.
 disable-model-invocation: false
 argument-hint: "[sample-name] [--port N] [--rebuild-frontend]"
 ---
 
-# Run the c4studio Viewer
+# Run the c4studio web app
 
 Live verification against `samples/` is required before opening a PR for any
 webapp or parser change — tests alone do not catch rendering regressions.
@@ -40,8 +40,18 @@ with the change.
 
 ```bash
 uv sync
-uv run c4 webapp samples/ --port 8090 --no-browser
+uv run c4 webapp samples/ --port 8090 --no-browser            # Studio (writable)
+uv run c4 webapp samples/ --port 8090 --no-browser --viewer   # Viewer (403s on writes)
 ```
+
+**Studio is the default and it writes to disk.** If a check involves saving,
+point it at a copy of `samples/` rather than the repo's own — a stray save
+shows up in `git status`. The scratchpad is the right place for that copy.
+
+The assistant (`--assistant`) is off unless asked for and is the only
+feature that uses the network. **Do not exercise it against the real API
+without asking the user** — it spends their money. Its 403 (no flag) and
+503 (no key) paths are free to check.
 
 Run it in the background so you can drive the API in the same session, and use a
 non-default port if 8090 might already be occupied. `--no-browser` keeps it from
@@ -61,6 +71,9 @@ curl -s "$BASE/api/status"                     # loaded workspace + parse warnin
 curl -s "$BASE/api/views"                      # view index (flags the default view)
 curl -s "$BASE/api/views/<key>/graph"          # nodes/edges/rankDirection for a view
 curl -s "$BASE/api/source"                     # DSL source for the Source pane
+curl -s "$BASE/api/capabilities"               # studio vs viewer, and which features
+curl -s "$BASE/api/files"                      # {path, kind} — fragments included
+curl -s "$BASE/api/templates"                  # starter workspaces
 ```
 
 Check the response shape rather than just the status code — a 200 with zero
@@ -77,4 +90,5 @@ breadcrumb drills out, and PNG/SVG export produces a cropped diagram.
 ## 6. Clean up
 
 Kill the server when done, and **do not commit any `*.layout.json`** the session
-produced — sidecars are per-user UI state and are gitignored.
+produced — sidecars are per-user UI state and are gitignored. If you ran
+Studio against the repo's `samples/`, check `git status` for stray saves.
