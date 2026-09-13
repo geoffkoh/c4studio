@@ -754,6 +754,29 @@ State these in the tickets so they don't creep in.
 PP-142. What remains is a release: PyPI is on 0.2.0 while all of it sits
 on `main`.
 
+### After F1
+
+The layout review that followed shipped as its own sequence, and the
+follow-ups the plan deferred:
+
+| Ticket | Status | PR |
+| --- | --- | --- |
+| Editor tabs, lifted buffers, collapsible sidebar, narrow layout | ✅ Done | PP-147 – PP-152 |
+| `ux-reviewer` agent | ✅ Done | PP-153 |
+| The standing gate in CI | ✅ Done | #165 (PP-154) |
+| Go-to-definition says when it found nothing | ✅ Done | #166 (PP-155) |
+| Playwright over the VS Code webview shell | ✅ Done | #168 (PP-156) |
+
+Two things the plan called for are still open, both recorded rather than
+quietly dropped:
+
+- **The VS Code extension has never been checked as a `.vsix`.** PP-156
+  narrowed the gap — the iframe, the CSP and panel width are covered — but
+  the real `vscode` host, the panel being dragged, and the extension
+  spawning the server are not, and cannot be without a human.
+- **Merging Diagrams and Source into one workspace page**, the larger
+  coherence win, deliberately left as its own phase.
+
 Update this table as tickets land, and file the next phase's tickets when
 the current one is done rather than all at once.
 
