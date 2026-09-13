@@ -11,6 +11,7 @@ from c4studio.generators.flowchart import FlowchartGenerator
 from c4studio.generators.mermaid import MermaidGenerator
 from c4studio.models import Workspace
 from c4studio.render import RenderError, render_view
+from c4studio import templates
 from c4studio.webapp.graph import is_supported
 from c4studio.webapp.loader import WorkspaceLoadError, load_workspace
 
@@ -292,6 +293,63 @@ def list_views(input_file: Path) -> None:
     click.echo("-" * 65)
     for view in workspace.views:
         click.echo(f"{view.key:<30} {view.type:<20} {view.element_id}")
+
+
+@cli.command("new")
+@click.argument("output", type=click.Path(path_type=Path), default="workspace.dsl")
+@click.option(
+    "--template",
+    "template_name",
+    default="minimal",
+    show_default=True,
+    help="Which starter workspace to write.",
+)
+@click.option(
+    "--name",
+    "workspace_name",
+    default=None,
+    help="Workspace name. Defaults to the template's own.",
+)
+@click.option(
+    "--list",
+    "list_only",
+    is_flag=True,
+    help="List the available templates and exit.",
+)
+@click.option(
+    "--force",
+    is_flag=True,
+    help="Overwrite OUTPUT if it already exists.",
+)
+def new(
+    output: Path,
+    template_name: str,
+    workspace_name: str | None,
+    list_only: bool,
+    force: bool,
+) -> None:
+    """Write a starter workspace to OUTPUT (default: workspace.dsl)."""
+    if list_only:
+        for template in templates.list_templates():
+            click.echo(f"{template.name:<16} {template.summary}")
+        return
+
+    try:
+        content = templates.render(template_name, workspace_name)
+    except templates.TemplateError as exc:
+        raise click.BadParameter(str(exc), param_hint="--template") from exc
+
+    # Never clobber silently: the same rule the webapp's write path holds
+    # to, for the same reason — this is someone's work.
+    if output.exists() and not force:
+        raise click.ClickException(
+            f"{output} already exists. Pass --force to overwrite it."
+        )
+
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(content, encoding="utf-8")
+    click.echo(f"Wrote {output} from the {template_name!r} template.")
+    click.echo(f"Next: c4 webapp {output.parent if output.parent != Path('') else '.'}")
 
 
 @cli.command("webapp")
