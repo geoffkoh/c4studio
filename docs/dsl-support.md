@@ -26,7 +26,7 @@ so this table cannot silently drift for those rows.
 | --- | --- |
 | ✅ | Parsed, and it changes the model as documented |
 | ◐ | Partially supported — see the note |
-| ⚠️ | **Parses silently and does nothing.** No warning, no effect. These are defects, not decisions |
+| ⚠️ | **Parses silently and does nothing.** No warning, no effect. These are defects, not decisions — *no row carries this any more*, and a new one is a bug, not a status |
 | ⛔ | Skipped, and recorded as a diagnostic you can see |
 | 🚫 | Deliberately unsupported and staying that way |
 
@@ -101,7 +101,7 @@ prints. A skipped construct never consumes its enclosing scope.
 | `!element <identifier> { … }` | ✅ | |
 | `!elements <expression> { … }` | ✅ | Applies the body to every matching element |
 | `!relationship <alias> { … }` | ✅ | Applies `tags`, `url`, `properties` and `perspectives` — the whole vocabulary a relationship block has, upstream included: it is a `ModelItemDslContext`, and `technology`/`description` are not gated on it. Those are positional on the `->` line, or bulk-set via `!relationships`. Anything else in the block, and an alias that resolves to nothing, are now reported rather than dropped |
-| `!relationships <expression> { … }` | ◐ | Works with tag and property expressions (`relationship.tag==X`); the wildcard forms `*` and `"*->*"` match nothing, silently |
+| `!relationships <expression> { … }` | ✅ | Tag and property expressions, plus the wildcard forms: `*` (rewritten to `*->*`, as upstream does), `"*->*"`, and half-wildcards like `a -> *` and `"*->c"`. An expression matching nothing is now reported rather than passing silently |
 | `!extend <identifier> { … }` | ⛔ | |
 | `!ref <identifier> { … }` | ⛔ | |
 
@@ -230,10 +230,10 @@ composition and the ordering rule.
 
 ## The gaps worth knowing about
 
-One construct **parses silently and does nothing** — no warning, no effect.
-It is the worst kind of gap, because nothing tells you:
-
-- `!relationships` with wildcard expressions
+Nothing now parses silently and does nothing. That list had three entries;
+the last, `!relationships` with wildcard expressions, went in PP-104.
+Whatever a statement cannot apply is recorded in `Workspace.diagnostics`
+and printed by `c4 check`.
 
 `!relationship <alias> { … }` was listed here and should not have been. It
 applies every property a relationship block accepts; the report behind that
