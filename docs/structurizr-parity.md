@@ -76,6 +76,7 @@ inferring behaviour from this document when the two might disagree.
 | DSL parsing incl. `!include` | ✅ | ✅ |
 | Element body metadata (`description`, `technology`, `url`, `tags`, `properties`, `perspectives`) | ✅ | ✅ parsed into the model + JSON export; not rendered |
 | Relationship metadata (positional tags + nested `tags`/`url`/`properties`/`perspectives`) and `this`/implicit-source relationships | ✅ | ✅ parsed into the model + JSON export |
+| Default relationship colour | `#444444` (`structurizr-ui.js`, `LIGHT_MODE_DEFAULTS.color`) | ⚠ **`#707070` — a deliberate divergence.** Upstream's value is 9.7:1 on white and reads as heavy ink; relationships are supporting detail in a C4 diagram, not its subject. `#707070` is 4.95:1, still well clear of the 3:1 WCAG 1.4.11 floor for non-text. Thickness (2) and line style (dashed) still match upstream, and a workspace `styles` block overrides all three |
 | `group` blocks (model level, element bodies, nested) | ✅ | ✅ membership on elements + JSON export; rendered as boundary nodes in the webapp and `Boundary` blocks in Mermaid |
 | Custom elements (`element` keyword) | ✅ | ✅ parsed + JSON export; relationships resolve; not shown in built-in views (custom views still ❌) |
 | Unknown `!directives` | ✅ (executed or errors) | ⚠ skipped with an `UnsupportedFeatureWarning` recorded in `Workspace.parse_warnings` |
