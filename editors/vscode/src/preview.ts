@@ -26,6 +26,47 @@ function freePort(): Promise<number> {
   });
 }
 
+/** What the server says it allows, or null when it is too old to say.
+
+    A backend without this endpoint predates Studio/Viewer modes — and
+    therefore predates the in-browser editor too, so "old" and "read-only"
+    are the same thing for our purposes. */
+interface Capabilities {
+  readOnly: boolean;
+  mode: string;
+  version: string;
+}
+
+function capabilities(port: number): Promise<Capabilities | null> {
+  return new Promise((resolve) => {
+    const request = http.get(
+      { host: "127.0.0.1", port, path: "/api/capabilities", timeout: 1000 },
+      (response) => {
+        if (response.statusCode !== 200) {
+          response.resume();
+          resolve(null);
+          return;
+        }
+        let body = "";
+        response.setEncoding("utf8");
+        response.on("data", (chunk: string) => (body += chunk));
+        response.on("end", () => {
+          try {
+            resolve(JSON.parse(body) as Capabilities);
+          } catch {
+            resolve(null);
+          }
+        });
+      },
+    );
+    request.on("error", () => resolve(null));
+    request.on("timeout", () => {
+      request.destroy();
+      resolve(null);
+    });
+  });
+}
+
 /** One GET /api/status probe; resolves true on any HTTP response. */
 function probe(port: number): Promise<boolean> {
   return new Promise((resolve) => {
@@ -92,6 +133,10 @@ export class PreviewManager implements vscode.Disposable {
   private panel: vscode.WebviewPanel | undefined;
   private server: ChildProcess | undefined;
   private currentFile: string | undefined;
+  /** Set when the executable itself could not be run (ENOENT and friends),
+      as opposed to a server that started and then refused an option. The
+      two need different advice. */
+  private execFailed = false;
   private readonly output: vscode.OutputChannel;
   private readonly storageDir: string;
 
@@ -137,7 +182,7 @@ export class PreviewManager implements vscode.Disposable {
         });
       return;
     }
-    const args = [
+    const baseArgs = [
       ...command.slice(1),
       "webapp",
       file,
@@ -147,45 +192,67 @@ export class PreviewManager implements vscode.Disposable {
       "127.0.0.1",
       "--no-browser",
     ];
-    this.output.appendLine(`[preview] ${command[0]} ${args.join(" ")} (cwd: ${cwd})`);
 
-    const child = spawn(command[0], args, { cwd });
-    this.server = child;
-    child.stdout?.on("data", (chunk: Buffer) =>
-      this.output.append(chunk.toString()),
+    // Viewer mode, because VS Code already has this file open in its own
+    // editor: a second editor in the webview writing to the same path
+    // behind its back is the one thing this preview must not do.
+    //
+    // It cannot simply be passed, though. `resolveServerCommand` finds
+    // whatever c4studio is on the user's machine, which may predate the
+    // flag — and an unknown click option exits non-zero, which would
+    // surface as "the preview server did not become ready". So: try it,
+    // and fall back to a plain spawn if the process dies immediately.
+    let child = await this.spawnServer(
+      command[0],
+      [...baseArgs, "--viewer"],
+      cwd,
+      port,
     );
-    child.stderr?.on("data", (chunk: Buffer) =>
-      this.output.append(chunk.toString()),
-    );
-    child.on("error", (error) => {
-      this.output.appendLine(`[preview] spawn failed: ${error.message}`);
-      void vscode.window
-        .showErrorMessage(
-          `c4studio: could not start "${command.join(" ")}". ` +
-            "Install c4studio (e.g. via uv) or set c4studio.serverCommand.",
-          "Open Logs",
-        )
-        .then((choice) => {
-          if (choice) this.output.show();
-        });
-    });
-    child.on("exit", (code) => {
-      this.output.appendLine(`[preview] server exited with code ${code ?? 0}`);
-      if (this.server === child) this.server = undefined;
-    });
-
-    const healthy = await waitForServer(port, child);
-    if (!healthy) {
+    if (!child) {
+      this.output.appendLine(
+        "[preview] --viewer did not start; this c4studio may predate " +
+          "Viewer mode. Retrying without it.",
+      );
+      child = await this.spawnServer(command[0], baseArgs, cwd, port);
+    }
+    if (!child) {
       this.stopServer();
-      void vscode.window
-        .showErrorMessage(
-          "c4studio: the preview server did not become ready.",
-          "Open Logs",
-        )
-        .then((choice) => {
-          if (choice) this.output.show();
-        });
+      // Two different failures, two different pieces of advice: a missing
+      // executable is something to install, a server that started and did
+      // not answer is something to read the log about.
+      const message = this.execFailed
+        ? `c4studio: could not start "${command.join(" ")}". ` +
+          "Install c4studio (e.g. via uv) or set c4studio.serverCommand."
+        : "c4studio: the preview server did not become ready.";
+      void vscode.window.showErrorMessage(message, "Open Logs").then((choice) => {
+        if (choice) this.output.show();
+      });
       return;
+    }
+
+    // What actually started. A server too old to answer predates Studio
+    // and Viewer modes — and therefore predates the in-browser editor, so
+    // there is nothing there to edit with and nothing to hide.
+    const allowed = await capabilities(port);
+    if (allowed === null) {
+      this.output.appendLine(
+        "[preview] no /api/capabilities: an older c4studio, which has no " +
+          "in-browser editor. Read-only by construction.",
+      );
+    } else {
+      this.output.appendLine(
+        `[preview] mode=${allowed.mode} readOnly=${allowed.readOnly} ` +
+          `version=${allowed.version}`,
+      );
+      if (!allowed.readOnly) {
+        // Should not happen: a server new enough to report capabilities
+        // accepted --viewer. Say so rather than leave two editors on one
+        // file unremarked.
+        void vscode.window.showWarningMessage(
+          "c4studio: the preview is editable. Edits made in the preview " +
+            "write to the same file VS Code has open.",
+        );
+      }
     }
 
     if (!this.panel) {
@@ -203,6 +270,46 @@ export class PreviewManager implements vscode.Disposable {
     this.panel.title = `C4: ${path.basename(file)}`;
     this.panel.webview.html = iframeHtml(port);
     this.panel.reveal(undefined, true);
+  }
+
+  /**
+   * Spawn the backend and wait for it to answer.
+   *
+   * Returns the process, or `undefined` if it died or never became ready
+   * — which is what makes the `--viewer` attempt safe to make blindly. An
+   * older c4studio rejects the unknown option and exits non-zero, and
+   * `waitForServer` notices the exit rather than waiting out the full
+   * timeout.
+   */
+  private async spawnServer(
+    executable: string,
+    args: string[],
+    cwd: string,
+    port: number,
+  ): Promise<ChildProcess | undefined> {
+    this.output.appendLine(`[preview] ${executable} ${args.join(" ")} (cwd: ${cwd})`);
+    this.execFailed = false;
+    const child = spawn(executable, args, { cwd });
+    this.server = child;
+    child.stdout?.on("data", (chunk: Buffer) =>
+      this.output.append(chunk.toString()),
+    );
+    child.stderr?.on("data", (chunk: Buffer) =>
+      this.output.append(chunk.toString()),
+    );
+    child.on("error", (error) => {
+      this.execFailed = true;
+      this.output.appendLine(`[preview] spawn failed: ${error.message}`);
+    });
+    child.on("exit", (code) => {
+      this.output.appendLine(`[preview] server exited with code ${code ?? 0}`);
+      if (this.server === child) this.server = undefined;
+    });
+
+    if (await waitForServer(port, child)) return child;
+    if (child.exitCode === null) child.kill();
+    if (this.server === child) this.server = undefined;
+    return undefined;
   }
 
   private stopServer(): void {

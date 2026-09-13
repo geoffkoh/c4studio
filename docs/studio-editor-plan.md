@@ -145,7 +145,7 @@ endpoint** — `GET /api/source` already enumerates the root plus every
 
 | # | Ticket | Scope |
 |---|---|---|
-| F1 | `feat(vscode): read-only preview` | **Feature-detect `GET /api/capabilities`** rather than passing `--viewer`: `preview.ts` spawns whatever `c4` resolves on the user's machine, which may be an older release that would exit non-zero on an unknown flag. Absent endpoint → old backend → hide editing client-side. Only after A1 is *released*. |
+| F1 | `feat(vscode): read-only preview` | Try `--viewer`, fall back when the process dies immediately, then read `GET /api/capabilities` to learn what started. The plan's "hide editing client-side" turned out to be both impossible and unnecessary — see [Two editors on one file](#two-editors-on-one-file). |
 
 ---
 
@@ -614,6 +614,36 @@ comes from the reply's `filesSent`, derived server-side from what was
 actually sent. A disclosure maintained by hand is one that eventually
 stops being true.
 
+### Two editors on one file
+
+F1's real problem, and it is not the one the ticket's title suggests.
+Before this, the extension spawned `c4 webapp <file>` with no mode flag —
+so the preview ran in **Studio**, and once B2 landed, that meant a second
+editor in the webview writing to the same path VS Code has open in its
+own editor.
+
+`--viewer` fixes it but cannot simply be passed: `resolveServerCommand`
+finds whatever c4studio is on the user's machine, and an older one exits
+**2** on an unknown option (measured, not assumed), which would surface as
+"the preview server did not become ready". So the spawn tries `--viewer`
+first and retries without it if the process dies before answering —
+`waitForServer` already watches `exitCode`, so the failed attempt costs a
+moment, not the full 15-second timeout.
+
+**The plan's instruction to "hide editing client-side" when
+`/api/capabilities` is absent was wrong twice over**, and that is worth
+recording rather than silently not doing:
+
+1. **It is impossible.** The webview is a cross-origin iframe onto the
+   server's own SPA. The extension cannot inject anything into it.
+2. **It is unnecessary.** A backend without `/api/capabilities` predates
+   A1 — and therefore predates the in-browser editor, which arrived in B2.
+   Old enough not to answer means old enough to have nothing to hide.
+
+So the capability probe is used for what it can actually do: say in the
+log what started, and warn if a server new enough to report capabilities
+somehow came up writable anyway.
+
 ---
 
 ## Risks
@@ -718,11 +748,11 @@ State these in the tickets so they don't creep in.
 | D2 — New workspace in-app | ✅ Done | PP-139 |
 | E1 — Assistant endpoint | ✅ Done | PP-140 |
 | E2 — Propose-a-diff UX | ✅ Done | PP-141 |
-| F1 — VS Code read-only preview | ⬜ Blocked on a release | not yet ticketed |
+| F1 — VS Code preview in Viewer mode | ✅ Done | PP-142 |
 
-**Phases A–E are complete.** F1 is the only remaining plan item, and it
-waits on A1 being released — PyPI is on 0.2.0 while everything from A1
-onward sits on `main`.
+**Every phase of this plan is complete** — A1 through F1, PP-119 to
+PP-142. What remains is a release: PyPI is on 0.2.0 while all of it sits
+on `main`.
 
 Update this table as tickets land, and file the next phase's tickets when
 the current one is done rather than all at once.
