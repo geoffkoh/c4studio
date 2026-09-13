@@ -3,9 +3,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, checkSource, saveConflict, saveSource } from "../api";
 import type { CheckResult, SaveConflict, SaveSourceResult } from "../types";
 import type { DslCompletionModel } from "../dslComplete";
-import { isDirty, listedPaths } from "../sourceBuffers";
+import { isDirty, tabPaths } from "../sourceBuffers";
 import type { SourceBuffers } from "../useSourceBuffers";
 import { AssistantPanel } from "./AssistantPanel";
+import { EditorTabs } from "./EditorTabs";
 import { DslEditor, type EditorFlash } from "./DslEditor";
 
 export interface CodeFocus {
@@ -169,10 +170,24 @@ export function SourcePane({
     [source],
   );
 
-  // The workspace's files first, then anything opened from the tree.
-  const listed = useMemo(
-    () => listedPaths(state, data?.files ?? []),
-    [state, data],
+  const tabs = useMemo(() => tabPaths(state), [state]);
+
+  /** Closing a dirty tab throws work away, so it asks first. */
+  const handleCloseTab = useCallback(
+    (path: string) => {
+      const buffer = state.buffers[path];
+      if (!buffer) return;
+      if (
+        isDirty(buffer) &&
+        !window.confirm(`Discard unsaved changes to ${path}?`)
+      ) {
+        return;
+      }
+      source.closeTab(path, true);
+      setConflict(null);
+      setSaveError(null);
+    },
+    [source, state.buffers],
   );
 
   const current = check?.path === selectedPath ? check.result : null;
@@ -210,40 +225,14 @@ export function SourcePane({
   const editorReadOnly = readOnly || !buffer.editable;
 
   return (
-    <div className="docs">
-      <nav className="docs__toc docs__toc--compact">
-        {listed.map((entry) => {
-          const open = buffers[entry.path];
-          return (
-            <button
-              key={entry.path}
-              className={
-                "docs__toc-item" +
-                (entry.path === selectedPath ? " docs__toc-item--active" : "")
-              }
-              onClick={() => handleSelectFile(entry.path)}
-              title={
-                entry.attached
-                  ? entry.path
-                  : `${entry.path} — not part of the loaded workspace`
-              }
-            >
-              {entry.attached ? null : (
-                <span className="editor__detached" aria-hidden="true">
-                  ↗{" "}
-                </span>
-              )}
-              {entry.path}
-              {open && isDirty(open) ? (
-                <span className="editor__dot" title="Unsaved changes">
-                  ●
-                </span>
-              ) : null}
-            </button>
-          );
-        })}
-      </nav>
+    <div className="source">
       <div className="editor">
+        <EditorTabs
+          state={state}
+          paths={tabs}
+          onSelect={handleSelectFile}
+          onClose={handleCloseTab}
+        />
         <div className="editor__toolbar">
           <span className="editor__path">{selectedPath}</span>
           {dirty ? <span className="editor__badge">Unsaved</span> : null}

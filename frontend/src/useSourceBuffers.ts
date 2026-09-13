@@ -23,6 +23,7 @@ export interface SourceBuffers {
   edit: (path: string, text: string) => void;
   markSaved: (path: string, written: string, fingerprint: string | null) => void;
   takeDisk: (path: string, content: string, fingerprint: string | null) => void;
+  closeTab: (path: string, discard?: boolean) => void;
 }
 
 /**
@@ -155,6 +156,11 @@ export function useSourceBuffers(
         setState((previous) =>
           buffers.takeDisk(previous, path, content, fingerprint),
         ),
+      [],
+    ),
+    closeTab: useCallback(
+      (path, discard = false) =>
+        setState((previous) => buffers.closeTab(previous, path, discard)),
       [],
     ),
   };
