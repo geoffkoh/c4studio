@@ -354,6 +354,16 @@ def new(
 
 @cli.command("webapp")
 @click.argument("path", type=click.Path(exists=True, path_type=Path))
+@click.option(
+    "--assistant",
+    is_flag=True,
+    help=(
+        "Enable the DSL assistant. OFF BY DEFAULT: it is the one feature "
+        "that sends your workspace source to an external API. Needs "
+        "ANTHROPIC_API_KEY in the environment and the optional extra "
+        "(pip install 'c4studio[assistant]')."
+    ),
+)
 @click.option("--port", default=8090, show_default=True, help="Port to listen on.")
 @click.option("--host", default="127.0.0.1", show_default=True)
 @click.option(
@@ -368,7 +378,14 @@ def new(
     default=False,
     help="Serve read-only: the DSL cannot be edited in the browser.",
 )
-def webapp(path: Path, port: int, host: str, no_browser: bool, viewer: bool) -> None:
+def webapp(
+    path: Path,
+    port: int,
+    host: str,
+    no_browser: bool,
+    viewer: bool,
+    assistant: bool,
+) -> None:
     """Launch the React web application backend for PATH.
 
     PATH may be a directory (browsed as the source root) or a single source
@@ -377,6 +394,10 @@ def webapp(path: Path, port: int, host: str, no_browser: bool, viewer: bool) -> 
     Serves the full Studio by default. ``--viewer`` serves Viewer instead:
     the DSL cannot be edited, though diagrams can still be arranged —
     layout is per-user UI state in a gitignored sidecar either way.
+
+    ``--assistant`` additionally enables the DSL assistant, which is the
+    one feature that sends your workspace source to an external API. It is
+    off unless you ask for it.
     """
     from c4studio.webapp.server import run_server
 
@@ -394,4 +415,11 @@ def webapp(path: Path, port: int, host: str, no_browser: bool, viewer: bool) -> 
         url = f"http://{host}:{port}"
         threading.Timer(1.0, webbrowser.open, args=(url,)).start()
 
-    run_server(root=root, initial=initial, host=host, port=port, read_only=viewer)
+    run_server(
+        root=root,
+        initial=initial,
+        host=host,
+        port=port,
+        read_only=viewer,
+        assistant=assistant,
+    )

@@ -19,7 +19,6 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
-from httpx import Response
 
 from c4studio.webapp.server import _fingerprint, _read_source, create_app
 
@@ -61,9 +60,12 @@ def _fingerprint_of(client: TestClient, path: str) -> str:
     return fingerprint
 
 
-def _put(client: TestClient, **body: Any) -> Response:
-    response: Response = client.put("/api/source", json=body)
-    return response
+def _put(client: TestClient, **body: Any) -> Any:
+    # Untyped on purpose: TestClient returns an httpx or httpx2 Response
+    # depending on what is installed (starlette prefers httpx2 when it is
+    # present, which the assistant's optional dependency brings in).
+    # Naming either package here pins the suite to one of them.
+    return client.put("/api/source", json=body)
 
 
 # ---------------------------------------------------------------------------
