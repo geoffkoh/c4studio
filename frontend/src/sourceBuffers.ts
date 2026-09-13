@@ -48,9 +48,42 @@ export type BufferMap = Record<string, Buffer>;
 export interface BufferState {
   buffers: BufferMap;
   selectedPath: string | null;
+  /** Paths the user has actually revealed, in tab order.
+
+      Separate from `buffers` on purpose. A merge opens a buffer for every
+      file `/api/source` returns — that map is the cache, and it is what
+      makes the reload merge and conflict detection correct — so a tab per
+      buffer would mean forty tabs for a forty-fragment workspace, which is
+      worse than the list it replaces. Tabs are progressive disclosure over
+      the same state. */
+  openPaths: string[];
 }
 
-export const EMPTY: BufferState = { buffers: {}, selectedPath: null };
+export const EMPTY: BufferState = {
+  buffers: {},
+  selectedPath: null,
+  openPaths: [],
+};
+
+/**
+ * The tabs to draw: what was revealed, plus anything dirty.
+ *
+ * Derived rather than maintained, so "an unsaved buffer is never hidden"
+ * holds by construction instead of by remembering to re-reveal on every
+ * edit. Order is revealed-order first, then any dirty straggler.
+ */
+export function tabPaths(state: BufferState): string[] {
+  const open = state.openPaths.filter((path) => state.buffers[path]);
+  const dirty = Object.entries(state.buffers)
+    .filter(([path, buffer]) => isDirty(buffer) && !open.includes(path))
+    .map(([path]) => path);
+  return [...open, ...dirty];
+}
+
+/** Reveal a path, without disturbing the order of what is already open. */
+function reveal(openPaths: readonly string[], path: string): string[] {
+  return openPaths.includes(path) ? [...openPaths] : [...openPaths, path];
+}
 
 export function isDirty(buffer: Buffer): boolean {
   return buffer.text !== buffer.disk;
@@ -127,9 +160,12 @@ export function mergeFromSource(
   }
   const keep =
     state.selectedPath !== null && next[state.selectedPath] !== undefined;
+  const selectedPath = keep ? state.selectedPath : (files[0]?.path ?? null);
+  const openPaths = state.openPaths.filter((path) => next[path]);
   return {
     buffers: next,
-    selectedPath: keep ? state.selectedPath : (files[0]?.path ?? null),
+    selectedPath,
+    openPaths: selectedPath ? reveal(openPaths, selectedPath) : openPaths,
   };
 }
 
@@ -176,6 +212,7 @@ export function refreshDetached(
   return {
     buffers: next,
     selectedPath: keep ? state.selectedPath : firstPath(next),
+    openPaths: state.openPaths.filter((path) => next[path]),
   };
 }
 
@@ -186,8 +223,15 @@ export function openDetached(
   file: SingleFile,
   kind: "workspace" | "fragment",
 ): BufferState {
-  if (state.buffers[path]) return { ...state, selectedPath: path };
+  if (state.buffers[path]) {
+    return {
+      ...state,
+      selectedPath: path,
+      openPaths: reveal(state.openPaths, path),
+    };
+  }
   return {
+    openPaths: reveal(state.openPaths, path),
     buffers: {
       ...state.buffers,
       [path]: {
@@ -204,8 +248,52 @@ export function openDetached(
   };
 }
 
+/** Select a buffer, revealing its tab — selecting something invisible is
+    the failure mode that made go-to-definition feel broken. */
 export function select(state: BufferState, path: string): BufferState {
-  return state.buffers[path] ? { ...state, selectedPath: path } : state;
+  if (!state.buffers[path]) return state;
+  return {
+    ...state,
+    selectedPath: path,
+    openPaths: reveal(state.openPaths, path),
+  };
+}
+
+/**
+ * Close a tab.
+ *
+ * Hides it; the buffer itself is kept when it belongs to the loaded
+ * workspace, because that map is a cache and re-opening should not have to
+ * re-fetch. A detached buffer is dropped — nothing would refresh it, and
+ * leaving it would keep it in the reload loop forever.
+ *
+ * A dirty buffer is only closed with `discard`, and discarding resets the
+ * text to what is on disk rather than deleting the buffer, so the file the
+ * user can still see in the tree is what they get back.
+ */
+export function closeTab(
+  state: BufferState,
+  path: string,
+  discard = false,
+): BufferState {
+  const open = state.buffers[path];
+  if (!open) return state;
+  if (isDirty(open) && !discard) return state;
+
+  const buffers: BufferMap = { ...state.buffers };
+  if (open.attached) buffers[path] = { ...open, text: open.disk };
+  else delete buffers[path];
+
+  const openPaths = state.openPaths.filter((entry) => entry !== path);
+  let selectedPath = state.selectedPath;
+  if (selectedPath === path) {
+    // Step to the tab that was to the left, the way every editor does.
+    const index = state.openPaths.indexOf(path);
+    const remaining = openPaths.filter((entry) => buffers[entry]);
+    selectedPath =
+      remaining[Math.max(0, index - 1)] ?? remaining[0] ?? firstPath(buffers);
+  }
+  return { buffers, selectedPath, openPaths };
 }
 
 export function edit(
