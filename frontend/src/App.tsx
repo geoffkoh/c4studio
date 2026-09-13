@@ -36,11 +36,8 @@ import { FileTree, type FileOperations } from "./components/FileTree";
 import { NewWorkspaceDialog } from "./components/NewWorkspaceDialog";
 import { GraphPane } from "./components/GraphPane";
 import { ShortcutHelp } from "./components/ShortcutHelp";
-import {
-  SourcePane,
-  type CodeFocus,
-  type OpenRequest,
-} from "./components/SourcePane";
+import { SourcePane, type CodeFocus } from "./components/SourcePane";
+import { useSourceBuffers, type OpenRequest } from "./useSourceBuffers";
 import { SplitPane } from "./components/SplitPane";
 import { TopBar, type AppPage } from "./components/TopBar";
 import { ViewList } from "./components/ViewList";
@@ -198,6 +195,11 @@ export default function App() {
     }, RELOAD_POLL_MS);
     return () => window.clearInterval(timer);
   }, [currentPath, refresh]);
+
+  // The editor's buffers live here, not in SourcePane: `main` unmounts the
+  // pane on every page switch, and while the pane owned them, leaving the
+  // Source page destroyed every unsaved edit without a prompt.
+  const source = useSourceBuffers(reloadTick, openRequest);
 
   /** Re-read the file list after something on disk moved. */
   const refreshFiles = useCallback(() => {
@@ -418,12 +420,11 @@ export default function App() {
               rightLabel="diagram"
               left={
                 <SourcePane
-                  reloadTick={reloadTick}
+                  source={source}
                   focus={codeFocus}
                   readOnly={readOnly}
                   completions={completions}
                   assistantEnabled={capabilities?.features?.assistant === true}
-                  open={openRequest}
                   onSaved={handleSaved}
                 />
               }
