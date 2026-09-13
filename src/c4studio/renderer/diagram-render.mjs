@@ -7396,8 +7396,8 @@ var require_normalize = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 		var labelRank = edgeLabel.labelRank;
 		if (wRank === vRank + 1) return;
 		g.removeEdge(e);
-		var dummy, attrs, i;
-		for (i = 0, ++vRank; vRank < wRank; ++i, ++vRank) {
+		var dummy, attrs, i = 0;
+		for (++vRank; vRank < wRank; ++i, ++vRank) {
 			edgeLabel.points = [];
 			attrs = {
 				width: 0,
