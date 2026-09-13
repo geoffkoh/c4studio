@@ -131,7 +131,7 @@ endpoint** — `GET /api/source` already enumerates the root plus every
 
 | # | Ticket | Scope |
 |---|---|---|
-| D1 | `feat(cli): c4 new and starter templates` | Starter DSLs in the package (minimal, system-context, full C4, deployment), reusing the write path. |
+| D1 | `feat(cli): c4 new and starter templates` | Starter DSLs in the package (minimal, system-context, full C4, deployment), reusing the write path. Templates are valid DSL **as shipped** — see [A template you cannot parse is a template you cannot trust](#a-template-you-cannot-parse-is-a-template-you-cannot-trust). |
 | D2 | `feat(frontend): new workspace in-app` | Template picker, target folder, open in the editor. |
 
 ### Phase E — Assistant (designed now, built last)
@@ -498,6 +498,37 @@ detail worth not re-deriving: it listens on the *capture* phase, so the
 click that dismisses the menu does not also land on whatever is beneath
 it.
 
+### A template you cannot parse is a template you cannot trust
+
+The shipped starter workspaces are **valid DSL exactly as they sit on
+disk** — no placeholder syntax that has to be substituted before they mean
+anything. Naming is a literal replacement of `"My Workspace"`, not a
+template language.
+
+That is what lets the suite parse every shipped template *directly* and
+assert each declared view draws nodes, parametrised over what is in the
+package rather than a list written in the test. Adding a template without
+checking it is not possible. A starter workspace that does not parse is
+worse than none: it is the first thing a new user sees, and it teaches
+them the tool is broken rather than that their DSL is.
+
+It earned its keep immediately. **The deployment template did not parse**,
+and the reason was not in the deployment nodes: writing
+`prod = deploymentEnvironment "Production" {` — the aliased form — is
+rejected, and its body then leaks into model scope, so the workspace came
+out with zero views. Upstream accepts the alias (`StructurizrDslParser`
+registers an identifier for it), and `dsl-support.md` had already recorded
+the leak as "a fail-soft violation, not a decision" — but it had never
+been ticketed. It now is (**PP-138**), because it breaks the hard rule in
+`CLAUDE.md` that a skipped construct must never consume its enclosing
+scope.
+
+**Packaging was verified from an installed wheel**, not from the
+checkout: `.dsl` files under `src/c4studio/` are data, and a test suite
+run from a source tree cannot tell whether they ship. Built the wheel,
+installed it into a clean venv, ran `c4 new --template deployment` from
+it, and listed the views.
+
 ---
 
 ## Risks
@@ -598,8 +629,9 @@ State these in the tickets so they don't creep in.
 | C4 — Cache hygiene | ✅ Done | PP-134 |
 | C5 — File operations (backend) | ✅ Done | PP-135 |
 | C5b — File operations in the UI | ✅ Done | PP-136 |
-| D1 — `c4 new` and starter templates | ⬜ Next | not yet ticketed |
-| D2, E1–E2, F1 | ⬜ Not started | not yet ticketed |
+| D1 — `c4 new` and starter templates | ✅ Done | PP-137 |
+| D2 — New workspace in-app | ⬜ Next | not yet ticketed |
+| E1–E2, F1 | ⬜ Not started | not yet ticketed |
 
 Update this table as tickets land, and file the next phase's tickets when
 the current one is done rather than all at once.
