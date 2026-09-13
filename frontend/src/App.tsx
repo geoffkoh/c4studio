@@ -46,13 +46,24 @@ import { ViewList } from "./components/ViewList";
     state — the same per-user UI state, so the same storage. */
 const SIDEBAR_KEY = "c4studio.sidebarOpen";
 
+/** Below this the sidebar is worth more as width than as navigation. */
+const SIDEBAR_AUTO_HIDE_PX = 900;
+
 function storedSidebarOpen(): boolean {
+  let stored: string | null = null;
   try {
-    return window.localStorage.getItem(SIDEBAR_KEY) !== "closed";
+    stored = window.localStorage.getItem(SIDEBAR_KEY);
   } catch {
     // Private windows and blocked site data throw rather than return null.
-    return true;
   }
+  // An explicit choice always wins, at any width — being overridden by a
+  // resize is worse than a cramped sidebar.
+  if (stored === "open") return true;
+  if (stored === "closed") return false;
+  // No choice yet: start collapsed where there is no room. This is the
+  // VS Code preview, which loads the whole SPA into a ~500px panel, and
+  // where an open sidebar leaves the editor about 280px wide.
+  return window.innerWidth >= SIDEBAR_AUTO_HIDE_PX;
 }
 
 /** How often to ask the server whether the loaded source changed on disk. */
