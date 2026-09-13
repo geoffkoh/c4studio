@@ -16,7 +16,7 @@ workspace "My Workspace" "Containers and where they run." {
         web -> api "Calls" "JSON/HTTPS"
         api -> database "Reads from and writes to" "SQL"
 
-        deploymentEnvironment "Production" {
+        production = deploymentEnvironment "Production" {
             deploymentNode "eu-west-1" "The AWS region." "AWS" {
                 deploymentNode "Kubernetes Cluster" "Runs the services." "EKS" {
                     deploymentNode "web" "Web pods." "Kubernetes Pod" "" 2 {
