@@ -138,7 +138,7 @@ endpoint** — `GET /api/source` already enumerates the root plus every
 
 | # | Ticket | Scope |
 |---|---|---|
-| E1 | `feat(webapp): assistant endpoint` | Opt-in behind a flag, key from the environment, clearly marked as the one feature that leaves the machine. Context is already available: buffer text, `/api/check` diagnostics, the model summary, and the keyword table in `dsl-support.md`. |
+| E1 | `feat(webapp): assistant endpoint` | Opt-in behind `--assistant`, off by default; key from the environment at the moment of use. The `anthropic` SDK is an **optional extra**, lazily imported. Context sent is the **whole workspace source** plus the unsaved buffer — see [What leaves the machine](#what-leaves-the-machine). |
 | E2 | `feat(frontend): propose-a-diff UX` | The assistant returns DSL text; the editor shows it as a diff against the buffer; the user applies or rejects. Nothing AI-specific touches the editor core — it is just another producer of text, which is why Principle 1 matters. |
 
 ### Phase F — VS Code
@@ -551,6 +551,42 @@ Small thing worth keeping: the filename follows the workspace name
 (`Acme Platform` → `acme-platform.dsl`) until the user edits it, and then
 stops moving under them.
 
+### What leaves the machine
+
+Everything else in c4studio is local-first. The assistant is not, and the
+shape of E1 follows from saying that out loud rather than burying it.
+
+- **Off unless asked for.** `c4 webapp --assistant`; default off, enforced
+  by a `_require_assistant` FastAPI dependency so a crafted request is
+  refused too, not just a hidden button. `GET /api/capabilities` reports
+  which, so the UI cannot offer what the server will not do. Viewer never
+  gets it — there is nothing there to apply a proposal to.
+- **The key is read at the moment of use** from `ANTHROPIC_API_KEY`. Never
+  on `AppState`, never logged, never echoed in a response, never from a
+  config file. A missing key is a **503** — the server works, the operator
+  has something to set — and `propose()` fails before a client is
+  constructed, so nothing can pick up a stray credential.
+- **The SDK is an optional extra**, `pip install 'c4studio[assistant]'`,
+  imported lazily. A default install is unchanged by this feature. Agreed
+  explicitly, because `CLAUDE.md` forbids new dependencies without asking.
+- **It returns text and executes nothing.** Principle 1 again: the
+  assistant is just another producer of text, and applying a proposal is
+  an ordinary save — inheriting the conflict detection and the Viewer
+  guard that path already has.
+
+**The scope of what is sent is the operator's decision, and it is the
+whole workspace source** — every DSL file, with the unsaved buffer
+substituted for the one being edited. That is more than the minimum, and
+it is chosen rather than drifted into: the reply carries `filesSent`,
+derived from what was actually sent rather than written by hand, so the UI
+can name the files instead of gesturing at "your workspace".
+
+One side effect worth knowing: `anthropic` depends on `httpx2`, and
+starlette's `TestClient` prefers `httpx2` when it is installed. Adding the
+extra to the dev dependencies therefore changed which HTTP library the
+whole webapp suite runs through. Tests pass either way; one annotation
+that named `httpx` explicitly had to stop doing so.
+
 ---
 
 ## Risks
@@ -653,7 +689,8 @@ State these in the tickets so they don't creep in.
 | C5b — File operations in the UI | ✅ Done | PP-136 |
 | D1 — `c4 new` and starter templates | ✅ Done | PP-137 |
 | D2 — New workspace in-app | ✅ Done | PP-139 |
-| E1–E2 — Assistant | ⬜ Not started | not yet ticketed |
+| E1 — Assistant endpoint | ✅ Done | PP-140 |
+| E2 — Propose-a-diff UX | ⬜ Next | not yet ticketed |
 | F1 — VS Code read-only preview | ⬜ Blocked on a release | not yet ticketed |
 
 Update this table as tickets land, and file the next phase's tickets when

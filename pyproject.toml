@@ -31,9 +31,18 @@ dependencies = [
 Repository = "https://github.com/geoffkoh/c4studio"
 
 [project.optional-dependencies]
+# The assistant is the one feature that leaves the machine, and the only
+# one with a dependency of its own. Optional so a default install is
+# unchanged by it — nothing imports `anthropic` unless --assistant is on.
+assistant = [
+    "anthropic>=1.0",
+]
 dev = [
     "pytest>=8.0",
     "pytest-cov>=5.0",
+    # Also a dev dependency: without it the assistant's own code path
+    # cannot be type-checked or tested, only mocked around.
+    "anthropic>=1.0",
 ]
 
 [project.scripts]

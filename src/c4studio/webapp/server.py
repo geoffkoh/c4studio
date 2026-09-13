@@ -30,6 +30,7 @@ from c4studio.models import View, Workspace
 from c4studio.parser.dsl import ParseError, parse_dsl
 from c4studio.parser.locations import element_locations
 from c4studio.graph.view_graph import apply_positions, apply_sizes
+from c4studio.webapp import assistant as assistant_module
 from c4studio.webapp import graph, model_graph
 from c4studio.webapp.loader import (
     WorkspaceLoadError,
@@ -62,9 +63,12 @@ class AppConfig:
             and expansion state still persist: you cannot change the
             model, but you can arrange the view, and the sidecar holding
             that arrangement is gitignored per-user UI state either way.
+        assistant: Enable the assistant. **Off by default**, because it is
+            the one feature that sends the workspace off this machine.
     """
 
     read_only: bool = False
+    assistant: bool = False
 
 
 @dataclass
@@ -191,6 +195,18 @@ class RenameRequest(BaseModel):
     to: str
 
 
+class AssistantRequest(BaseModel):
+    """Body for ``POST /api/assistant``."""
+
+    # What the person asked for, in their words.
+    instruction: str
+    # Root-relative path of the file to rewrite.
+    path: str
+    # The editor's current buffer for that file, saved or not, so the
+    # assistant sees what the person is looking at.
+    content: str
+
+
 class ExpansionRequest(BaseModel):
     """Body for ``POST /api/views/{key}/expansion``."""
 
@@ -219,6 +235,26 @@ def _require_workspace(state: AppState) -> Workspace:
     if state.workspace is None:
         raise HTTPException(status_code=409, detail="No workspace loaded")
     return state.workspace
+
+
+def _require_assistant(state: AppState = Depends(_get_state)) -> AppState:
+    """Return the state, or 403 when the assistant was not enabled.
+
+    A dependency for the same reason :func:`_require_writable` is one: the
+    route cannot forget it, and it shows up in the generated OpenAPI. The
+    guarantee has to hold against a crafted request, not just against a
+    hidden button — this is the feature that leaves the machine.
+    """
+    if not state.config.assistant:
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "The assistant is off. Start the server with --assistant to "
+                "enable it; it is the one feature that sends your workspace "
+                "to an external API."
+            ),
+        )
+    return state
 
 
 def _require_writable(state: AppState = Depends(_get_state)) -> AppState:
@@ -876,6 +912,7 @@ def create_app(
     static_dir: Path | None = None,
     *,
     read_only: bool = False,
+    assistant: bool = False,
 ) -> FastAPI:
     """Build the FastAPI app serving the web backend.
 
@@ -887,13 +924,17 @@ def create_app(
         read_only: Serve in Viewer mode — routes that write DSL refuse
             with 403. Keyword-only, so existing positional callers are
             unaffected.
+        assistant: Enable ``POST /api/assistant``. Off by default: it is
+            the one route that sends the workspace to an external API.
 
     Returns:
         A configured :class:`fastapi.FastAPI` instance.
     """
     root = root.resolve()
     app = FastAPI(title="c4studio webapp")
-    state = AppState(root=root, config=AppConfig(read_only=read_only))
+    state = AppState(
+        root=root, config=AppConfig(read_only=read_only, assistant=assistant)
+    )
 
     if initial is not None:
         initial = initial.resolve()
@@ -903,6 +944,63 @@ def create_app(
         _apply_saved_layout(state)
 
     app.state.app_state = state
+
+    @app.post("/api/assistant")
+    def ask_assistant(
+        body: AssistantRequest, state: AppState = Depends(_require_assistant)
+    ) -> dict[str, Any]:
+        """Propose a rewritten file. Returns text and executes nothing.
+
+        **This is the one route that sends data off the machine.** It ships
+        the workspace source — every DSL file, with the caller's unsaved
+        buffer substituted for the one being edited — to an external API.
+        That scope is the operator's choice, made when they passed
+        ``--assistant``, and the UI states it before the first request.
+
+        The reply is DSL for a person to diff and accept. Nothing here
+        writes a file: applying a proposal is an ordinary save, which keeps
+        the conflict detection and the Viewer guard that path already has.
+        """
+        target = _safe_resolve(state.root, body.path)
+        files = [assistant_module.AssistantFile(body.path, body.content)]
+        # The rest of the workspace, from disk, minus the buffer's own file.
+        for path in [state.current_path, *state.watch_files]:
+            if path is None or path == target:
+                continue
+            try:
+                content, _ = _read_source(path)
+                relative = path.relative_to(state.root).as_posix()
+            except (OSError, ValueError):
+                continue
+            if any(existing.path == relative for existing in files):
+                continue
+            files.append(assistant_module.AssistantFile(relative, content))
+
+        try:
+            reply = assistant_module.propose(
+                assistant_module.AssistantRequest(
+                    instruction=body.instruction, target=body.path, files=files
+                )
+            )
+        except assistant_module.AssistantUnavailable as exc:
+            # 503: the server is willing, the operator has something to fix.
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        except assistant_module.AssistantError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+        return {
+            "content": reply.content,
+            "model": reply.model,
+            "refused": reply.refused,
+            "refusalReason": reply.refusal_reason,
+            "usage": {
+                "inputTokens": reply.input_tokens,
+                "outputTokens": reply.output_tokens,
+            },
+            # What was actually sent, so the UI can be specific rather than
+            # vague about the disclosure.
+            "filesSent": [file.path for file in files],
+        }
 
     @app.get("/api/templates")
     def list_starter_templates() -> list[dict[str, str]]:
@@ -957,7 +1055,9 @@ def create_app(
                 # per-user UI state regardless).
                 "saveLayout": True,
                 "checkSource": True,
-                "assistant": False,
+                # Off unless asked for, and reported here so the UI cannot
+                # offer what the server will not do.
+                "assistant": (not read_only) and state.config.assistant,
             },
         }
 
@@ -1653,6 +1753,7 @@ def run_server(
     port: int,
     *,
     read_only: bool = False,
+    assistant: bool = False,
 ) -> None:
     """Run the web backend with uvicorn.
 
@@ -1662,11 +1763,12 @@ def run_server(
         host: Interface to bind to.
         port: TCP port to listen on.
         read_only: Serve in Viewer mode (see :func:`create_app`).
+        assistant: Enable the assistant route (see :func:`create_app`).
     """
     import uvicorn
 
     uvicorn.run(
-        create_app(root, initial, read_only=read_only),
+        create_app(root, initial, read_only=read_only, assistant=assistant),
         host=host,
         port=port,
         log_level="info",
