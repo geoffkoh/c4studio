@@ -100,6 +100,32 @@ features that assume a hosted multi-user deployment.
   for the same reason. Note `npm audit` and Dependabot do not always agree:
   the root `nanoid` advisory was reported by npm and not by Dependabot.
 
+### Dependabot cannot merge a frontend bump on its own
+
+**Every** npm PR Dependabot opens is unmergeable as it arrives, and this is
+structural rather than a mishap. `src/c4studio/webapp/static/` and
+`src/c4studio/renderer/diagram-render.mjs` are committed build artefacts,
+CI fails any PR whose committed bundle does not match its source, and
+Dependabot does not run `npm run build`. A bundler bump changes the bundle
+by definition. PR #118 sat open for two weeks before anyone noticed why.
+
+Take the PR over rather than trying to fix it in place (PP-159 weighed the
+alternatives; this one keeps Dependabot's signal that a dependency is
+behind, at the cost of a manual step):
+
+```bash
+git checkout -b chore/frontend-deps-<month>
+# apply the same version bumps to package.json by hand
+conda run -n pystructurizr --no-capture-output npm install
+conda run -n pystructurizr --no-capture-output npm --prefix editors/vscode install
+conda run -n pystructurizr --no-capture-output npm run build   # the part Dependabot cannot do
+```
+
+Then close the Dependabot PR pointing at yours. A bundler swap is exactly
+where a green build and a broken app diverge, so verify beyond "it built":
+`npm run test:visual` including the screenshot baselines, and `c4 render`
+over a sample for the Node renderer artefact, which nothing else exercises.
+
 ### Node is not on PATH
 
 `node`/`npm`/`npx` are **only** available in the conda env `pystructurizr`

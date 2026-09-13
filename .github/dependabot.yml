@@ -32,6 +32,17 @@ updates:
   # The npm workspace at the root covers frontend/ and packages/diagram-core,
   # which have no lockfiles of their own. editors/vscode is a separate install
   # with its own lockfile, so it needs its own directory here.
+  #
+  # These PRs cannot be merged as they arrive, and that is deliberate rather
+  # than unnoticed. The committed bundle must match its source or CI fails,
+  # and Dependabot does not run `npm run build` — so any bump that changes
+  # bundle output produces a PR no rebase can rescue.
+  #
+  # PP-159 weighed ignoring those packages here. Keeping them means the
+  # standing signal that a dependency is behind stays visible, and the cost
+  # is a manual rebuild: take the PR over on your own branch and close
+  # Dependabot's. CLAUDE.md, "Dependabot cannot merge a frontend bump on its
+  # own", has the steps.
   - package-ecosystem: "npm"
     directories:
       - "/"
