@@ -5,6 +5,7 @@
 // the same origin as the backend.
 
 import type {
+  AssistantResult,
   Capabilities,
   CheckResult,
   ExplorerLevel,
@@ -201,6 +202,24 @@ export function deleteFolder(path: string): Promise<{ deleted: string }> {
     `/api/folder?path=${encodeURIComponent(path)}`,
     { method: "DELETE" },
   );
+}
+
+/** POST /api/assistant -> a proposed rewrite of one file.
+
+    The only call in this client that leaves the machine. Refused with 403
+    unless the server was started with `--assistant`; 503 when the optional
+    dependency or ANTHROPIC_API_KEY is missing. Returns text — applying it
+    is an ordinary buffer edit followed by an ordinary save. */
+export function askAssistant(
+  instruction: string,
+  path: string,
+  content: string,
+): Promise<AssistantResult> {
+  return request<AssistantResult>("/api/assistant", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ instruction, path, content }),
+  });
 }
 
 /** GET /api/templates -> the starter workspaces this server ships. */

@@ -411,6 +411,7 @@ export default function App() {
                   focus={codeFocus}
                   readOnly={readOnly}
                   completions={completions}
+                  assistantEnabled={capabilities?.features?.assistant === true}
                   open={openRequest}
                   onSaved={handleSaved}
                 />
