@@ -1,7 +1,22 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { buildRows, ancestorsOf, initialExpansion } from "../fileTree";
 import type { SourceEntry } from "../types";
+import { ContextMenu, type MenuAction } from "./ContextMenu";
+import { FileOpsDialog, type FileOpRequest } from "./FileOpsDialog";
+
+/** The four things the tree can do to the filesystem.
+
+    Injected as one object so the capability gate is structural: Viewer
+    passes `null` and there is no menu at all, rather than a menu whose
+    items are disabled and whose requests the server would 403 anyway. */
+export interface FileOperations {
+  createFile: (path: string) => Promise<unknown>;
+  createFolder: (path: string) => Promise<unknown>;
+  rename: (path: string, to: string) => Promise<unknown>;
+  deleteFile: (path: string) => Promise<unknown>;
+  deleteFolder: (path: string) => Promise<unknown>;
+}
 
 /** Uniform row height, in px. Must match `.tree__row` in index.css.
 
@@ -25,6 +40,10 @@ interface FileTreeProps {
   /** Any file was picked, for opening in the editor. Fired for workspaces
       too, so clicking one both loads it and shows its source. */
   onOpen: (path: string, kind: "workspace" | "fragment") => void;
+  /** Null in Viewer mode: the tree then offers no file operations. */
+  fileOps: FileOperations | null;
+  /** Called after an operation changes the tree on disk. */
+  onChanged: () => void;
 }
 
 /**
@@ -44,10 +63,18 @@ export function FileTree({
   loadingPath,
   onSelect,
   onOpen,
+  fileOps,
+  onChanged,
 }: FileTreeProps) {
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState(() => initialExpansion(currentPath));
   const [scrollTop, setScrollTop] = useState(0);
+  const [menu, setMenu] = useState<{
+    x: number;
+    y: number;
+    request: Omit<FileOpRequest, "kind">;
+  } | null>(null);
+  const [dialog, setDialog] = useState<FileOpRequest | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Loading a workspace reveals where it lives, rather than leaving the
@@ -81,6 +108,72 @@ export function FileTree({
     Math.ceil((scrollTop + viewport) / ROW_HEIGHT) + OVERSCAN,
   );
   const visible = rows.slice(start, end);
+
+  /** Where a new entry goes: inside a folder, or beside a file. */
+  const openMenu = (
+    event: React.MouseEvent,
+    path: string,
+    isFolder: boolean,
+  ) => {
+    if (!fileOps) return;
+    event.preventDefault();
+    const parent = isFolder
+      ? path
+      : path.split("/").slice(0, -1).join("/");
+    setMenu({
+      x: event.clientX,
+      y: event.clientY,
+      request: { target: path, parent, isFolder },
+    });
+  };
+
+  const runOperation = useCallback(
+    async (value: string) => {
+      if (!fileOps || !dialog) return;
+      const joined = dialog.parent ? `${dialog.parent}/${value}` : value;
+      switch (dialog.kind) {
+        case "new-file":
+          await fileOps.createFile(joined);
+          break;
+        case "new-folder":
+          await fileOps.createFolder(joined);
+          break;
+        case "rename": {
+          const folder = dialog.target.split("/").slice(0, -1).join("/");
+          await fileOps.rename(dialog.target, folder ? `${folder}/${value}` : value);
+          break;
+        }
+        case "delete":
+          await (dialog.isFolder
+            ? fileOps.deleteFolder(dialog.target)
+            : fileOps.deleteFile(dialog.target));
+          break;
+      }
+      onChanged();
+    },
+    [dialog, fileOps, onChanged],
+  );
+
+  const menuActions = (request: Omit<FileOpRequest, "kind">): MenuAction[] => [
+    {
+      label: "New file…",
+      onSelect: () => setDialog({ ...request, kind: "new-file" }),
+    },
+    {
+      label: "New folder…",
+      onSelect: () => setDialog({ ...request, kind: "new-folder" }),
+    },
+    {
+      label: "Rename…",
+      onSelect: () => setDialog({ ...request, kind: "rename" }),
+      disabled: request.isFolder,
+    },
+    {
+      label: request.isFolder ? "Delete folder" : "Delete file",
+      onSelect: () => setDialog({ ...request, kind: "delete" }),
+      destructive: true,
+    },
+  ];
 
   const toggle = (path: string) =>
     setExpanded((previous) => {
@@ -129,6 +222,7 @@ export function FileTree({
                     className="tree__row tree__row--dir"
                     style={style}
                     onClick={() => toggle(row.path)}
+                    onContextMenu={(event) => openMenu(event, row.path, true)}
                     title={row.path}
                   >
                     <span className="tree__twisty">
@@ -159,6 +253,7 @@ export function FileTree({
                     if (!isFragment) onSelect(row.path);
                     onOpen(row.path, kind);
                   }}
+                  onContextMenu={(event) => openMenu(event, row.path, false)}
                   title={
                     isFragment
                       ? `${row.path} — an !include fragment: opens in the editor, but cannot be loaded on its own`
@@ -177,6 +272,22 @@ export function FileTree({
           </div>
         </div>
       )}
+      {menu ? (
+        <ContextMenu
+          x={menu.x}
+          y={menu.y}
+          title={menu.request.target}
+          actions={menuActions(menu.request)}
+          onClose={() => setMenu(null)}
+        />
+      ) : null}
+      {dialog ? (
+        <FileOpsDialog
+          request={dialog}
+          onConfirm={runOperation}
+          onClose={() => setDialog(null)}
+        />
+      ) : null}
     </section>
   );
 }

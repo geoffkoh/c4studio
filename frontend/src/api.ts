@@ -164,6 +164,44 @@ export function saveSource(
   });
 }
 
+/** POST /api/folder -> create an empty folder under the root. */
+export function createFolder(path: string): Promise<{ path: string }> {
+  return request<{ path: string }>("/api/folder", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path }),
+  });
+}
+
+/** POST /api/rename -> move a listed source file. Never clobbers: an
+    existing destination comes back as a 409. */
+export function renameSource(
+  path: string,
+  to: string,
+): Promise<{ path: string; from: string }> {
+  return request<{ path: string; from: string }>("/api/rename", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path, to }),
+  });
+}
+
+/** DELETE /api/file -> remove one listed source file. */
+export function deleteFile(path: string): Promise<{ deleted: string }> {
+  return request<{ deleted: string }>(
+    `/api/file?path=${encodeURIComponent(path)}`,
+    { method: "DELETE" },
+  );
+}
+
+/** DELETE /api/folder -> remove an empty folder. */
+export function deleteFolder(path: string): Promise<{ deleted: string }> {
+  return request<{ deleted: string }>(
+    `/api/folder?path=${encodeURIComponent(path)}`,
+    { method: "DELETE" },
+  );
+}
+
 /** GET /api/capabilities -> what this server allows. Needs no workspace. */
 export function getCapabilities(): Promise<Capabilities> {
   return request<Capabilities>("/api/capabilities");

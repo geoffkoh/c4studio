@@ -468,6 +468,36 @@ is the model-to-DSL generation Principle 1 rules out.
 Every one of those guards was mutation-checked — removed one at a time,
 each time a test failed.
 
+### Making the capability gate structural
+
+C5b put the destructive routes behind a right-click menu, and the useful
+decision was how Viewer is handled: the four operations arrive as **one
+injected object**, and Viewer gets `null`. There is then no menu to
+disable, rather than a menu whose items are greyed out and whose requests
+the server would 403 anyway. Principle 3 says capability lives on the
+server; this is the client agreeing with it structurally instead of
+by remembering to.
+
+Three smaller things worth keeping:
+
+- **The server's refusals are shown, not swallowed.** Every 409 — "already
+  exists", "cannot delete the loaded workspace", "is not empty" — is a
+  deliberate guard, and a guard the user never sees is indistinguishable
+  from a bug. They surface on the dialog that caused them.
+- **Creating a file is a save, not a create route.** `createFile` is
+  `saveSource(path, "", null)`, so it takes the same 409-on-clobber path
+  every other write does and there is no second implementation to keep in
+  step.
+- **A buffer whose file vanished is dropped when clean and kept when
+  dirty.** Clean, there is nothing left to show; dirty, the work exists
+  only in that buffer, and saving it back recreates the file.
+
+The dismissal logic was already written once, for the relationship menu.
+`ContextMenu` is that code extracted rather than copied — including the
+detail worth not re-deriving: it listens on the *capture* phase, so the
+click that dismisses the menu does not also land on whatever is beneath
+it.
+
 ---
 
 ## Risks
@@ -567,8 +597,9 @@ State these in the tickets so they don't creep in.
 | C3b — Open any source file | ✅ Done | PP-133 |
 | C4 — Cache hygiene | ✅ Done | PP-134 |
 | C5 — File operations (backend) | ✅ Done | PP-135 |
-| C5b — File operations in the UI | ⬜ Next | not yet ticketed |
-| D1–D2, E1–E2, F1 | ⬜ Not started | not yet ticketed |
+| C5b — File operations in the UI | ✅ Done | PP-136 |
+| D1 — `c4 new` and starter templates | ⬜ Next | not yet ticketed |
+| D2, E1–E2, F1 | ⬜ Not started | not yet ticketed |
 
 Update this table as tickets land, and file the next phase's tickets when
 the current one is done rather than all at once.

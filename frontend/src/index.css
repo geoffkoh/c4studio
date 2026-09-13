@@ -1005,6 +1005,113 @@ button {
   color: var(--muted);
 }
 
+/* ---- Modal dialog (file operations) ---- */
+.dialog__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  background: rgba(16, 24, 40, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dialog {
+  width: min(440px, calc(100vw - 32px));
+  background: var(--panel);
+  border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(16, 24, 40, 0.25);
+  padding: 18px 20px 16px;
+}
+
+.dialog__title {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.dialog__body {
+  display: block;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+  margin: 0 0 8px;
+}
+
+.dialog__input {
+  width: 100%;
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.dialog__input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.dialog__error {
+  margin-top: 10px;
+  padding: 7px 9px;
+  border-radius: 6px;
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: 12.5px;
+}
+
+.dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.dialog__button {
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.dialog__button--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.dialog__button--destructive {
+  background: var(--danger);
+  border-color: var(--danger);
+}
+
+.dialog__button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.edge-menu__title {
+  padding: 4px 10px 6px;
+  font-size: 11px;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.edge-menu__item:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
 /* ---- Source file tree (sidebar) ---- */
 .tree__search {
   width: 100%;
