@@ -79,4 +79,14 @@ dev = [
     # undeclared it resolved to an ephemeral install that could not see
     # project-installed type stubs, and the version drifted per machine.
     "mypy>=1.11",
+    # Same reasoning, and it went unnoticed longer: `uv run ruff` resolved
+    # to an ephemeral install on a developer's machine and to nothing at
+    # all in CI, where the first run of the gate failed with
+    # "Failed to spawn: ruff". The project's own gate tools have to be
+    # project dependencies.
+    # Pinned to the 0.15 line, which is what the gate has actually been
+    # run with. Declaring it unpinned pulled 0.16 and its new rules, and
+    # 89 findings — a lint upgrade is its own change, not a side effect of
+    # writing a CI workflow. Dependabot can propose the bump on its own.
+    "ruff>=0.15.22,<0.16",
 ]
