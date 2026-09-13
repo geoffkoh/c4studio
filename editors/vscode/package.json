@@ -104,7 +104,7 @@
     "package": "npm run compile && vsce package"
   },
   "devDependencies": {
-    "@types/node": "^18.19.0",
+    "@types/node": "^26.5.1",
     "@types/vscode": "~1.85.0",
     "esbuild": "^0.28.1",
     "typescript": "^5.4.5",
