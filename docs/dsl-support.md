@@ -100,7 +100,7 @@ prints. A skipped construct never consumes its enclosing scope.
 | --- | --- | --- |
 | `!element <identifier> { … }` | ✅ | |
 | `!elements <expression> { … }` | ✅ | Applies the body to every matching element |
-| `!relationship <alias> { … }` | ⚠️ | Parses silently and changes nothing |
+| `!relationship <alias> { … }` | ✅ | Applies `tags`, `url`, `properties` and `perspectives` — the whole vocabulary a relationship block has, upstream included: it is a `ModelItemDslContext`, and `technology`/`description` are not gated on it. Those are positional on the `->` line, or bulk-set via `!relationships`. Anything else in the block, and an alias that resolves to nothing, are now reported rather than dropped |
 | `!relationships <expression> { … }` | ◐ | Works with tag and property expressions (`relationship.tag==X`); the wildcard forms `*` and `"*->*"` match nothing, silently |
 | `!extend <identifier> { … }` | ⛔ | |
 | `!ref <identifier> { … }` | ⛔ | |
@@ -230,12 +230,17 @@ composition and the ordering rule.
 
 ## The gaps worth knowing about
 
-Three constructs **parse silently and do nothing** — no warning, no effect.
+Two constructs **parse silently and do nothing** — no warning, no effect.
 They are the worst kind of gap, because nothing tells you:
 
 - workspace-level `properties`
-- `!relationship <alias> { … }`
 - `!relationships` with wildcard expressions
+
+`!relationship <alias> { … }` was listed here and should not have been. It
+applies every property a relationship block accepts; the report behind that
+entry set `technology`, which is not one of them in this DSL at all. What
+was true is that it said nothing — neither about the ignored property nor
+about an alias matching nothing. Both are diagnostics now.
 
 And one construct half-announces itself: an aliased
 `prod = deploymentEnvironment … { … }` produces a diagnostic for the
