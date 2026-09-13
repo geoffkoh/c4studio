@@ -723,4 +723,5 @@ def _parse_json_dict(data: dict[str, Any]) -> Workspace:
         workspace_configuration=_parse_workspace_configuration(
             ws_data.get("configuration")
         ),
+        properties=_properties(ws_data.get("properties")),
     )

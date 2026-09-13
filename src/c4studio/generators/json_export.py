@@ -651,6 +651,10 @@ def workspace_to_json(workspace: Workspace) -> JsonDict:
                 "createdUser": workspace.created_by,
                 "model": model,
                 "views": views,
+                # Top-level, matching AbstractWorkspace.properties upstream.
+                # Distinct from the model's properties (inside "model") and
+                # the views configuration's (inside "views.configuration").
+                "properties": dict(workspace.properties),
                 "configuration": _workspace_configuration(
                     workspace.workspace_configuration
                 ),
