@@ -587,6 +587,33 @@ extra to the dev dependencies therefore changed which HTTP library the
 whole webapp suite runs through. Tests pass either way; one annotation
 that named `httpx` explicitly had to stop doing so.
 
+### Nothing AI-specific touches the editor
+
+E2 is the payoff for Principle 1, and it is visible in how little code it
+took: applying a proposal is `onApply(proposal.content)`, which is the
+same call typing makes. No special path through the buffer, the save, or
+the reload — the assistant is one more producer of text, exactly as the
+principle said it would be.
+
+The diff is a hand-written LCS in `lineDiff.ts` rather than an npm
+dependency. The no-new-dependencies rule applies to npm too, and keeping
+it pure meant it could be exercised headlessly — which matters more here
+than usual, because **a diff that is subtly wrong is a diff someone
+accepts without noticing**. It is checked on the obvious cases and on a
+round-trip property over 399 random pairs: dropping the additions must
+reconstruct the original, dropping the removals must reconstruct the
+proposal.
+
+Long runs of unchanged lines collapse to a gap marker, for the same
+reason: a whole-file diff of a large workspace is unreviewable, and an
+unreviewable diff gets accepted unread.
+
+Two things the panel states rather than implies: the network note sits on
+the panel itself, not in a settings screen; and the list of files sent
+comes from the reply's `filesSent`, derived server-side from what was
+actually sent. A disclosure maintained by hand is one that eventually
+stops being true.
+
 ---
 
 ## Risks
@@ -690,8 +717,12 @@ State these in the tickets so they don't creep in.
 | D1 — `c4 new` and starter templates | ✅ Done | PP-137 |
 | D2 — New workspace in-app | ✅ Done | PP-139 |
 | E1 — Assistant endpoint | ✅ Done | PP-140 |
-| E2 — Propose-a-diff UX | ⬜ Next | not yet ticketed |
+| E2 — Propose-a-diff UX | ✅ Done | PP-141 |
 | F1 — VS Code read-only preview | ⬜ Blocked on a release | not yet ticketed |
+
+**Phases A–E are complete.** F1 is the only remaining plan item, and it
+waits on A1 being released — PyPI is on 0.2.0 while everything from A1
+onward sits on `main`.
 
 Update this table as tickets land, and file the next phase's tickets when
 the current one is done rather than all at once.

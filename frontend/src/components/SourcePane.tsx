@@ -16,6 +16,7 @@ import type {
   SourceResult,
 } from "../types";
 import type { DslCompletionModel } from "../dslComplete";
+import { AssistantPanel } from "./AssistantPanel";
 import { DslEditor, type EditorFlash } from "./DslEditor";
 
 export interface CodeFocus {
@@ -69,6 +70,9 @@ interface SourcePaneProps {
   readOnly: boolean;
   /** Identifiers and view keys from the loaded workspace, for completion. */
   completions: DslCompletionModel;
+  /** Whether this server has the assistant enabled. Off by default, and
+      the only feature that uses the network. */
+  assistantEnabled: boolean;
   /** A file the tree asked to open, which may not belong to the loaded
       workspace at all. */
   open: OpenRequest | null;
@@ -143,6 +147,7 @@ export function SourcePane({
   focus,
   readOnly,
   completions,
+  assistantEnabled,
   open,
   onSaved,
 }: SourcePaneProps) {
@@ -157,6 +162,7 @@ export function SourcePane({
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [conflict, setConflict] = useState<SaveConflict | null>(null);
+  const [assistantOpen, setAssistantOpen] = useState(false);
   const appliedFocus = useRef<number | null>(null);
   const appliedOpen = useRef<number | null>(null);
 
@@ -537,6 +543,15 @@ export function SourcePane({
             </span>
           ) : null}
           <span className="editor__spacer" />
+          {assistantEnabled && !editorReadOnly ? (
+            <button
+              className="editor__assistant"
+              onClick={() => setAssistantOpen((open) => !open)}
+              title="Ask for a change. Sends your workspace to an external API."
+            >
+              Assistant
+            </button>
+          ) : null}
           {!editorReadOnly ? (
             <button
               className="editor__save"
@@ -576,6 +591,15 @@ export function SourcePane({
 
         {saveError ? (
           <div className="editor__banner editor__banner--error">{saveError}</div>
+        ) : null}
+
+        {assistantOpen && assistantEnabled && !editorReadOnly ? (
+          <AssistantPanel
+            path={selectedPath}
+            content={buffer.text}
+            onApply={handleChange}
+            onClose={() => setAssistantOpen(false)}
+          />
         ) : null}
 
         <DslEditor

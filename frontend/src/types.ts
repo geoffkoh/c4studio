@@ -299,6 +299,20 @@ export interface WorkspaceDocumentation {
   decisions: DocDecision[];
 }
 
+/** Response body from POST /api/assistant.
+
+    `filesSent` is derived server-side from what was actually sent, so the
+    UI can name the files rather than describe them. This is the one
+    endpoint whose request leaves the machine. */
+export interface AssistantResult {
+  content: string;
+  model: string;
+  refused: boolean;
+  refusalReason: string;
+  usage: { inputTokens: number; outputTokens: number };
+  filesSent: string[];
+}
+
 /** One starter workspace from GET /api/templates. */
 export interface TemplateInfo {
   name: string;

@@ -1005,6 +1005,159 @@ button {
   color: var(--muted);
 }
 
+/* ---- Assistant panel (the one networked feature) ---- */
+.assistant {
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  padding: 10px 12px 12px;
+  max-height: 55%;
+  overflow-y: auto;
+  flex: none;
+}
+
+.assistant__bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.assistant__title {
+  font-size: 13px;
+}
+
+/* Stated on the panel itself, not in a settings screen: this is the only
+   thing in c4studio that uses the network. */
+.assistant__note {
+  font-size: 11px;
+  color: var(--danger);
+  background: var(--danger-soft);
+  padding: 1px 7px;
+  border-radius: 10px;
+}
+
+.assistant__close {
+  border: none;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.assistant__ask {
+  display: flex;
+  gap: 8px;
+}
+
+.assistant__summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.assistant__added {
+  color: #2e7d32;
+  font-weight: 600;
+}
+
+.assistant__removed {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.assistant__sent {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.assistant__diff {
+  margin-top: 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-x: auto;
+}
+
+.assistant__line {
+  display: flex;
+  white-space: pre;
+}
+
+.assistant__line--added {
+  background: #e8f5e9;
+}
+
+.assistant__line--removed {
+  background: var(--danger-soft);
+}
+
+.assistant__gutter {
+  width: 34px;
+  min-width: 34px;
+  text-align: right;
+  padding-right: 6px;
+  color: #b3bcc7;
+  user-select: none;
+}
+
+.assistant__mark {
+  width: 14px;
+  min-width: 14px;
+  color: var(--muted);
+  user-select: none;
+}
+
+.assistant__text {
+  padding-right: 12px;
+}
+
+.assistant__gap {
+  padding: 2px 10px;
+  color: var(--muted);
+  background: var(--bg);
+  font-size: 11px;
+}
+
+.assistant__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.assistant__model {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.assistant__unchanged,
+.assistant__footnote {
+  font-size: 11.5px;
+  margin: 8px 0 0;
+}
+
+.editor__assistant {
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.editor__assistant:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 /* ---- Modal dialog (file operations) ---- */
 .section__header {
   display: flex;
