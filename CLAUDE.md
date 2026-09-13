@@ -266,6 +266,10 @@ the finding in the code or docs so the answer survives without it.
 
 ## Documentation Upkeep
 
+- `docs/next-steps.md` is the **short horizon: read it first when picking
+  up work.** What just landed, what is open right now, what to do next,
+  what needs a human, and the traps that cost time last session. Update it
+  at the end of a run of work — it is only worth reading if it is true.
 - `docs/structurizr-parity.md` tracks c4studio against the Java Structurizr
   UI and is the closest thing to a status page — **update it as items land**.
 - `docs/roadmap.md` holds the staged plan (phases 2–4) and delivery conventions.
