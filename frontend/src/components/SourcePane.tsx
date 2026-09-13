@@ -225,7 +225,7 @@ export function SourcePane({
   const editorReadOnly = readOnly || !buffer.editable;
 
   return (
-    <div className="source">
+    <div className="source-page">
       <div className="editor">
         <EditorTabs
           state={state}

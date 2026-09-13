@@ -195,6 +195,72 @@ test.describe("narrow surfaces", () => {
   });
 });
 
+test.describe("diagram nodes", () => {
+  /** Open a view on the Diagrams page. */
+  async function openDiagram(page: Page) {
+    await page.goto("/");
+    const rail = page.locator(".rail--left");
+    if (await rail.isVisible()) await rail.click();
+    await page
+      .getByRole("searchbox", { name: "Search files" })
+      .fill("internet_banking");
+    await page
+      .getByRole("button", { name: "internet_banking.dsl", exact: true })
+      .click();
+    await page.getByRole("button", { name: /System Context/ }).first().click();
+    await expect(page.locator(".react-flow__node").first()).toBeVisible();
+  }
+
+  test("connection handles are points, not bars", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await openDiagram(page);
+
+    // React Flow puts a bare `source` class on every source handle, and a
+    // `.source { height: 100% }` rule of ours once stretched the handle
+    // down the side of every node. Vendor classes share our global
+    // namespace; this is the assertion that notices when they collide.
+    const sizes = await page
+      .locator(".react-flow__handle")
+      .evaluateAll((els) =>
+        els.map((el) => {
+          const r = el.getBoundingClientRect();
+          return { w: Math.round(r.width), h: Math.round(r.height) };
+        }),
+      );
+    expect(sizes.length).toBeGreaterThan(0);
+    for (const size of sizes) {
+      expect(size.w, `handle width ${JSON.stringify(size)}`).toBeLessThanOrEqual(12);
+      expect(size.h, `handle height ${JSON.stringify(size)}`).toBeLessThanOrEqual(12);
+    }
+  });
+
+  test("nothing inside a node escapes it", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await openDiagram(page);
+
+    // The general form of the bug above: a descendant that stretches or
+    // overflows its node is almost always a stray global rule.
+    const escapes = await page
+      .locator(".react-flow__node")
+      .evaluateAll((nodes) =>
+        nodes.flatMap((node) => {
+          const box = node.getBoundingClientRect();
+          return Array.from(node.querySelectorAll("*"))
+            .map((child) => {
+              const r = child.getBoundingClientRect();
+              // Handles sit deliberately 4px outside the edge.
+              const slack = 8;
+              const over =
+                r.height > box.height + slack || r.width > box.width + slack;
+              return over ? `${child.className} ${Math.round(r.width)}x${Math.round(r.height)} in ${Math.round(box.width)}x${Math.round(box.height)}` : null;
+            })
+            .filter(Boolean);
+        }),
+      );
+    expect(escapes).toEqual([]);
+  });
+});
+
 test.describe("appearance", () => {
   // Baselines, so the next layout change fails here rather than being
   // discovered by someone opening the app weeks later.
