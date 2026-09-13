@@ -125,7 +125,7 @@ endpoint** — `GET /api/source` already enumerates the root plus every
 | C3b | `feat(frontend): open any source file` | Clicking any file in the tree opens it in the editor, which is what gives `GET /api/file` a caller. Detached buffers survive reloads; `/api/check` is skipped for a fragment whose workspace is not loaded — see [A fragment out of context](#a-fragment-out-of-context). | C2, C3 |
 | C3 | `feat(frontend): searchable file tree` | Replace the flat, unfiltered, unvirtualised `FilePicker`. Logic in a pure `fileTree.ts`; windowed without a dependency — see [A tree flattens to uniform rows](#a-tree-flattens-to-uniform-rows). |
 | C4 | `perf(webapp): cache hygiene` | `/api/workspace` runs `dataclasses.asdict` over the whole model on every call. Bound the unbounded per-view graph cache. **Measuring reversed the priority** — see [The graph cache was the real one](#the-graph-cache-was-the-real-one). |
-| C5 | `feat(webapp): file operations` | New file, new folder, rename, delete — capability-guarded and `_safe_resolve`d. |
+| C5 | `feat(webapp): file operations` | New folder, rename, delete — capability-guarded and `_safe_resolve`d. **New file needs no route**: `PUT /api/source` with a null fingerprint already creates one. See [If you cannot see it, you cannot delete it](#if-you-cannot-see-it-you-cannot-delete-it). |
 
 ### Phase D — Creating workspaces
 
@@ -432,6 +432,42 @@ That mattered — the first version of the LRU test passed against a FIFO
 cache, because it re-read the keeper *last* and so freshly inserted it
 whatever the policy.
 
+### If you cannot see it, you cannot delete it
+
+C5's rule, and the reason its tests are mostly about refusals. These are
+the first routes that destroy data on the user's disk, so the guards are
+the feature and the happy paths are one line each.
+
+- **Delete only what the listing shows.** One check — `_classify(target)
+  is not None` — rules out layout sidecars, unsupported suffixes and
+  anything outside the root together, instead of leaving each route to
+  remember three separate rules.
+- **Rename never clobbers.** An existing destination is a 409. The
+  one-keystroke typo that silently destroys another file is exactly what a
+  rename route must not honour.
+- **Folders are removed only when empty.** A recursive delete is the one
+  operation here that could destroy work the user never named, and nothing
+  in the UI needs it.
+- **The loaded workspace cannot be renamed or deleted.** `current_path`
+  would be left pointing at a file that is gone. Loading something else
+  first is one click and leaves no broken state.
+- **Rename carries the layout sidecar across**; delete removes it. A
+  sidecar is keyed by filename with nothing inside it that knows better,
+  so an orphan would silently attach itself to any future file of that
+  name.
+
+**New file needed no route.** `PUT /api/source` with a null fingerprint
+already asserts the file does not exist and makes its parents on the way —
+the plan's "new file" item was done before it was written.
+
+Renaming or deleting a fragment the loaded workspace includes leaves the
+`!include` dangling, and the reload says so. That is the fail-soft
+contract, not an oversight: rewriting the user's `!include` lines to match
+is the model-to-DSL generation Principle 1 rules out.
+
+Every one of those guards was mutation-checked — removed one at a time,
+each time a test failed.
+
 ---
 
 ## Risks
@@ -530,7 +566,8 @@ State these in the tickets so they don't creep in.
 | C3 — Searchable file tree | ✅ Done | PP-132 |
 | C3b — Open any source file | ✅ Done | PP-133 |
 | C4 — Cache hygiene | ✅ Done | PP-134 |
-| C5 — File operations | ⬜ Next | not yet ticketed |
+| C5 — File operations (backend) | ✅ Done | PP-135 |
+| C5b — File operations in the UI | ⬜ Next | not yet ticketed |
 | D1–D2, E1–E2, F1 | ⬜ Not started | not yet ticketed |
 
 Update this table as tickets land, and file the next phase's tickets when
