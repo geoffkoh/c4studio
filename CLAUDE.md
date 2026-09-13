@@ -154,6 +154,10 @@ Tests alone are not sufficient for webapp or parser changes. Before opening a PR
    `logistics_network.dsl` exercises the wide end of the DSL (groups, bulk
    `!…` directives, deployment groups, health checks, animation, branding)
    and is pinned keyword-by-keyword in `tests/test_samples/`.
+   `c4studio/workspace.dsl` models this codebase itself, down to component
+   level — the fastest way to check a change against a model you can verify
+   by reading the source next to it, and the only sample with component
+   views for more than one container.
 3. For frontend changes, rebuild the bundle and commit it — a stale
    `src/c4studio/webapp/static/` ships a broken UI.
 
