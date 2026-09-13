@@ -1,5 +1,7 @@
 from pathlib import Path
+
 import pytest
+
 from c4studio.parser.dsl import ParseError, parse_dsl, parse_dsl_file
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"

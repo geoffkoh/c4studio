@@ -37,7 +37,6 @@ from c4studio.graph.view_graph import (
 )
 from c4studio.models import Shape, View, ViewType, Workspace
 
-
 # Custom and image views hold author-supplied content rather than model
 # elements, so there is nothing to lay out.
 _UNSUPPORTED: frozenset[ViewType] = frozenset({ViewType.CUSTOM, ViewType.IMAGE})

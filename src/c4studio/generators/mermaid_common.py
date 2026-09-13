@@ -14,7 +14,6 @@ import re
 from c4studio.graph.view_graph import GraphNode
 from c4studio.models import View, ViewType, Workspace
 
-
 # Title prefix per view type, for views that declare no title of their own.
 _TITLE_PREFIXES: dict[ViewType, str] = {
     ViewType.SYSTEM_CONTEXT: "System Context",

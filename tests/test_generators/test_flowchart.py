@@ -252,7 +252,7 @@ class TestAllViewTypes:
         assert indents["eks_cluster"] < indents["oms_namespace"]
         assert "[Deployment Node: Kubernetes 1.31]" in diagram
         # Infrastructure nodes take the hexagon shape.
-        assert re.search(r"^\s*alb\{\{", diagram, re.M)
+        assert re.search(r"^\s*alb\{\{", diagram, re.MULTILINE)
 
     def test_custom_and_image_views_are_unsupported(self) -> None:
         workspace = parse_dsl(
@@ -292,8 +292,8 @@ class TestReservedIds:
             """
         )
         diagram = FlowchartGenerator(workspace).generate_view(_view(workspace, "cont"))
-        assert re.search(r"^\s*end_\[", diagram, re.M)
-        assert re.search(r"^\s*style_\[", diagram, re.M)
+        assert re.search(r"^\s*end_\[", diagram, re.MULTILINE)
+        assert re.search(r"^\s*style_\[", diagram, re.MULTILINE)
         # No line may consist of a bare keyword used as a node declaration.
         for line in diagram.splitlines():
             assert not re.match(r"^\s*(end|graph|style|class)[\[\(\{]", line), line
@@ -327,7 +327,7 @@ class TestStyling:
         diagram = FlowchartGenerator(workspace).generate_view(_view(workspace, "cont"))
         # Person palette colour, with a darker stroke derived from it.
         assert "classDef c0 fill:#43a047,stroke:#307333,color:#ffffff" in diagram
-        assert re.search(r"^\s*class \w+(,\w+)* c0$", diagram, re.M)
+        assert re.search(r"^\s*class \w+(,\w+)* c0$", diagram, re.MULTILINE)
         assert "classDef boundary fill:none,stroke:#90a4ae,color:#90a4ae" in diagram
 
     def test_tag_style_overrides_the_palette_and_the_shape(self) -> None:
@@ -335,7 +335,7 @@ class TestStyling:
         diagram = FlowchartGenerator(workspace).generate_view(_view(workspace, "cont"))
         # The Database element style declares a red background, black text
         # and a cylinder shape.
-        assert re.search(r"^\s*db\[\(", diagram, re.M)
+        assert re.search(r"^\s*db\[\(", diagram, re.MULTILINE)
         assert "fill:#ff0000,stroke:#b70000,color:#000000" in diagram
 
     def test_external_elements_take_the_external_palette(self) -> None:

@@ -3,6 +3,7 @@
 from c4studio.models import (
     Animation,
     AutomaticLayout,
+    Branding,
     Component,
     Configuration,
     Container,
@@ -10,8 +11,10 @@ from c4studio.models import (
     CustomElement,
     Decision,
     DeploymentNode,
+    Documentation,
     ElementStyle,
     Enterprise,
+    Font,
     Format,
     HttpHealthCheck,
     InfrastructureNode,
@@ -19,8 +22,8 @@ from c4studio.models import (
     Location,
     Model,
     PaperSize,
-    Perspective,
     Person,
+    Perspective,
     RankDirection,
     Relationship,
     RelationshipStyle,
@@ -31,9 +34,6 @@ from c4studio.models import (
     SoftwareSystemInstance,
     Styles,
     Terminology,
-    Branding,
-    Font,
-    Documentation,
     Vertex,
     View,
     ViewElement,
@@ -41,7 +41,6 @@ from c4studio.models import (
     ViewType,
     Workspace,
 )
-
 
 # ---------------------------------------------------------------------------
 # Enum tests

@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import json
 
-from c4studio.models import DeploymentNode
 from c4studio.generators.json_export import export_json
+from c4studio.models import DeploymentNode
 from c4studio.parser.dsl import parse_dsl
 from c4studio.parser.json_parser import parse_json
 

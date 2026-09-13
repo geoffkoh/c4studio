@@ -4,7 +4,6 @@ from c4studio.generators.json_export import workspace_to_json
 from c4studio.models import ViewType
 from c4studio.parser.dsl import parse_dsl
 
-
 BASE_MODEL = """
         model {
             u = person "User"

@@ -132,6 +132,11 @@ def render_view(
             capture_output=True,
             text=True,
             timeout=RENDER_TIMEOUT_SECONDS,
+            # Explicitly not `check=True`. The return code is checked below,
+            # which turns a failure into a RenderError carrying the
+            # renderer's stderr; `check=True` would raise
+            # CalledProcessError first and lose that.
+            check=False,
         )
     except subprocess.TimeoutExpired as exc:
         raise RenderError(

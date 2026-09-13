@@ -3,17 +3,22 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
 
 from c4studio.generators.json_export import export_json, workspace_to_json
-from c4studio.models import Location, Shape, ViewType, Workspace
+from c4studio.models import (
+    DeploymentNode,
+    Location,
+    Shape,
+    SoftwareSystem,
+    ViewType,
+    Workspace,
+)
 from c4studio.parser.dsl import parse_dsl_file
 from c4studio.parser.json_parser import parse_json, parse_json_file
-from collections.abc import Iterator
-from c4studio.models import DeploymentNode
-from c4studio.models import SoftwareSystem
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"
 SAMPLES = Path(__file__).parent.parent.parent / "samples"

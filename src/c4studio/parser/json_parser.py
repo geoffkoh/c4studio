@@ -9,14 +9,13 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from c4studio.models import (
     Animation,
     AutomaticLayout,
     Border,
     Branding,
-    Dimensions,
     ColorScheme,
     Component,
     Configuration,
@@ -26,11 +25,12 @@ from c4studio.models import (
     Decision,
     DecisionLink,
     DeploymentNode,
+    Dimensions,
     Documentation,
     ElementStyle,
     Enterprise,
-    Font,
     FilterMode,
+    Font,
     Format,
     HttpHealthCheck,
     IconPosition,
@@ -41,12 +41,12 @@ from c4studio.models import (
     Model,
     Person,
     Perspective,
-    Section,
     RankDirection,
     Relationship,
     RelationshipStyle,
     RelationshipView,
     Routing,
+    Section,
     Shape,
     SoftwareSystem,
     SoftwareSystemInstance,
@@ -309,15 +309,17 @@ def _parse_deployment_node(data: dict[str, Any], parent_id: str = "") -> Deploym
     )
 
 
+_RANK_MAP: dict[str, RankDirection] = {
+    "TopBottom": RankDirection.TOP_BOTTOM,
+    "BottomTop": RankDirection.BOTTOM_TOP,
+    "LeftRight": RankDirection.LEFT_RIGHT,
+    "RightLeft": RankDirection.RIGHT_LEFT,
+}
+
+
 def _parse_auto_layout(data: dict[str, Any] | None) -> AutomaticLayout | None:
     if data is None:
         return None
-    _RANK_MAP: dict[str, RankDirection] = {
-        "TopBottom": RankDirection.TOP_BOTTOM,
-        "BottomTop": RankDirection.BOTTOM_TOP,
-        "LeftRight": RankDirection.LEFT_RIGHT,
-        "RightLeft": RankDirection.RIGHT_LEFT,
-    }
     rank_dir = _RANK_MAP.get(data.get("rankDirection", ""), RankDirection.TOP_BOTTOM)
     return AutomaticLayout(
         rank_direction=rank_dir,
@@ -350,7 +352,7 @@ def _parse_animation(data: dict[str, Any], order: int) -> Animation:
     )
 
 
-def _filter_mode(raw: str | None) -> Optional[FilterMode]:
+def _filter_mode(raw: str | None) -> FilterMode | None:
     if raw == FilterMode.INCLUDE.value:
         return FilterMode.INCLUDE
     if raw == FilterMode.EXCLUDE.value:
@@ -411,7 +413,7 @@ def _parse_view(data: dict[str, Any], view_type: ViewType) -> View:
     )
 
 
-def _shape(raw: str | None) -> Optional[Shape]:
+def _shape(raw: str | None) -> Shape | None:
     if raw is None:
         return None
     try:
@@ -420,7 +422,7 @@ def _shape(raw: str | None) -> Optional[Shape]:
         return None
 
 
-def _border(raw: str | None) -> Optional[Border]:
+def _border(raw: str | None) -> Border | None:
     if raw is None:
         return None
     try:
@@ -469,7 +471,7 @@ def _parse_relationship_style(data: dict[str, Any]) -> RelationshipStyle:
     )
 
 
-def _parse_dimensions(data: dict[str, Any] | None) -> Optional[Dimensions]:
+def _parse_dimensions(data: dict[str, Any] | None) -> Dimensions | None:
     """Parse a view's canvas size, absent in most workspaces."""
     if not data:
         return None
@@ -478,7 +480,7 @@ def _parse_dimensions(data: dict[str, Any] | None) -> Optional[Dimensions]:
     )
 
 
-def _parse_branding(data: dict[str, Any] | None) -> Optional[Branding]:
+def _parse_branding(data: dict[str, Any] | None) -> Branding | None:
     if not data:
         return None
     font = data.get("font") or {}
@@ -626,9 +628,9 @@ def _parse_json_dict(data: dict[str, Any]) -> Workspace:
     ]
     deployment_environments = list(model_data.get("deploymentEnvironments", []))
 
-    relationships: list[Relationship] = []
-    for r in model_data.get("relationships", []):
-        relationships.append(_parse_relationship(r))
+    relationships: list[Relationship] = [
+        _parse_relationship(r) for r in model_data.get("relationships", [])
+    ]
     for person in model_data.get("people", []):
         for r in person.get("relationships", []):
             r["sourceId"] = person["id"]

@@ -24,7 +24,7 @@ def _round_trip(view: View) -> View:
 
     workspace = Workspace(name="T")
     workspace.views.append(view)
-    return list(parse_json(export_json(workspace)).views)[0]
+    return next(iter(parse_json(export_json(workspace)).views))
 
 
 def _exported_view(view: View) -> JsonDict:

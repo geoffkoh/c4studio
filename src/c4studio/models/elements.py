@@ -7,7 +7,6 @@ from dataclasses import dataclass, field
 from c4studio.models.documentation import Documentation
 from c4studio.models.enums import InteractionStyle, Location
 
-
 # ---------------------------------------------------------------------------
 # Supporting value objects
 # ---------------------------------------------------------------------------

@@ -18,7 +18,6 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import Any
 
-from c4studio.themes import theme_styles
 from c4studio.models import (
     AutomaticLayout,
     ColorScheme,
@@ -26,6 +25,7 @@ from c4studio.models import (
     Container,
     CustomElement,
     DeploymentNode,
+    FilterMode,
     Location,
     Person,
     RankDirection,
@@ -33,12 +33,11 @@ from c4studio.models import (
     RelationshipStyle,
     SoftwareSystem,
     View,
-    FilterMode,
     ViewElement,
     ViewType,
     Workspace,
 )
-
+from c4studio.themes import theme_styles
 
 # Rank direction as dagre and Mermaid both spell it.
 _RANK_DIRECTIONS: dict[RankDirection, str] = {

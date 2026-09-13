@@ -1,7 +1,8 @@
 from pathlib import Path
+
+from c4studio.generators.mermaid import MermaidGenerator
 from c4studio.parser.dsl import parse_dsl_file
 from c4studio.parser.json_parser import parse_json_file
-from c4studio.generators.mermaid import MermaidGenerator
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"
 

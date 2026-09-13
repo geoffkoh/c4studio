@@ -4,15 +4,14 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
-from c4studio.models import Shape, ViewType
+from c4studio.graph.view_graph import build_view_graph
+from c4studio.models import Shape, ViewType, Workspace
 from c4studio.parser.dsl import parse_dsl
 from c4studio.themes import ThemeLoadError, parse_theme, theme_styles
-from c4studio.graph.view_graph import build_view_graph
-from typing import Any
-from c4studio.models import Workspace
 
 AWS_LIKE_THEME = {
     "name": "Cloud Icons",

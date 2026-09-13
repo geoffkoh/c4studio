@@ -268,7 +268,7 @@ def test_propose_without_a_key_does_not_construct_a_client(
         raise AssertionError("a client was constructed without a key")
 
     monkeypatch.setattr(anthropic, "Anthropic", explode)
-    with pytest.raises(assistant_module.AssistantUnavailable) as excinfo:
+    with pytest.raises(assistant_module.AssistantUnavailableError) as excinfo:
         assistant_module.propose(
             assistant_module.AssistantRequest(instruction="x", target="a.dsl")
         )

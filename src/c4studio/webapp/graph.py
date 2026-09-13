@@ -10,14 +10,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from c4studio.models import View, ViewType, Workspace
 from c4studio.graph.view_graph import (
     KIND_COLOURS,
     build_view_graph,
     effective_layout,
     rank_direction,
 )
-
+from c4studio.models import View, ViewType, Workspace
 
 #: What the frontend laid out with before spacing was plumbed through, and
 #: still the look of any view that declares no autoLayout.

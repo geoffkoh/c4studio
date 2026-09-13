@@ -21,8 +21,9 @@ tokenizer (kept as plain strings to avoid importing the parser module).
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 from c4studio.models import Relationship, Workspace
 
@@ -328,15 +329,22 @@ def _match_relationships(
 ) -> list[Relationship]:
     if prop == "" and "*" in values:
         return list(relationships)
+    wanted = {resolve(v) for v in values}
     matched: list[Relationship] = []
     for rel in relationships:
+        # One predicate per property, then one append. Written as nested
+        # `if`s it drew SIM102; collapsed with `and` it drew SIM114, which
+        # wanted all three conditions merged into a single `or`. This says
+        # the same thing without either, and stops resolving `values` once
+        # per relationship into the bargain.
         if prop == "tag":
-            if set(values) <= {"Relationship", *rel.tags}:
-                matched.append(rel)
+            hit = set(values) <= {"Relationship", *rel.tags}
         elif prop == "source":
-            if resolve(rel.source_id) in {resolve(v) for v in values}:
-                matched.append(rel)
+            hit = resolve(rel.source_id) in wanted
         elif prop == "destination":
-            if resolve(rel.destination_id) in {resolve(v) for v in values}:
-                matched.append(rel)
+            hit = resolve(rel.destination_id) in wanted
+        else:
+            hit = False
+        if hit:
+            matched.append(rel)
     return matched

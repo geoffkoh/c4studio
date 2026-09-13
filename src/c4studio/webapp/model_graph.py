@@ -15,8 +15,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from c4studio.models import Workspace
-from c4studio.webapp import graph
 from c4studio.graph.view_graph import (
     KIND_COLOURS,
     GraphNode,
@@ -29,6 +27,8 @@ from c4studio.graph.view_graph import (
     _system_kind,
     build_view_graph,
 )
+from c4studio.models import Workspace
+from c4studio.webapp import graph
 
 # Custom elements never appear in curated view graphs, so the shared kind
 # palette has no entry for them; the explorer gives them their own colour.
@@ -147,8 +147,9 @@ def model_graph(workspace: Workspace, level: str = "containers") -> dict[str, An
     parents = _parent_ids(workspace)
     nodes: list[GraphNode] = []
 
-    for person in workspace.people:
-        nodes.append(_node(person.id, person, _person_kind(person)))
+    nodes.extend(
+        _node(person.id, person, _person_kind(person)) for person in workspace.people
+    )
 
     for custom in workspace.custom_elements:
         custom_node = _node(custom.id, custom, "custom")
@@ -168,15 +169,15 @@ def model_graph(workspace: Workspace, level: str = "containers") -> dict[str, An
                     )
                     group["data"]["boundaryLabel"] = "Container"
                     nodes.append(group)
-                    for component in container.components:
-                        nodes.append(
-                            _node(
-                                component.id,
-                                component,
-                                "component",
-                                parent_id=container.id,
-                            )
+                    nodes.extend(
+                        _node(
+                            component.id,
+                            component,
+                            "component",
+                            parent_id=container.id,
                         )
+                        for component in container.components
+                    )
                 else:
                     nodes.append(
                         _node(container.id, container, "container", parent_id=system.id)

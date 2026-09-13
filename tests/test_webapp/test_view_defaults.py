@@ -6,7 +6,6 @@ from c4studio.parser.dsl import parse_dsl
 from c4studio.webapp.graph import react_flow_graph
 from c4studio.webapp.server import _views_index
 
-
 DSL = """
 workspace "W" {
     model {

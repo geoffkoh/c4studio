@@ -30,7 +30,6 @@ from c4studio.models import (
     Workspace,
 )
 
-
 # Mermaid diagram type per view type; absent means "not yet supported".
 _DIAGRAM_TYPES: dict[ViewType, str] = {
     ViewType.SYSTEM_LANDSCAPE: "C4Context",
@@ -101,8 +100,7 @@ class MermaidGenerator:
         self._emit_nodes(lines, children, None, inside, indent="    ")
 
         lines.append("")
-        for edge in data["edges"]:
-            lines.append(self._rel(edge))
+        lines.extend(self._rel(edge) for edge in data["edges"])
 
         return "\n".join(lines)
 

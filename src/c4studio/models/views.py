@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from dataclasses import dataclass, field
-from typing import Optional
 
 from c4studio.models.enums import (
     Border,
@@ -19,7 +18,6 @@ from c4studio.models.enums import (
     ViewSortOrder,
     ViewType,
 )
-
 
 # ---------------------------------------------------------------------------
 # View supporting value objects
@@ -75,12 +73,12 @@ class ViewElement:
     """An element included in a view with optional x/y position."""
 
     id: str
-    x: Optional[int] = None
-    y: Optional[int] = None
+    x: int | None = None
+    y: int | None = None
     title: str = ""
     description: str = ""
-    width: Optional[int] = None
-    height: Optional[int] = None
+    width: int | None = None
+    height: int | None = None
 
 
 @dataclass
@@ -91,15 +89,15 @@ class RelationshipView:
     description: str = ""
     url: str = ""
     order: str = ""
-    response: Optional[bool] = None
+    response: bool | None = None
     vertices: list[Vertex] = field(default_factory=list)
-    routing: Optional[Routing] = None
-    jump: Optional[bool] = None
-    position: Optional[int] = None
+    routing: Routing | None = None
+    jump: bool | None = None
+    position: int | None = None
     properties: dict[str, str] = field(default_factory=dict)
     title: str = ""
-    link: Optional[bool] = None
-    link_element: Optional[int] = None
+    link: bool | None = None
+    link_element: int | None = None
 
 
 @dataclass
@@ -119,10 +117,10 @@ class View:
     include_expressions: list[str] = field(default_factory=list)
     exclude_expressions: list[str] = field(default_factory=list)
     excluded_relationship_ids: list[str] = field(default_factory=list)
-    auto_layout: Optional[AutomaticLayout] = None
+    auto_layout: AutomaticLayout | None = None
     order: int = 0
     properties: dict[str, str] = field(default_factory=dict)
-    paper_size: Optional[PaperSize] = None
+    paper_size: PaperSize | None = None
     relationship_views: list[RelationshipView] = field(default_factory=list)
     element_views: list[ViewElement] = field(default_factory=list)
     animations: list[Animation] = field(default_factory=list)
@@ -133,7 +131,7 @@ class View:
     external_boundaries_visible: bool = False
     # Filtered views
     base_view_key: str = ""
-    filter_mode: Optional[FilterMode] = None
+    filter_mode: FilterMode | None = None
     filter_tags: list[str] = field(default_factory=list)
     # Image views
     content: str = ""
@@ -154,7 +152,7 @@ class View:
     #: True when the key was generated rather than written by the author.
     generated_key: bool = False
     #: Canvas size, when the workspace records one.
-    dimensions: Optional[Dimensions] = None
+    dimensions: Dimensions | None = None
     #: Whether a remote workspace's layout may be merged into this view.
     merge_from_remote: bool = True
 
@@ -169,21 +167,21 @@ class ElementStyle:
     """Styling rule applied to elements whose tags match."""
 
     tag: str
-    width: Optional[int] = None
-    height: Optional[int] = None
+    width: int | None = None
+    height: int | None = None
     background: str = ""
     stroke: str = ""
-    stroke_width: Optional[int] = None
+    stroke_width: int | None = None
     color: str = ""
-    font_size: Optional[int] = None
-    shape: Optional[Shape] = None
+    font_size: int | None = None
+    shape: Shape | None = None
     icon: str = ""
-    border: Optional[Border] = None
-    opacity: Optional[int] = None
-    metadata: Optional[bool] = None
-    description: Optional[bool] = None
-    color_scheme: Optional[ColorScheme] = None
-    icon_position: Optional[IconPosition] = None
+    border: Border | None = None
+    opacity: int | None = None
+    metadata: bool | None = None
+    description: bool | None = None
+    color_scheme: ColorScheme | None = None
+    icon_position: IconPosition | None = None
 
 
 @dataclass
@@ -191,19 +189,19 @@ class RelationshipStyle:
     """Styling rule applied to relationships whose tags match."""
 
     tag: str
-    thickness: Optional[int] = None
+    thickness: int | None = None
     color: str = ""
-    font_size: Optional[int] = None
-    width: Optional[int] = None
-    dashed: Optional[bool] = None
-    style: Optional[LineStyle] = None
-    routing: Optional[Routing] = None
-    jump: Optional[bool] = None
-    position: Optional[int] = None
-    opacity: Optional[int] = None
-    metadata: Optional[bool] = None
-    description: Optional[bool] = None
-    color_scheme: Optional[ColorScheme] = None
+    font_size: int | None = None
+    width: int | None = None
+    dashed: bool | None = None
+    style: LineStyle | None = None
+    routing: Routing | None = None
+    jump: bool | None = None
+    position: int | None = None
+    opacity: int | None = None
+    metadata: bool | None = None
+    description: bool | None = None
+    color_scheme: ColorScheme | None = None
 
 
 @dataclass
@@ -255,9 +253,9 @@ class Configuration:
     default_view: str = ""
     last_saved_view: str = ""
     metadata_symbols: str = ""
-    view_sort_order: Optional[ViewSortOrder] = None
+    view_sort_order: ViewSortOrder | None = None
     properties: dict[str, str] = field(default_factory=dict)
-    branding: Optional[Branding] = None
+    branding: Branding | None = None
     generators_and_exporters: dict[str, str] = field(default_factory=dict)
 
 

@@ -22,7 +22,6 @@ from pathlib import Path
 
 from c4studio.models import Decision, Section
 
-
 _MARKDOWN_SUFFIXES = frozenset({".md", ".markdown"})
 
 _HEADING_RE = re.compile(r"^#\s+(?P<title>.+?)\s*$", re.MULTILINE)
