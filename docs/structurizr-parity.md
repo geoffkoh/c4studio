@@ -75,6 +75,7 @@ inferring behaviour from this document when the two might disagree.
 | --- | --- | --- |
 | DSL parsing incl. `!include` | ✅ | ✅ |
 | Element body metadata (`description`, `technology`, `url`, `tags`, `properties`, `perspectives`) | ✅ | ✅ parsed into the model + JSON export; not rendered |
+| `properties` at workspace / model / views scope | ✅ three distinct holders | ✅ `Workspace.properties` (top level of the JSON, as `AbstractWorkspace.properties`), `Model.properties`, and the views configuration. They were two-thirds wrong until PP-105: workspace properties were written to the views configuration, and `views { properties … }` was skipped entirely |
 | Relationship metadata (positional tags + nested `tags`/`url`/`properties`/`perspectives`) and `this`/implicit-source relationships | ✅ | ✅ parsed into the model + JSON export |
 | Default relationship colour | `#444444` (`structurizr-ui.js`, `LIGHT_MODE_DEFAULTS.color`) | ⚠ **`#707070` — a deliberate divergence.** Upstream's value is 9.7:1 on white and reads as heavy ink; relationships are supporting detail in a C4 diagram, not its subject. `#707070` is 4.95:1, still well clear of the 3:1 WCAG 1.4.11 floor for non-text. Thickness (2) and line style (dashed) still match upstream, and a workspace `styles` block overrides all three |
 | `group` blocks (model level, element bodies, nested) | ✅ | ✅ membership on elements + JSON export; rendered as boundary nodes in the webapp and `Boundary` blocks in Mermaid |
@@ -86,9 +87,9 @@ inferring behaviour from this document when the two might disagree.
 | Documentation / ADR rendering | ✅ | ✅ `!docs`/`!adrs` directives, TOC reader, ADR status badges |
 | `!const` / `!var` + `${NAME}` substitution | ✅ | ✅ preprocessing pass; const redefinition errors, unknown placeholders left intact |
 | `!impliedRelationships` | ✅ (default on) | ✅ opt-in via `!impliedRelationships true`; implied relationships carry `linkedRelationshipId` and are deduped in the webapp |
-| `!element` / `!relationship` extension blocks | ✅ | ✅ incl. relationship aliases (`rel = a -> b`) and adding children via `!element` |
+| `!element` / `!relationship` extension blocks | ✅ | ✅ incl. relationship aliases (`rel = a -> b`) and adding children via `!element`. A relationship block takes `tags`/`url`/`properties`/`perspectives` and nothing else — it is a `ModelItemDslContext` upstream, so `technology` and `description` are not valid there either; both are now reported rather than dropped, along with an alias matching nothing (PP-103) |
 | Include/exclude expressions (`element.type==`, `element.tag==`, `element.parent==`, `->id->`, `src -> dst`, `relationship.*==`) | ✅ | ✅ deferred resolution (forward references work); relationship exclusions honoured by the webapp |
-| `!elements` / `!relationships` bulk blocks | ✅ | ✅ body re-applied per matched element/relationship |
+| `!elements` / `!relationships` bulk blocks | ✅ | ✅ body re-applied per matched element/relationship, incl. the wildcard forms `*` (rewritten to `*->*` as upstream does), `"*->*"` and half-wildcards like `a -> *`. An expression matching nothing is a diagnostic rather than silence (PP-104) |
 | `!script` / `!plugin` / `!components` | ✅ (executes JVM code) | ⚠ never executed: stripped/skipped with an `UnsupportedFeatureWarning`; CLI prints warnings to stderr |
 | Workspace JSON import | ✅ | ✅ |
 | Workspace JSON export (round-trip) | ✅ | ✅ CLI `export` + `generators/json_export` |
