@@ -1,15 +1,17 @@
 # c4studio
 
-Python implementation of [Structurizr](https://structurizr.com/) for architecture modeling and C4 diagram generation.
+Python implementation of [Structurizr](https://structurizr.com/) for architecture
+modeling and C4 diagram generation — with a local-first **Studio** for writing
+the DSL and watching the diagram follow.
 
 ## Install
-
 Published on PyPI as **`c4studio`**; the import package is `c4studio`
 and the command is `c4`:
 
 ```bash
 pipx install c4studio          # or: pip install c4studio
-c4 webapp my-architecture.dsl
+c4 new my-architecture.dsl     # start from a template
+c4 webapp my-architecture.dsl  # edit it, and see it
 
 # or run without installing:
 uvx --from c4studio c4 webapp my-architecture.dsl
@@ -17,200 +19,69 @@ uvx --from c4studio c4 webapp my-architecture.dsl
 
 Requires Python 3.13+ (uv/uvx can provision it automatically).
 
-## Quick Start
-
-```python
-from c4studio.models import Workspace, Person, SoftwareSystem, Container, Relationship, View, ViewType
-
-# Create workspace
-ws = Workspace(
-    name="My Architecture",
-    description="System architecture model"
-)
-
-# Define people and systems
-user = Person(id="user", name="User")
-system = SoftwareSystem(id="sys", name="System")
-ws.people.append(user)
-ws.software_systems.append(system)
-
-# Add relationship
-rel = Relationship(
-    source_id="user",
-    destination_id="sys",
-    description="Uses"
-)
-ws.relationships.append(rel)
-
-# Create view
-view = View(type=ViewType.SYSTEM_CONTEXT, key="context")
-ws.views.append(view)
-```
-
-## Documentation
-
-- **[DSL Language Support](./docs/dsl-support.md)** - Every keyword in the Structurizr DSL and whether c4studio supports it
-- **[Data Models Reference](./docs/data-models.md)** - Complete guide to all Structurizr models and their fields
-- **[Getting Started](./docs/README.md)** - Workflow and common patterns
-- **[Enterprise Roadmap](./docs/roadmap.md)** - Parked phases 2-4 (model intelligence, headless rendering, differentiators)
-
 ## Features
-
 - ✅ Full Structurizr metamodel support (C4 architecture model)
 - ✅ DSL and JSON parsing
+- ✅ **In-browser DSL editor** — syntax highlighting, autocomplete, live
+  diagnostics, save straight to disk, diagram beside the text
+- ✅ **Searchable file tree** with create, rename and delete
+- ✅ **Starter templates** and `c4 new`
 - ✅ Mermaid diagram generation — C4 syntax or `flowchart`/`subgraph`
+- ✅ Headless SVG rendering for CI and docs-as-code
 - ✅ Comprehensive type hints
 - ✅ Custom properties and perspectives on all elements
 - ✅ Deployment infrastructure modeling
 - ✅ Style and configuration management
+- ⚙️ Optional AI assistant — off by default, and the only feature that
+  uses the network
 
-## Parsing
-
-Parse Structurizr DSL or JSON files:
-
-```python
-from c4studio.parser.dsl import parse_dsl_file
-from c4studio.parser.json_parser import parse_json_file
-
-# Parse DSL
-ws = parse_dsl_file("architecture.dsl")
-
-# Parse JSON
-ws = parse_json_file("workspace.json")
-```
-
-## Diagram Generation
-
-Two Mermaid targets, both rendering from the same view graph — so what they
-show matches the web app's view semantics exactly:
-
-| Target | Syntax | Covers |
-| --- | --- | --- |
-| `MermaidGenerator` | `C4Context` / `C4Container` / `C4Component` | system landscape, system context, container, component views |
-| `FlowchartGenerator` | `flowchart` + `subgraph` | all of the above **plus** dynamic, deployment and filtered views |
-
-Mermaid's C4 diagram types are experimental upstream and lay out poorly on
-dense models, and GitHub pins its own Mermaid version — so prefer the
-flowchart target for anything rendered on GitHub or in a wiki.
-
-```python
-from c4studio.generators import FlowchartGenerator, MermaidGenerator
-
-for view_name, mermaid_code in MermaidGenerator(ws).generate_all().items():
-    print(f"{view_name}:\n{mermaid_code}\n")
-
-# Or the flowchart target, which renders every view type:
-diagrams = FlowchartGenerator(ws).generate_all()
-```
-
-From the CLI:
-
-```bash
-uv run c4 generate architecture.dsl                     # C4 (default)
-uv run c4 generate architecture.dsl -f flowchart        # flowchart
-uv run c4 generate architecture.dsl -f flowchart -o out # one .mmd per view
-```
-
-## Headless SVG Rendering
-
-`c4 render` draws diagrams as standalone SVG with no browser
-and no server — for CI, docs-as-code pipelines and static sites. Layout is
-the same code the web app runs, so positions match what you see in the
-viewer, including any layout you have saved for a view.
-
-```bash
-uv run c4 render architecture.dsl -o diagrams/   # one .svg per view
-uv run c4 render architecture.dsl -v Containers  # one view to stdout
-```
-
-Each diagram carries its own title and a legend of the styles it actually
-uses, so an exported file explains itself to someone who did not build it.
-Pass `--no-title` or `--no-legend` to leave either out.
-
-The output is self-contained: no external fonts or stylesheets, and theme
-icons (the AWS/Azure/GCP service logos) are fetched once and embedded as
-`data:` URIs, so a file renders identically wherever it is opened — even
-offline. An icon that cannot be fetched is simply left out.
-
-> **This is the only command that needs [Node.js](https://nodejs.org) 18+**
-> (the renderer is bundled into the wheel, so there is no `npm install`).
-> Set `C4STUDIO_NODE` if `node` is not on your `PATH`. Parsing,
-> Mermaid generation, JSON export and the web app all work without it.
-
-## GitHub Action
-
-Render the diagrams on every push and pull request, so reviewers see the
-architecture change alongside the code change:
-
-```yaml
-name: Diagrams
-on: [push, pull_request]
-
-jobs:
-  render:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: geoffkoh/c4studio@v0.2.0
-        id: diagrams
-        with:
-          workspace: docs/architecture.dsl
-      - uses: actions/upload-artifact@v4
-        with:
-          name: diagrams
-          path: ${{ steps.diagrams.outputs.diagrams-path }}
-```
-
-| Input | Default | What it does |
-| --- | --- | --- |
-| `workspace` | *required* | The `.dsl` or `.json` file to render |
-| `output` | `diagrams` | Directory for the SVGs, one per view |
-| `view` | *(all)* | Render a single view key |
-| `mode` | `render` | `render`, `commit` (push the files back when they change) or `comment` (comment on the PR) |
-| `version` | `c4studio` | pip requirement to install; `local` uses the checkout |
-| `python-version` | `3.13` | Python to set up first — runners still default to an older one than this package needs. Empty string skips the step |
-
-The action checks the workspace before rendering, so a parse error fails
-the job with diagnostics rather than a traceback, and sets a `changed`
-output. Because rendering is deterministic, `mode: commit` produces no
-diff when the model has not changed.
-
-## Workspace JSON Export
-
-Export any workspace (DSL or JSON) back to Structurizr workspace JSON,
-round-tripping with structurizr.com, Structurizr Lite, and this package's
-own parser:
-
-```bash
-uv run c4 export workspace.dsl -o workspace.json
-```
-
-Or programmatically via `c4studio.generators.json_export.export_json`.
-
-## VS Code Extension
-
-[`editors/vscode/`](./editors/vscode/) ships a VS Code extension with
-Structurizr DSL syntax highlighting and an in-editor C4 diagram preview
-(the full web app in a side panel, live-reloading as you save). Build and
-install it locally:
-
-```bash
-cd editors/vscode && npm install && npm run package
-code --install-extension c4studio-vscode-*.vsix
-```
-
-## React Web App
-
-A React (Vite + TypeScript) single-page app, served by a FastAPI backend
-and launched from the CLI, for loading DSL/JSON files from disk and
-exploring each view as an interactive [React Flow](https://reactflow.dev/)
-graph (draggable nodes, pan/zoom, minimap).
+## Studio — the web app
+A React (Vite + TypeScript) single-page app, served by a FastAPI backend and
+launched from the CLI. It loads DSL/JSON from disk, renders each view as an
+interactive [React Flow](https://reactflow.dev/) graph, and — since 0.3.0 —
+lets you write the DSL that produces them.
 
 ```bash
 uv run c4 webapp samples/          # browse a directory
 uv run c4 webapp file.dsl          # preload a single file
+uv run c4 webapp samples/ --viewer # read-only, for a kiosk or an embed
 # → opens http://127.0.0.1:8090 (use --no-browser to skip, --port to change)
 ```
+
+### Studio and Viewer
+
+| | Command | Behaviour |
+| --- | --- | --- |
+| **Studio** | `c4 webapp <path>` | Browse, edit, save, create. **The default.** |
+| **Viewer** | `c4 webapp <path> --viewer` | No DSL writes — the routes answer 403. Layout dragging and group collapse still persist. |
+
+> **Upgrading from 0.2.0?** `c4 webapp` used to be read-only and is now
+> writable. If you point it at anything public-facing, add `--viewer`. The
+> guarantee lives on the server, so it holds against a crafted request and
+> not merely a hidden button.
+
+### Editing
+
+The **Source** tab is a [CodeMirror 6](https://codemirror.net/) editor with
+the diagram beside it:
+
+- **Syntax highlighting and autocomplete** for DSL keywords, your own element
+  identifiers, and view keys — drawn from the loaded workspace, so it knows
+  what you have actually defined.
+- **Diagnostics as you type**, from the same parser the CLI uses. Invalid DSL
+  still saves: an editor that refuses to save mid-thought is unusable.
+- **⌘S / Ctrl+S saves**, and the diagram re-renders from the text. Saving is
+  the render trigger — the same live-reload loop an external editor drives.
+- **Conflict detection.** If a file changed on disk since you opened it, the
+  save stops and offers you both sides rather than overwriting.
+- **A searchable file tree** covering every source under the root, including
+  `!include` fragments, with right-click to create, rename or delete.
+- **New workspaces from templates** — `minimal`, `system-context`, `full-c4`
+  or `deployment`.
+
+The diagram is a preview of the text, never the other way round: c4studio
+never generates DSL from the model, so your comments, formatting and
+`!include` structure are yours.
 
 Select several nodes (Shift+drag, or ⌘/Ctrl+click) to align or distribute
 them from the toolbar that appears, and nudge a selection with the arrow
@@ -247,8 +118,11 @@ npm run build          # diagram-core, then the SPA
 #           `uv run c4 webapp samples/ --no-browser`
 ```
 
-> **Security**: the web app has no authentication and is intended for
-> local use on `127.0.0.1`.
+> **Security**: the web app has no authentication and is intended for local
+> use on `127.0.0.1`. It is local-first by design — single user, no server,
+> no accounts — and sharing happens through git and generated artifacts.
+> The one exception is the assistant, which is off unless you pass
+> `--assistant`.
 
 ### Tests
 
@@ -256,3 +130,213 @@ npm run build          # diagram-core, then the SPA
 uv run pytest                      # full suite
 uv run pytest tests/test_webapp    # web app tests only
 ```
+
+## Starter templates
+```bash
+uv run c4 new                             # workspace.dsl, minimal
+uv run c4 new arch.dsl --template full-c4 --name "Acme Platform"
+uv run c4 new --list                      # what is available
+```
+
+| Template | What it shows |
+| --- | --- |
+| `minimal` | One person, one system, one view — the smallest thing that renders |
+| `system-context` | A system in its context: who uses it, what it depends on |
+| `full-c4` | Context, containers and components, drillable in the viewer |
+| `deployment` | Containers mapped onto the infrastructure that runs them |
+
+Existing files are never overwritten without `--force`.
+
+## Assistant (optional, off by default)
+c4studio is local-first: nothing it does reaches the network, with one
+exception you have to switch on deliberately.
+
+```bash
+pip install 'c4studio[assistant]'
+export ANTHROPIC_API_KEY=...
+uv run c4 webapp samples/ --assistant
+```
+
+Ask for a change in words; the reply comes back as a **diff against your
+buffer**, which you apply or reject. Applying only changes the editor —
+nothing is written until you save.
+
+**What leaves your machine:** the workspace source, including unsaved
+changes to the file you are editing. The panel lists exactly which files
+were sent. Without `--assistant` the endpoint answers 403; the API key is
+read from the environment at the moment of use and is never stored, logged
+or sent back. A default install pulls in no extra dependency and behaves
+exactly as it did before.
+
+## Python API
+
+c4studio is a library as well as an app: the parser, the model and the
+generators are importable, and the web app is one consumer of them.
+
+```python
+from c4studio.models import Workspace, Person, SoftwareSystem, Container, Relationship, View, ViewType
+
+# Create workspace
+ws = Workspace(
+    name="My Architecture",
+    description="System architecture model"
+)
+
+# Define people and systems
+user = Person(id="user", name="User")
+system = SoftwareSystem(id="sys", name="System")
+ws.people.append(user)
+ws.software_systems.append(system)
+
+# Add relationship
+rel = Relationship(
+    source_id="user",
+    destination_id="sys",
+    description="Uses"
+)
+ws.relationships.append(rel)
+
+# Create view
+view = View(type=ViewType.SYSTEM_CONTEXT, key="context")
+ws.views.append(view)
+```
+
+## Parsing
+Parse Structurizr DSL or JSON files:
+
+```python
+from c4studio.parser.dsl import parse_dsl_file
+from c4studio.parser.json_parser import parse_json_file
+
+# Parse DSL
+ws = parse_dsl_file("architecture.dsl")
+
+# Parse JSON
+ws = parse_json_file("workspace.json")
+```
+
+## Diagram Generation
+Two Mermaid targets, both rendering from the same view graph — so what they
+show matches the web app's view semantics exactly:
+
+| Target | Syntax | Covers |
+| --- | --- | --- |
+| `MermaidGenerator` | `C4Context` / `C4Container` / `C4Component` | system landscape, system context, container, component views |
+| `FlowchartGenerator` | `flowchart` + `subgraph` | all of the above **plus** dynamic, deployment and filtered views |
+
+Mermaid's C4 diagram types are experimental upstream and lay out poorly on
+dense models, and GitHub pins its own Mermaid version — so prefer the
+flowchart target for anything rendered on GitHub or in a wiki.
+
+```python
+from c4studio.generators import FlowchartGenerator, MermaidGenerator
+
+for view_name, mermaid_code in MermaidGenerator(ws).generate_all().items():
+    print(f"{view_name}:\n{mermaid_code}\n")
+
+# Or the flowchart target, which renders every view type:
+diagrams = FlowchartGenerator(ws).generate_all()
+```
+
+From the CLI:
+
+```bash
+uv run c4 generate architecture.dsl                     # C4 (default)
+uv run c4 generate architecture.dsl -f flowchart        # flowchart
+uv run c4 generate architecture.dsl -f flowchart -o out # one .mmd per view
+```
+
+## Headless SVG Rendering
+`c4 render` draws diagrams as standalone SVG with no browser
+and no server — for CI, docs-as-code pipelines and static sites. Layout is
+the same code the web app runs, so positions match what you see in the
+viewer, including any layout you have saved for a view.
+
+```bash
+uv run c4 render architecture.dsl -o diagrams/   # one .svg per view
+uv run c4 render architecture.dsl -v Containers  # one view to stdout
+```
+
+Each diagram carries its own title and a legend of the styles it actually
+uses, so an exported file explains itself to someone who did not build it.
+Pass `--no-title` or `--no-legend` to leave either out.
+
+The output is self-contained: no external fonts or stylesheets, and theme
+icons (the AWS/Azure/GCP service logos) are fetched once and embedded as
+`data:` URIs, so a file renders identically wherever it is opened — even
+offline. An icon that cannot be fetched is simply left out.
+
+> **This is the only command that needs [Node.js](https://nodejs.org) 18+**
+> (the renderer is bundled into the wheel, so there is no `npm install`).
+> Set `C4STUDIO_NODE` if `node` is not on your `PATH`. Parsing,
+> Mermaid generation, JSON export and the web app all work without it.
+
+## Workspace JSON Export
+Export any workspace (DSL or JSON) back to Structurizr workspace JSON,
+round-tripping with structurizr.com, Structurizr Lite, and this package's
+own parser:
+
+```bash
+uv run c4 export workspace.dsl -o workspace.json
+```
+
+Or programmatically via `c4studio.generators.json_export.export_json`.
+
+## GitHub Action
+Render the diagrams on every push and pull request, so reviewers see the
+architecture change alongside the code change:
+
+```yaml
+name: Diagrams
+on: [push, pull_request]
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: geoffkoh/c4studio@v0.3.0
+        id: diagrams
+        with:
+          workspace: docs/architecture.dsl
+      - uses: actions/upload-artifact@v4
+        with:
+          name: diagrams
+          path: ${{ steps.diagrams.outputs.diagrams-path }}
+```
+
+| Input | Default | What it does |
+| --- | --- | --- |
+| `workspace` | *required* | The `.dsl` or `.json` file to render |
+| `output` | `diagrams` | Directory for the SVGs, one per view |
+| `view` | *(all)* | Render a single view key |
+| `mode` | `render` | `render`, `commit` (push the files back when they change) or `comment` (comment on the PR) |
+| `version` | `c4studio` | pip requirement to install; `local` uses the checkout |
+| `python-version` | `3.13` | Python to set up first — runners still default to an older one than this package needs. Empty string skips the step |
+
+The action checks the workspace before rendering, so a parse error fails
+the job with diagnostics rather than a traceback, and sets a `changed`
+output. Because rendering is deterministic, `mode: commit` produces no
+diff when the model has not changed.
+
+## VS Code Extension
+[`editors/vscode/`](./editors/vscode/) ships a VS Code extension with
+Structurizr DSL syntax highlighting and an in-editor C4 diagram preview
+(the full web app in a side panel, live-reloading as you save). The preview
+runs in **Viewer** mode — VS Code already has the file open in its own
+editor, and a second editor writing to it behind VS Code's back is the one
+thing the preview must not do. Build and install it locally:
+
+```bash
+cd editors/vscode && npm install && npm run package
+code --install-extension c4studio-vscode-*.vsix
+```
+
+## Documentation
+- **[DSL Language Support](./docs/dsl-support.md)** - Every keyword in the Structurizr DSL and whether c4studio supports it
+- **[Data Models Reference](./docs/data-models.md)** - Complete guide to all Structurizr models and their fields
+- **[Getting Started](./docs/README.md)** - Workflow and common patterns
+- **[Studio Editor Plan](./docs/studio-editor-plan.md)** - How the editor was designed and built, and the decisions behind it
+- **[Migration Guide](./docs/MIGRATION.md)** - Breaking changes, including the 0.3.0 Studio-by-default flip
+- **[Enterprise Roadmap](./docs/roadmap.md)** - The staged forward plan
+

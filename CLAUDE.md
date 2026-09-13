@@ -9,9 +9,11 @@
 
 c4studio is a Python implementation of [Structurizr](https://structurizr.com/):
 it parses Structurizr DSL and workspace JSON into a typed domain model, generates
-Mermaid C4 diagrams, and ships a local-first viewer — a FastAPI backend serving a
-React SPA that renders views as interactive React Flow graphs. A VS Code extension
-in `editors/vscode/` embeds that viewer as a diagram preview.
+Mermaid C4 diagrams, and ships a local-first **Studio** — a FastAPI backend
+serving a React SPA that renders views as interactive React Flow graphs *and*
+edits the DSL that produces them (CodeMirror 6, autocomplete, live diagnostics,
+save-to-disk with conflict detection). A VS Code extension in `editors/vscode/`
+embeds it as a diagram preview, in Viewer mode.
 
 Published on PyPI as **`c4studio`**; the import package is `c4studio` and
 the CLI is `c4`. It was `pystructurizr-studio` / `pystructurizr` through 0.1.0
@@ -44,17 +46,23 @@ features that assume a hosted multi-user deployment.
 | `src/c4studio/graph/` | `view_graph.py` — workspace + view → `{nodes, edges}` with C4 visibility, boundary nesting and endpoint lifting applied. The shared contract every renderer consumes; depends only on `models/` and `themes.py`. |
 | `src/c4studio/generators/` | `mermaid.py` (Mermaid C4 syntax) and `flowchart.py` (Mermaid `flowchart`/`subgraph`, covers every view type) — both render from `graph/`, sharing `mermaid_common.py`; `json_export.py` (Structurizr JSON round-trip). |
 | `src/c4studio/webapp/` | `server.py` (FastAPI), `loader.py` (load + live reload), `graph.py` / `model_graph.py` (React Flow reshape and full-model graph, both over `graph/view_graph`), `static/` (built SPA). |
-| `src/c4studio/cli/main.py` | click CLI: `generate`, `render`, `export`, `check`, `list-views`, `webapp`. |
+| `src/c4studio/cli/main.py` | click CLI: `generate`, `render`, `export`, `check`, `list-views`, `webapp`, `new`. |
+| `src/c4studio/templates.py` + `templates/*.dsl` | Starter workspaces, shipped as package data. **Valid DSL exactly as they sit on disk** — naming is a literal replacement of `"My Workspace"`, not a template language, so the suite parses each one directly. |
+| `src/c4studio/webapp/assistant.py` | The assistant. Opt-in, lazily imports the optional `anthropic` extra, reads the key at the moment of use, returns text and executes nothing. |
 | `src/c4studio/render.py` | Headless SVG rendering: builds the same graph payload the web app serves and pipes it to the bundled Node renderer. The **only** thing in the project that needs Node at runtime. |
 | `src/c4studio/renderer/diagram-render.mjs` | **Committed build artefact** — `diagram-core` bundled for Node, so the wheel can render without npm. Rebuilt by the root `npm run build`; never edit by hand. |
 | `packages/diagram-core/` | The renderer-agnostic diagram layer: `layout.ts` (compound dagre, **async by contract** so the engine can be swapped), the React Flow node/edge components, `export.ts` (PNG/SVG) and `edgePaint.ts`. Knows nothing about the API or app state — that is what lets the headless renderer and the embedded surfaces reuse it. |
-| `editors/vscode/` | VS Code extension (TypeScript, esbuild, packaged as `.vsix`). |
+| `frontend/src/` | The SPA. Beyond the panes: `dslLanguage.ts` (CodeMirror `StreamLanguage`), `dslComplete.ts` (completion), `highlight.ts` (**the one copy of the DSL vocabulary** — build from it, never restate it), `fileTree.ts` and `lineDiff.ts` (pure, so they can be exercised headlessly). |
+| `editors/vscode/` | VS Code extension (TypeScript, esbuild, packaged as `.vsix`). The preview spawns `--viewer` and falls back when the flag is unknown — an older c4studio exits 2 on it. |
 | `samples/` | Sample workspaces used for live verification. |
 
 ## Environment & Commands
 
-- **Install deps:** `uv sync`
+- **Install deps:** `uv sync --extra dev` — **not** a bare `uv sync`, which
+  leaves out `anthropic` and so fails three assistant tests. The extras are
+  `[project.optional-dependencies]`, which uv does not install by default.
 - **Run CLI:** `uv run c4 --help`
+- **New workspace:** `uv run c4 new <file> --template minimal|system-context|full-c4|deployment`
 - **Render SVG:** `uv run c4 render <file> -o out/` (needs Node; set
   `C4STUDIO_NODE` if it is not on `PATH`)
 - **Web app:** `uv run c4 webapp <dir-or-file>` (FastAPI + React SPA
@@ -65,6 +73,12 @@ features that assume a hosted multi-user deployment.
   the view, and that arrangement is gitignored per-user UI state either
   way. Capability lives on the server (`GET /api/capabilities`), not in
   hidden buttons, so the guarantee holds against a crafted request.
+- **Assistant:** `uv run c4 webapp <path> --assistant` — **off by default**,
+  the only feature that leaves the machine. Needs `ANTHROPIC_API_KEY` in the
+  environment and the optional extra (`uv sync --extra assistant`, or
+  `pip install 'c4studio[assistant]'`). Sends the whole workspace source; the
+  UI states which files. Never test it against the real API without asking —
+  that spends the user's money.
 - **Run tests:** `uv run pytest`
 - **Lint/Format:** `uv run ruff check .` and `uv run ruff format .`
 - **Type check:** `uv run mypy .`
@@ -112,7 +126,9 @@ workspace (`packages/*`, `frontend/`) and `editors/vscode/` alike.
 - **No new dependencies** — Python or npm — without asking first. This is a hard
   rule and the reason several roadmap items are shaped the way they are (e.g.
   headless rendering must reuse existing layout code rather than pull in a
-  renderer).
+  renderer; the file tree's virtualisation and the assistant's diff are both
+  hand-written for this reason). The one dependency added since is `anthropic`,
+  as an **optional extra**, agreed explicitly before it went in.
 - **Unsupported DSL features fail soft.** `!script`, `!plugin`, `!components`,
   unknown `!directives` and unrecognised blocks are never executed — they are
   skipped whole and recorded as structured `Diagnostic`s in
@@ -189,10 +205,11 @@ the finding in the code or docs so the answer survives without it.
 - `docs/structurizr-parity.md` tracks c4studio against the Java Structurizr
   UI and is the closest thing to a status page — **update it as items land**.
 - `docs/roadmap.md` holds the staged plan (phases 2–4) and delivery conventions.
-- `docs/studio-editor-plan.md` is the in-flight plan for in-app DSL editing
-  (Studio/Viewer modes, the editor, file scale, the assistant seam). It
-  carries a **Progress** table — update it as each ticket lands, and read
-  it first when picking up that work.
+- `docs/studio-editor-plan.md` is the **completed** plan for in-app DSL
+  editing (PP-119 … PP-142, shipped in 0.3.0). No longer a to-do list: it
+  is the record of the decisions, the measurements behind them, and the
+  three places the plan itself turned out to be wrong. Read it before
+  changing the editor, the file tree, the caches or the assistant.
 - `docs/dsl-support.md` maps every keyword in the Structurizr DSL language
   reference to what this parser does with it, established by probing rather
   than by reading. Update it when parser coverage changes — and re-probe

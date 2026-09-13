@@ -15,6 +15,12 @@ Two artifacts ship independently and carry **separate version numbers**:
 | VS Code extension | `editors/vscode/package.json` → `version` | local `.vsix` (not the Marketplace) |
 
 Confirm with the user which of the two they mean before bumping anything.
+They move independently and are **not** in lockstep: 0.3.0 of the Python
+package shipped alongside 0.3.1 of the extension.
+
+Check `docs/MIGRATION.md` before cutting: a release with a behaviour change
+needs an entry there, and 0.3.0's — `c4 webapp` becoming writable by
+default — is the kind that will surprise someone running a kiosk.
 
 ## Credentials — read this first
 

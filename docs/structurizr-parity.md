@@ -119,6 +119,11 @@ editor (PP-125).
 
 1. **Custom / image views, perspectives** — long-tail Structurizr
    features with niche usage.
+2. **Multi-user anything** — locking, branches, accounts. Ruled out by
+   design, not backlog: c4studio is local-first and shares through git.
+   Worth knowing that upstream's own DSL editor is behind a feature flag
+   that defaults off, and Structurizr **Lite** — the closest analogue to
+   c4studio — has no DSL editor at all.
 
 Manual edge vertices, previously listed here, shipped as draggable
 waypoints in PP-76.

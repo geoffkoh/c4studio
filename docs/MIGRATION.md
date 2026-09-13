@@ -5,6 +5,85 @@ compatibility work (PP-31 → PP-35) and how to adapt existing code.
 
 ---
 
+## 0.3.0 — c4studio becomes an editor (PP-119 … PP-142)
+
+`0.2.0` was a viewer. `0.3.0` can author: an in-browser DSL editor, a
+file tree with create/rename/delete, starter templates, and an optional
+assistant. Three changes need action; the rest is additive.
+
+### `c4 webapp` now serves a *writable* app by default
+
+This is the one that can surprise you. Before 0.3.0 the web app could not
+write DSL at all, so pointing it at a directory was inherently safe. It
+now serves **Studio** — a full editor that saves to disk — unless you ask
+otherwise:
+
+```bash
+c4 webapp samples/            # Studio: editable (NEW default)
+c4 webapp samples/ --viewer   # Viewer: what 0.2.0 always did
+```
+
+**If you use `c4 webapp` for a kiosk, a demo, an embed or anything
+public-facing, add `--viewer`.** The guarantee is enforced on the server —
+routes that write DSL answer 403 — so it holds against a crafted request,
+not just a hidden button. Layout dragging, group collapse and title moves
+still persist in Viewer: you cannot change the model, but you can arrange
+the view, and that arrangement is gitignored per-user state either way.
+
+`GET /api/capabilities` reports which mode is running, so a client can
+feature-detect rather than guess.
+
+### `GET /api/files` returns objects, not strings
+
+Only relevant if you call the HTTP API directly; the bundled SPA ships in
+the same wheel and is always in step.
+
+```jsonc
+// 0.2.0
+["hedge_fund/workspace.dsl"]
+
+// 0.3.0
+[
+  {"path": "hedge_fund/workspace.dsl", "kind": "workspace"},
+  {"path": "hedge_fund/model/people.dsl", "kind": "fragment"}
+]
+```
+
+`!include` fragments now appear too. They are not loadable — `POST
+/api/load` needs a `workspace` block — but they are editable, which is why
+hiding them stopped making sense. Filter on `kind === "workspace"` to get
+the old list back.
+
+### Aliased `deploymentEnvironment` now parses (PP-138)
+
+```dsl
+prod = deploymentEnvironment "Production" { … }
+```
+
+was silently broken: it was rejected *and* its body leaked into model
+scope, so the closing brace ended `model` early and everything after it
+vanished from the workspace. If you worked around this by using the plain
+form, nothing changes — both forms work now. If a workspace of yours was
+quietly missing elements, this is why, and it is fixed.
+
+### Optional extra for the assistant
+
+The assistant is off by default and needs both a flag and a dependency:
+
+```bash
+pip install 'c4studio[assistant]'
+export ANTHROPIC_API_KEY=...
+c4 webapp samples/ --assistant
+```
+
+**It is the only feature that sends anything off your machine**, and what
+it sends is the workspace source. Without `--assistant` the route answers
+403; the key is read from the environment at the moment of use and is
+never stored, logged or echoed back. A default install has no new
+dependency and no new behaviour.
+
+---
+
 ## Renamed to c4studio (PP-106)
 
 Everything the project was named after itself changed at once. `0.1.0` was
