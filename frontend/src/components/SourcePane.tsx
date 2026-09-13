@@ -196,17 +196,26 @@ export function SourcePane({
       paths.map((path) =>
         getFile(path)
           .then((file) => [path, file] as const)
-          .catch(() => null),
+          // A 404 here means the file was deleted or renamed underneath
+          // the buffer, which the tree can now do.
+          .catch(() => [path, null] as const),
       ),
     ).then((results) => {
       if (cancelled) return;
       setBuffers((previous) => {
         const next = { ...previous };
         for (const result of results) {
-          if (!result) continue;
           const [path, file] = result;
           const open = next[path];
           if (!open) continue;
+          if (file === null) {
+            // Gone from disk. Drop a clean buffer — there is nothing left
+            // to show. Keep a dirty one: the work is only in this buffer
+            // now, and saving it back recreates the file.
+            if (open.text === open.disk) delete next[path];
+            else next[path] = { ...open, staleOnDisk: true };
+            continue;
+          }
           if (open.text !== open.disk) {
             // Same rule as the attached merge: typing wins, and the stale
             // fingerprint turns the next save into a conflict.
@@ -299,6 +308,14 @@ export function SourcePane({
 
   const buffer = selectedPath ? (buffers[selectedPath] ?? null) : null;
   const text = buffer?.text ?? null;
+
+  // The selected buffer can vanish: a detached file deleted from the tree,
+  // or a fragment the workspace no longer includes. Fall back rather than
+  // rendering "no source loaded" over a workspace that is loaded.
+  useEffect(() => {
+    if (!data || !selectedPath || buffers[selectedPath]) return;
+    setSelectedPath(data.files[0]?.path ?? null);
+  }, [buffers, data, selectedPath]);
   const dirty = buffer !== null && buffer.text !== buffer.disk;
 
   // Diagnostics for the buffer as it stands, not as it was last parsed

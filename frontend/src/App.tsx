@@ -2,6 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   ApiError,
+  createFolder,
+  deleteFile,
+  deleteFolder,
   deleteLayout,
   getCapabilities,
   getStatus,
@@ -10,8 +13,10 @@ import {
   listFiles,
   listViews,
   loadFile,
+  renameSource,
   saveExpansion,
   saveLayout,
+  saveSource,
 } from "./api";
 import type {
   Capabilities,
@@ -27,7 +32,7 @@ import { isTypingTarget } from "./shortcuts";
 import { DocsPane } from "./components/DocsPane";
 import { ElementTree } from "./components/ElementTree";
 import { ExplorerPane } from "./components/ExplorerPane";
-import { FileTree } from "./components/FileTree";
+import { FileTree, type FileOperations } from "./components/FileTree";
 import { GraphPane } from "./components/GraphPane";
 import { ShortcutHelp } from "./components/ShortcutHelp";
 import {
@@ -189,6 +194,37 @@ export default function App() {
     return () => window.clearInterval(timer);
   }, [currentPath, refresh]);
 
+  /** Re-read the file list after something on disk moved. */
+  const refreshFiles = useCallback(() => {
+    listFiles()
+      .then(setFiles)
+      .catch((err: unknown) =>
+        setError(errorMessage(err, "Failed to list files")),
+      );
+    // A deleted or renamed fragment changes what the editor should show.
+    setReloadTick((tick) => tick + 1);
+  }, []);
+
+  // Null in Viewer mode, which is what removes the menu rather than
+  // disabling it. A server that never answered the capability probe is
+  // treated as read-only, so nothing offers a write it cannot make.
+  const fileOps = useMemo<FileOperations | null>(
+    () =>
+      readOnly
+        ? null
+        : {
+            // Creating a file is a write of empty content asserting the
+            // file does not exist — the same 409-on-clobber path a save
+            // takes, so there is no second create route to keep in step.
+            createFile: (path) => saveSource(path, "", null),
+            createFolder,
+            rename: renameSource,
+            deleteFile,
+            deleteFolder,
+          },
+    [readOnly],
+  );
+
   // What the editor can complete. Rebuilt only when the model or the view
   // index actually changes, so the editor reconfigures on a reload rather
   // than on every render.
@@ -301,6 +337,8 @@ export default function App() {
             loadingPath={loadingPath}
             onSelect={handleSelectFile}
             onOpen={handleOpenFile}
+            fileOps={fileOps}
+            onChanged={refreshFiles}
           />
           <ViewList
             views={views}
