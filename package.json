@@ -7,6 +7,11 @@
     "frontend"
   ],
   "scripts": {
-    "build": "npm run build --workspace @c4studio/diagram-core && npm run build --workspace c4studio-frontend"
+    "build": "npm run build --workspace @c4studio/diagram-core && npm run build --workspace c4studio-frontend",
+    "test:visual": "playwright test",
+    "test:visual:update": "playwright test --update-snapshots"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0"
   }
 }

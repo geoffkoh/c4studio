@@ -23,3 +23,7 @@ node_modules/
 
 # macOS Finder metadata.
 .DS_Store
+
+# Playwright run artifacts. Baselines in e2e/*-snapshots/ ARE committed.
+test-results/
+playwright-report/

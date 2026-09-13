@@ -82,6 +82,13 @@ features that assume a hosted multi-user deployment.
 - **Run tests:** `uv run pytest`
 - **Lint/Format:** `uv run ruff check .` and `uv run ruff format .`
 - **Type check:** `uv run mypy .`
+- **Visual tests:** `npm run test:visual` from the repo root — Playwright
+  over the real backend and the committed bundle. It asserts what `tsc`
+  cannot see: that a pane has height, that chrome is not most of the
+  window, that a breakpoint fires where the arithmetic said. **Rebuild the
+  bundle first** or you are testing the previous one.
+  `npm run test:visual:update` rewrites the screenshot baselines — only
+  when a layout change is intended, and look at the diff before accepting.
 - **Rebuild frontend:** `npm install && npm run build` **from the repo root** —
   it is a workspace, so `diagram-core` must be built before the SPA. The root
   `build` script does both in order.
