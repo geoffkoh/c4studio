@@ -1830,6 +1830,10 @@ button {
   white-space: nowrap;
 }
 
+.editor__status-item--warn {
+  color: var(--danger);
+}
+
 .editor__status-jump {
   border: none;
   background: none;
