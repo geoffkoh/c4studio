@@ -673,12 +673,26 @@ class _Parser:
             self._parse_element_body(self._ws, element, kind)
 
     def _directive_relationship(self, scope: str, line: int) -> None:
-        """``!relationship <alias> { ... }`` — extend an aliased relationship."""
+        """``!relationship <alias> { ... }`` — extend an aliased relationship.
+
+        Only a relationship given an alias (``r = a -> b``) can be found this
+        way; an unaliased one has no name to refer to.
+        """
         ref = self._optional_ident() or self._optional_string()
         rel = self._rel_aliases.get(ref)
         if rel is not None and self._match(LBRACE):
             self._parse_relationship_body(rel)
-        elif self._match(LBRACE):
+            return
+        if self._match(LBRACE):
+            # Skipping in silence made a typo'd alias indistinguishable from
+            # a directive that had been applied.
+            known = ", ".join(sorted(self._rel_aliases)) or "none"
+            self._warn(
+                f"!relationship {ref!r} matches no relationship alias; "
+                f"block ignored (aliases in scope: {known})",
+                line=line,
+                code="unknown-relationship-alias",
+            )
             self._skip_block()
 
     def _directive_elements(self, scope: str, line: int) -> None:
@@ -1446,7 +1460,18 @@ class _Parser:
         self._rel_buffer.append(rel)
 
     def _parse_relationship_body(self, rel: Relationship) -> None:
-        """Parse a relationship's nested block: tags, url, properties, perspectives."""
+        """Parse a relationship's nested block: tags, url, properties, perspectives.
+
+        Those four are the whole vocabulary, here and upstream: a relationship
+        block is a `ModelItemDslContext`, and `StructurizrDslParser` gates
+        exactly `tags`/`tag`, `url`, `properties` and `perspectives` on it.
+        `technology` and `description` are *not* among them — they are set
+        positionally on the `->` line, or in bulk via `!relationships`.
+
+        Anything else is reported rather than dropped. It used to be dropped,
+        which is what made `!relationship r { technology "grpc" }` look like
+        the directive did nothing at all.
+        """
         self._expect(LBRACE)
         while not self._match(RBRACE, EOF):
             if not self._match(IDENT):
@@ -1468,7 +1493,20 @@ class _Parser:
                 self._advance()
                 rel.perspectives.extend(self._parse_perspectives_block())
             else:
-                self._advance()
+                token = self._advance()
+                hint = ""
+                if kw in ("technology", "description"):
+                    hint = (
+                        f"; {kw} is set on the relationship's own line, "
+                        f"or in bulk with !relationships"
+                    )
+                self._warn(
+                    f"unknown relationship property {token.value!r}; ignored{hint}",
+                    line=token.line,
+                    code="unknown-relationship-property",
+                    column=token.column,
+                    end_column=token.end_column,
+                )
         self._expect(RBRACE)
 
     def _parse_views(self, ws: Workspace) -> None:

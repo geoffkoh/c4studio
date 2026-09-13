@@ -111,3 +111,72 @@ def test_parse_warnings_not_included_in_json_export() -> None:
     data = workspace_to_json(ws)
     assert "parse_warnings" not in data
     assert "parseWarnings" not in data
+
+
+RELATIONSHIP_DIRECTIVE = """
+workspace "W" {{
+    model {{
+        a = softwareSystem "A"
+        b = softwareSystem "B"
+        r = a -> b "x"
+        !relationship {ref} {{
+            {body}
+        }}
+    }}
+}}
+"""
+
+
+def test_relationship_directive_applies_the_model_item_vocabulary() -> None:
+    """`!relationship <alias>` is not a no-op — it never was.
+
+    Reported as doing nothing, on the strength of a `technology` line. The
+    directive works; `technology` is simply not one of the four properties a
+    relationship block accepts, here or upstream.
+    """
+    ws = parse_dsl(
+        RELATIONSHIP_DIRECTIVE.format(
+            ref="r",
+            body='tags "bulk"\n            url "https://example.com"\n'
+            '            properties { "k" "v" }',
+        )
+    )
+
+    [rel] = ws.relationships
+    assert rel.tags == ["bulk"]
+    assert rel.url == "https://example.com"
+    assert rel.properties == {"k": "v"}
+    assert ws.diagnostics == []
+
+
+def test_relationship_technology_is_reported_rather_than_dropped() -> None:
+    """The silence is the bug, not the ignoring.
+
+    A relationship block is a ModelItemDslContext upstream, which gates
+    exactly tags/url/properties/perspectives — so ignoring `technology` is
+    correct. Dropping it without a word is what made the whole directive
+    look broken.
+    """
+    with pytest.warns(UnsupportedFeatureWarning):
+        ws = parse_dsl(RELATIONSHIP_DIRECTIVE.format(ref="r", body='technology "grpc"'))
+
+    [diagnostic] = ws.diagnostics
+    assert diagnostic.code == "unknown-relationship-property"
+    assert "technology" in diagnostic.message
+    # The message has to say where technology *does* go, or the reader is
+    # left with a rejection and no route forward.
+    assert "!relationships" in diagnostic.message
+    assert ws.relationships[0].technology == ""
+
+
+def test_unknown_relationship_alias_is_reported() -> None:
+    """A typo'd alias used to be indistinguishable from a directive applied."""
+    with pytest.warns(UnsupportedFeatureWarning):
+        ws = parse_dsl(RELATIONSHIP_DIRECTIVE.format(ref="typo", body='tags "bulk"'))
+
+    [diagnostic] = ws.diagnostics
+    assert diagnostic.code == "unknown-relationship-alias"
+    # Naming the aliases that *are* in scope is most of the value: the usual
+    # cause is referring to a relationship that was never given an alias.
+    assert "'r'" in diagnostic.message or "r" in diagnostic.message
+    assert ws.relationships[0].tags == []
