@@ -67,6 +67,9 @@ export function SourcePane({
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [conflict, setConflict] = useState<SaveConflict | null>(null);
+  // Set when a go-to-definition landed on nothing. The page has already
+  // switched by then, so silence reads as the app being broken.
+  const [focusMiss, setFocusMiss] = useState<string | null>(null);
   const [assistantOpen, setAssistantOpen] = useState(false);
   const appliedFocus = useRef<number | null>(null);
 
@@ -75,9 +78,17 @@ export function SourcePane({
   // ago, possibly in a file that is no longer the one being edited.
   useEffect(() => {
     if (!focus || !data || appliedFocus.current === focus.nonce) return;
-    const location = data.locations[focus.elementId];
-    if (!location) return;
     appliedFocus.current = focus.nonce;
+    const location = data.locations[focus.elementId];
+    if (!location) {
+      // `locations` only covers the loaded workspace, so this is reachable
+      // — an element from the Explorer's full-model graph may be defined
+      // in a workspace that is not open. Say so; the page has already
+      // changed underneath the user.
+      setFocusMiss(focus.elementId);
+      return;
+    }
+    setFocusMiss(null);
     source.select(location.path);
     setFlash({ line: location.line, nonce: focus.nonce });
   }, [focus, data, source]);
@@ -317,7 +328,14 @@ export function SourcePane({
         />
 
         <div className="editor__status">
-          {!buffer.checkable ? (
+          {focusMiss ? (
+            <span
+              className="editor__status-item editor__status-item--warn"
+              title="Definition sites come from the loaded workspace only"
+            >
+              No definition found for “{focusMiss}” in this workspace
+            </span>
+          ) : !buffer.checkable ? (
             <span
               className="editor__status-item"
               title="Its workspace is not loaded, so there is no context to check it in"

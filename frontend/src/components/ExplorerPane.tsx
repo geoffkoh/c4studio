@@ -500,7 +500,7 @@ export function ExplorerPane({
             className="explorer-details__definition"
             onClick={() => onShowDefinition(selected.id)}
           >
-            Show definition
+            Open in Source ↗
           </button>
         </aside>
       ) : null}
