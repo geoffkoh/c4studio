@@ -24,11 +24,15 @@ jobs:
     name: Python gate
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v10
         with:
-          enable-cache: true
+          # `auto`, not `true`. setup-uv v10 disables the cache on events
+          # where a restored cache could have been poisoned by an untrusted
+          # contributor, and `true` forces caching on and opts out of that.
+          # `auto` still caches on every ordinary push and PR.
+          enable-cache: auto
 
       - name: Install
         # --extra dev, not a bare sync: the extras are
@@ -45,16 +49,20 @@ jobs:
     name: Bundle and layout
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 20
           cache: npm
 
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v10
         with:
-          enable-cache: true
+          # `auto`, not `true`. setup-uv v10 disables the cache on events
+          # where a restored cache could have been poisoned by an untrusted
+          # contributor, and `true` forces caching on and opts out of that.
+          # `auto` still caches on every ordinary push and PR.
+          enable-cache: auto
 
       - run: npm ci
       - run: uv sync --extra dev
@@ -89,7 +97,7 @@ jobs:
 
       - name: Keep the failure artefacts
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report
           path: |
