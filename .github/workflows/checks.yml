@@ -110,3 +110,34 @@ jobs:
             test-results/
             playwright-report/
           retention-days: 7
+
+  extension:
+    name: VS Code extension packages
+    runs-on: ubuntu-latest
+    # Its own install and lockfile — editors/vscode is not part of the root
+    # npm workspace, so the `frontend` job above never touches it.
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm ci
+        working-directory: editors/vscode
+
+      - name: Package the .vsix
+        # `npm run package` is typecheck → esbuild → vsce package, and the
+        # last step enforces things the first two do not. It was added after
+        # a dependency bump raised @types/vscode above engines.vscode:
+        # `vsce` rejects that outright, nothing else in CI builds the
+        # extension, and the break surfaced only when a release tried to cut
+        # a .vsix by hand.
+        run: npm run package
+        working-directory: editors/vscode
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: vsix
+          path: editors/vscode/*.vsix
+          retention-days: 7

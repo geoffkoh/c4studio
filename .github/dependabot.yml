@@ -54,6 +54,14 @@ updates:
     commit-message:
       prefix: "chore"
       include: "scope"
+    ignore:
+      # @types/vscode is pinned *to* engines.vscode, not merely kept behind
+      # it: `vsce package` refuses outright when the types are newer than the
+      # engine floor, and typing against APIs the floor does not have is the
+      # bug it is preventing. Bumping it means deciding to require a newer
+      # VS Code of every user, which is a release decision — so it is made by
+      # editing both fields together, not by merging a types bump.
+      - dependency-name: "@types/vscode"
     groups:
       npm-minor-and-patch:
         patterns: ["*"]
