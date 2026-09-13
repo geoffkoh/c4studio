@@ -1,0 +1,98 @@
+name: Checks
+
+# The standing gate from CLAUDE.md, run somewhere other than a developer's
+# machine. Until this existed the only workflow was `diagrams.yml`, which
+# dogfoods the published action — pytest, ruff and mypy had never run in CI.
+#
+# Two things here can only be enforced by CI: that the *committed* frontend
+# bundle matches the source it claims to be built from, and that the layout
+# assertions pass against a real browser.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A force-push or a quick follow-up commit should cancel the older run.
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    name: Python gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install
+        # --extra dev, not a bare sync: the extras are
+        # [project.optional-dependencies], which uv does not install by
+        # default, and `anthropic` lives there.
+        run: uv sync --extra dev
+
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy .
+      - run: uv run pytest -q
+
+  frontend:
+    name: Bundle and layout
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - run: npm ci
+      - run: uv sync --extra dev
+
+      - name: Build the frontend
+        run: npm run build
+
+      - name: The committed bundle must match the source
+        # src/c4studio/webapp/static/ and the bundled Node renderer are
+        # committed build artefacts, so the wheel ships a working UI with no
+        # npm. A PR that edits frontend/ without rebuilding ships a stale
+        # bundle, and nothing but this check would notice.
+        run: |
+          if ! git diff --quiet -- src/c4studio/webapp/static src/c4studio/renderer; then
+            echo "::error::The committed bundle is stale. Run 'npm run build' and commit the result."
+            git diff --stat -- src/c4studio/webapp/static src/c4studio/renderer
+            exit 1
+          fi
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Layout assertions
+        # --ignore-snapshots on purpose. The screenshot baselines are
+        # `-darwin.png`, and font rendering differs enough between platforms
+        # that a Linux set would have to be maintained separately for no
+        # extra signal. The layout assertions — pane heights, chrome
+        # budgets, the narrow-width fallback, handles staying points — are
+        # platform-independent, and they are the half that catches bugs.
+        # Screenshots stay a local tool for reviewing intended changes.
+        run: npx playwright test --ignore-snapshots
+
+      - name: Keep the failure artefacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 7
