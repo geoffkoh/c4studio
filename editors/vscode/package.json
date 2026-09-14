@@ -17,7 +17,9 @@
     "Visualization"
   ],
   "main": "./dist/extension.js",
-  "activationEvents": [],
+  "activationEvents": [
+    "onLanguage:structurizr-dsl"
+  ],
   "contributes": {
     "languages": [
       {
@@ -69,11 +71,24 @@
           "command": "c4studio.openPreview",
           "when": "editorLangId == structurizr-dsl",
           "group": "navigation"
+        },
+        {
+          "command": "c4studio.showView",
+          "when": "editorLangId == structurizr-dsl",
+          "group": "navigation"
         }
       ],
       "commandPalette": [
         {
           "command": "c4studio.openPreview",
+          "when": "editorLangId == structurizr-dsl"
+        },
+        {
+          "command": "c4studio.showView",
+          "when": "editorLangId == structurizr-dsl"
+        },
+        {
+          "command": "c4studio.openInStudio",
           "when": "editorLangId == structurizr-dsl"
         },
         {
