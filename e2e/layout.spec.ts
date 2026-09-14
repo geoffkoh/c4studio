@@ -154,7 +154,10 @@ test.describe("sidebar", () => {
 });
 
 test.describe("narrow surfaces", () => {
-  // The VS Code preview embeds the whole SPA in a panel about this wide.
+  // A narrow browser window. The VS Code preview used to be the reason
+  // for this number — it embedded the whole SPA in a panel about this
+  // wide — and now renders an SVG instead (see e2e/svg-preview.spec.ts).
+  // Studio at this width is still reachable by dragging a window.
   test("500px: no pane is negative, and only one is shown", async ({ page }) => {
     await page.setViewportSize({ width: 500, height: 800 });
     await openSource(page);
