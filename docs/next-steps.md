@@ -8,7 +8,7 @@ open right now, and what to do next.
 **Keep it current.** It is only worth reading if it is true, so update it
 when you finish a run of work, not when you remember.
 
-Last updated: **13 September 2026**, after the 0.3.0 release.
+Last updated: **14 September 2026**.
 
 ---
 
@@ -72,6 +72,24 @@ them were hiding real problems rather than being routine:
 - **`vsce package` broke** (PP-163) because `@types/vscode` was bumped
   above `engines.vscode`, and **nothing in CI built the extension**. There
   is a job for it now.
+
+### After 0.3.0 (14 September)
+
+**PP-164 — the editor did not highlight `#` comments.** The CodeMirror
+tokenizer had no `#` rule at all: `highlight.ts` matched only `//` for
+comments and `/^#[0-9A-Fa-f]{3,8}/` for colours, so a `#` was recognised
+solely as a hex colour. Worse than the missing colour, words *inside* the
+comment were still classified — `# description of the container` painted
+`container` as a keyword.
+
+The parser had been right since PP-112. Only the editor was out of step,
+which is why files parsed cleanly and merely looked wrong. **That gap is
+the thing to watch for**: `dsl.py` and `frontend/src/highlight.ts` are two
+implementations of one language, and nothing forces them to agree. Any
+future change to comment, string or colour rules needs both.
+
+The fix needed a guard, not just a pattern — mid-line a `#` is a colour, so
+an unguarded rule swallows the rest of every `background #08427b` line.
 
 ---
 
@@ -138,5 +156,8 @@ Each of these cost time on 13 September.
   let it through review. Ignored in `pyproject.toml`, with the reasoning.
 - **Check `../structurizr` before believing a ticket.** Two of the four
   parser tickets described the wrong bug, and one grep settled both.
+- **CodeMirror only renders its viewport.** A Playwright assertion about a
+  token 100 lines down fails with `Received: 0`, which is indistinguishable
+  from the bug it was meant to catch. Scroll until the line exists.
 - **The `jira` skill is workspace-level**, so `/jira` fails from inside
   this repo. Call `jira_helper.py` directly — CLAUDE.md has the commands.
