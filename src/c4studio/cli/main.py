@@ -13,7 +13,7 @@ from c4studio.generators.flowchart import FlowchartGenerator
 from c4studio.generators.mermaid import MermaidGenerator
 from c4studio.models import Workspace
 from c4studio.render import RenderError, render_view
-from c4studio.webapp.graph import is_supported
+from c4studio.webapp.graph import is_supported, views_index
 from c4studio.webapp.loader import WorkspaceLoadError, load_workspace
 
 
@@ -305,9 +305,27 @@ def check(
 
 @cli.command("list-views")
 @click.argument("input_file", type=click.Path(exists=True, path_type=Path))
-def list_views(input_file: Path) -> None:
-    """List all views defined in INPUT_FILE."""
+@click.option(
+    "--json",
+    "as_json",
+    is_flag=True,
+    help="Emit the view index as JSON, for tools rather than people.",
+)
+def list_views(input_file: Path, as_json: bool) -> None:
+    """List all views defined in INPUT_FILE.
+
+    ``--json`` emits the same index the web app serves from
+    ``GET /api/views`` — the *same function*, so the two cannot drift —
+    including which views are renderable and which one the DSL marks
+    ``default``. The VS Code extension reads it to populate its view
+    picker; the table above it is for reading.
+    """
+    import json as json_module
+
     workspace = _load_workspace(input_file)
+    if as_json:
+        click.echo(json_module.dumps(views_index(workspace), indent=2))
+        return
     if not workspace.views:
         click.echo("No views found.")
         return

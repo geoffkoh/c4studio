@@ -352,29 +352,6 @@ def _find_view(workspace: Workspace, key: str) -> View:
     raise HTTPException(status_code=404, detail=f"Unknown view key: {key}")
 
 
-def _views_index(workspace: Workspace) -> list[dict[str, Any]]:
-    """Return the serialisable index of all views in ``workspace``.
-
-    The DSL ``default`` view (when set) is flagged and listed first so the
-    frontend's pick-the-first-view behaviour opens it initially.
-    """
-    default_key = workspace.views.configuration.default_view
-    entries = [
-        {
-            "key": view.key,
-            "type": view.type.value,
-            "title": view.title,
-            "element_id": view.element_id,
-            "supported": graph.is_supported(view),
-            "default": bool(default_key) and view.key == default_key,
-        }
-        for view in workspace.views
-    ]
-    if default_key:
-        entries.sort(key=lambda entry: not entry["default"])
-    return entries
-
-
 _WORKSPACE_RE = re.compile(r"^\s*workspace\b", re.MULTILINE)
 
 
@@ -1124,7 +1101,7 @@ def create_app(
             # editor show a view appearing or disappearing as you type —
             # including a warning that the view you are looking at is about
             # to go away.
-            "views": _views_index(workspace) if workspace is not None else [],
+            "views": graph.views_index(workspace) if workspace is not None else [],
         }
 
     @app.put("/api/source")
@@ -1201,7 +1178,7 @@ def create_app(
                 _client_diagnostic(state.root, d)
                 for d in (workspace.diagnostics if workspace else [])
             ],
-            "views": _views_index(workspace) if workspace else [],
+            "views": graph.views_index(workspace) if workspace else [],
         }
 
     @app.get("/api/files")
@@ -1233,7 +1210,7 @@ def create_app(
         return {
             "path": path.relative_to(state.root).as_posix(),
             "name": workspace.name,
-            "views": _views_index(workspace),
+            "views": graph.views_index(workspace),
         }
 
     @app.get("/api/status")
@@ -1479,7 +1456,7 @@ def create_app(
     def get_views(state: AppState = Depends(_get_state)) -> list[dict[str, Any]]:
         """Return the index of all views in the loaded workspace."""
         workspace = _require_workspace(state)
-        return _views_index(workspace)
+        return graph.views_index(workspace)
 
     @app.get("/api/model/graph")
     def get_model_graph(
