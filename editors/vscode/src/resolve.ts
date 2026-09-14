@@ -26,7 +26,7 @@ function uvTriple(): string | null {
 }
 
 /** Run a command, resolving true when it exits 0 within the timeout. */
-function runs(command: string[], timeoutMs: number, cwd?: string): Promise<boolean> {
+export function runs(command: string[], timeoutMs: number, cwd?: string): Promise<boolean> {
   return new Promise((resolve) => {
     execFile(
       command[0],
@@ -144,7 +144,7 @@ function toolRunCommand(uvPath: string): string[] {
  * the wheel from PyPI and must not eat the preview's health budget.
  * Returns null when nothing could be resolved.
  */
-export async function resolveServerCommand(
+export async function resolveC4Command(
   workspaceFolder: string | undefined,
   storageDir: string,
   output: vscode.OutputChannel,

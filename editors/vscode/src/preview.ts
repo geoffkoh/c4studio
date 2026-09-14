@@ -1,174 +1,50 @@
-import { spawn, type ChildProcess } from "node:child_process";
-import * as http from "node:http";
-import * as net from "node:net";
 import * as path from "node:path";
 import * as vscode from "vscode";
 
-import { resolveServerCommand } from "./resolve";
-
-const HEALTH_TIMEOUT_MS = 15_000;
-const HEALTH_INTERVAL_MS = 300;
-
-/** Ask the OS for a free localhost port. */
-function freePort(): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const server = net.createServer();
-    server.once("error", reject);
-    server.listen(0, "127.0.0.1", () => {
-      const address = server.address();
-      if (address && typeof address === "object") {
-        const port = address.port;
-        server.close(() => resolve(port));
-      } else {
-        server.close(() => reject(new Error("Could not allocate a port")));
-      }
-    });
-  });
-}
-
-/** What the server says it allows, or null when it is too old to say.
-
-    A backend without this endpoint predates Studio/Viewer modes — and
-    therefore predates the in-browser editor too, so "old" and "read-only"
-    are the same thing for our purposes. */
-interface Capabilities {
-  readOnly: boolean;
-  mode: string;
-  version: string;
-}
-
-function capabilities(port: number): Promise<Capabilities | null> {
-  return new Promise((resolve) => {
-    const request = http.get(
-      { host: "127.0.0.1", port, path: "/api/capabilities", timeout: 1000 },
-      (response) => {
-        if (response.statusCode !== 200) {
-          response.resume();
-          resolve(null);
-          return;
-        }
-        let body = "";
-        response.setEncoding("utf8");
-        response.on("data", (chunk: string) => (body += chunk));
-        response.on("end", () => {
-          try {
-            resolve(JSON.parse(body) as Capabilities);
-          } catch {
-            resolve(null);
-          }
-        });
-      },
-    );
-    request.on("error", () => resolve(null));
-    request.on("timeout", () => {
-      request.destroy();
-      resolve(null);
-    });
-  });
-}
-
-/** One GET /api/status probe; resolves true on any HTTP response. */
-function probe(port: number): Promise<boolean> {
-  return new Promise((resolve) => {
-    const request = http.get(
-      { host: "127.0.0.1", port, path: "/api/status", timeout: 1000 },
-      (response) => {
-        response.resume();
-        resolve(response.statusCode !== undefined);
-      },
-    );
-    request.on("error", () => resolve(false));
-    request.on("timeout", () => {
-      request.destroy();
-      resolve(false);
-    });
-  });
-}
-
-/** Poll until the spawned server answers, the timeout passes, or it dies. */
-async function waitForServer(
-  port: number,
-  child: ChildProcess,
-): Promise<boolean> {
-  const deadline = Date.now() + HEALTH_TIMEOUT_MS;
-  while (Date.now() < deadline) {
-    if (child.exitCode !== null) return false;
-    if (await probe(port)) return true;
-    await new Promise((resolve) => setTimeout(resolve, HEALTH_INTERVAL_MS));
-  }
-  return false;
-}
-
-/** Webview shell: a full-bleed iframe onto the local c4studio server. */
-function iframeHtml(port: number): string {
-  const origin = `http://127.0.0.1:${port}`;
-  return `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8" />
-  <meta http-equiv="Content-Security-Policy"
-        content="default-src 'none'; frame-src ${origin}; style-src 'unsafe-inline';" />
-  <style>
-    html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
-    iframe { border: none; width: 100%; height: 100%; }
-  </style>
-</head>
-<body>
-  <iframe src="${origin}/" allow="clipboard-read; clipboard-write"></iframe>
-</body>
-</html>`;
-}
+import { renderView } from "./render";
+import { resolveC4Command } from "./resolve";
+import { defaultView, listViews, type ViewEntry } from "./views";
 
 /**
- * Owns the preview webview and the c4studio server behind it.
+ * The diagram preview: one view, as an SVG, in a webview.
  *
- * One server + one panel at a time: previewing the same file reveals the
- * existing panel; previewing a different file restarts the server against
- * it. The server is spawned from the workspace folder (so `uv run` finds
- * the project) and killed when the panel closes or the extension
- * deactivates. Live reload needs no extra wiring — the SPA polls the
- * server, which watches the source file's mtime.
+ * It used to embed the whole Studio in an iframe, which put a topbar, a
+ * sidebar rail, page tabs and a 725px diagram toolbar into a panel often
+ * only 400px wide. This renders a picture instead.
+ *
+ * That change removes the constraint the old design worked around: the
+ * iframe was cross-origin, so the extension could not touch anything
+ * inside it. Owning the DOM is what makes the view picker, the error
+ * display and re-render-on-save ordinary extension code rather than
+ * impossible ones.
+ *
+ * The SVG comes from `c4 render`, which runs the same layout the SPA does,
+ * so the picture matches what Studio would draw. What it cannot do is pan,
+ * zoom, drill down or arrange — that is what `c4studio.openInStudio` is
+ * for.
  */
 export class PreviewManager implements vscode.Disposable {
   private panel: vscode.WebviewPanel | undefined;
-  private server: ChildProcess | undefined;
   private currentFile: string | undefined;
-  /** Set when the executable itself could not be run (ENOENT and friends),
-      as opposed to a server that started and then refused an option. The
-      two need different advice. */
-  private execFailed = false;
+  private currentView: string | undefined;
+  private views: ViewEntry[] = [];
   private readonly output: vscode.OutputChannel;
   private readonly storageDir: string;
+  private readonly chosen: Map<string, string> = new Map();
 
-  constructor(storageDir: string) {
-    this.output = vscode.window.createOutputChannel("c4studio");
+  constructor(storageDir: string, output: vscode.OutputChannel) {
     this.storageDir = storageDir;
+    this.output = output;
   }
 
-  async open(document: vscode.TextDocument): Promise<void> {
+  /** Open (or re-render) the preview for `document`. */
+  async open(document: vscode.TextDocument, viewKey?: string): Promise<void> {
     const file = document.uri.fsPath;
-    if (this.panel && this.server && this.currentFile === file) {
-      this.panel.reveal(undefined, true);
-      return;
-    }
-
-    this.stopServer();
-    this.currentFile = file;
-
-    let port: number;
-    try {
-      port = await freePort();
-    } catch (error) {
-      void vscode.window.showErrorMessage(
-        `c4studio: could not allocate a port: ${String(error)}`,
-      );
-      return;
-    }
-
     const cwd =
       vscode.workspace.getWorkspaceFolder(document.uri)?.uri.fsPath ??
       path.dirname(file);
-    const command = await resolveServerCommand(cwd, this.storageDir, this.output);
+
+    const command = await resolveC4Command(cwd, this.storageDir, this.output);
     if (!command) {
       void vscode.window
         .showErrorMessage(
@@ -182,147 +58,195 @@ export class PreviewManager implements vscode.Disposable {
         });
       return;
     }
-    const baseArgs = [
-      ...command.slice(1),
-      "webapp",
-      file,
-      "--port",
-      String(port),
-      "--host",
-      "127.0.0.1",
-      "--no-browser",
-    ];
 
-    // Viewer mode, because VS Code already has this file open in its own
-    // editor: a second editor in the webview writing to the same path
-    // behind its back is the one thing this preview must not do.
-    //
-    // It cannot simply be passed, though. `resolveServerCommand` finds
-    // whatever c4studio is on the user's machine, which may predate the
-    // flag — and an unknown click option exits non-zero, which would
-    // surface as "the preview server did not become ready". So: try it,
-    // and fall back to a plain spawn if the process dies immediately.
-    let child = await this.spawnServer(
-      command[0],
-      [...baseArgs, "--viewer"],
-      cwd,
-      port,
-    );
-    if (!child) {
-      this.output.appendLine(
-        "[preview] --viewer did not start; this c4studio may predate " +
-          "Viewer mode. Retrying without it.",
-      );
-      child = await this.spawnServer(command[0], baseArgs, cwd, port);
+    // The view list is per file and only needs re-reading when the file
+    // changes — a save can add or remove views, so refresh it then too.
+    if (this.currentFile !== file || this.views.length === 0) {
+      this.views = await listViews(command, file, cwd, this.output);
     }
-    if (!child) {
-      this.stopServer();
-      // Two different failures, two different pieces of advice: a missing
-      // executable is something to install, a server that started and did
-      // not answer is something to read the log about.
-      const message = this.execFailed
-        ? `c4studio: could not start "${command.join(" ")}". ` +
-          "Install c4studio (e.g. via uv) or set c4studio.serverCommand."
-        : "c4studio: the preview server did not become ready.";
-      void vscode.window.showErrorMessage(message, "Open Logs").then((choice) => {
-        if (choice) this.output.show();
-      });
+
+    const key =
+      viewKey ??
+      this.chosen.get(file) ??
+      defaultView(this.views)?.key ??
+      this.views[0]?.key;
+    if (!key) {
+      this.show(file, undefined, errorHtml("This workspace defines no views."));
+      return;
+    }
+    this.chosen.set(file, key);
+    this.currentFile = file;
+    this.currentView = key;
+
+    const outcome = await renderView(command, file, key, cwd, this.output);
+    const label = this.views.find((view) => view.key === key)?.title || key;
+    this.show(
+      file,
+      key,
+      outcome.ok ? svgHtml(outcome.svg, label) : errorHtml(outcome.message),
+    );
+  }
+
+  /** Re-render the current file, if the saved document is that file. */
+  async refresh(document: vscode.TextDocument): Promise<void> {
+    if (!this.panel || document.uri.fsPath !== this.currentFile) return;
+    // Views may have been added or removed by the edit.
+    this.views = [];
+    await this.open(document, this.currentView);
+  }
+
+  /** Ask which view to show, then show it. */
+  async pickView(document: vscode.TextDocument): Promise<void> {
+    const file = document.uri.fsPath;
+    const cwd =
+      vscode.workspace.getWorkspaceFolder(document.uri)?.uri.fsPath ??
+      path.dirname(file);
+    const command = await resolveC4Command(cwd, this.storageDir, this.output);
+    if (!command) return;
+
+    const views = await listViews(command, file, cwd, this.output);
+    const renderable = views.filter((view) => view.supported);
+    if (renderable.length === 0) {
+      void vscode.window.showInformationMessage(
+        "c4studio: this workspace has no renderable views.",
+      );
       return;
     }
 
-    // What actually started. A server too old to answer predates Studio
-    // and Viewer modes — and therefore predates the in-browser editor, so
-    // there is nothing there to edit with and nothing to hide.
-    const allowed = await capabilities(port);
-    if (allowed === null) {
-      this.output.appendLine(
-        "[preview] no /api/capabilities: an older c4studio, which has no " +
-          "in-browser editor. Read-only by construction.",
-      );
-    } else {
-      this.output.appendLine(
-        `[preview] mode=${allowed.mode} readOnly=${allowed.readOnly} ` +
-          `version=${allowed.version}`,
-      );
-      if (!allowed.readOnly) {
-        // Should not happen: a server new enough to report capabilities
-        // accepted --viewer. Say so rather than leave two editors on one
-        // file unremarked.
-        void vscode.window.showWarningMessage(
-          "c4studio: the preview is editable. Edits made in the preview " +
-            "write to the same file VS Code has open.",
-        );
-      }
-    }
+    const picked = await vscode.window.showQuickPick(
+      renderable.map((view) => ({
+        label: view.key,
+        // The title is what a person recognises; the key is what they
+        // typed. Show both rather than making them match one to the other.
+        description: view.title,
+        detail: view.default ? `${view.type} · the workspace default` : view.type,
+        key: view.key,
+      })),
+      { title: "c4studio: show view", placeHolder: "Which view?" },
+    );
+    if (!picked) return;
+    await this.open(document, picked.key);
+  }
 
+  /** Put `body` in the panel, creating it if this is the first time. */
+  private show(file: string, viewKey: string | undefined, body: string): void {
     if (!this.panel) {
       this.panel = vscode.window.createWebviewPanel(
         "c4studioPreview",
         "c4studio",
         { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
-        { enableScripts: true, retainContextWhenHidden: true },
+        // No scripts: this is a static picture, and the CSP below says so.
+        // retainContextWhenHidden costs nothing to drop now that the panel
+        // holds markup rather than a live app.
+        { enableScripts: false },
       );
       this.panel.onDidDispose(() => {
         this.panel = undefined;
-        this.stopServer();
+        this.currentFile = undefined;
+        this.currentView = undefined;
       });
     }
-    this.panel.title = `C4: ${path.basename(file)}`;
-    this.panel.webview.html = iframeHtml(port);
+    this.panel.title = viewKey
+      ? `${viewKey} — ${path.basename(file)}`
+      : `C4: ${path.basename(file)}`;
+    this.panel.webview.html = body;
     this.panel.reveal(undefined, true);
   }
 
-  /**
-   * Spawn the backend and wait for it to answer.
-   *
-   * Returns the process, or `undefined` if it died or never became ready
-   * — which is what makes the `--viewer` attempt safe to make blindly. An
-   * older c4studio rejects the unknown option and exits non-zero, and
-   * `waitForServer` notices the exit rather than waiting out the full
-   * timeout.
-   */
-  private async spawnServer(
-    executable: string,
-    args: string[],
-    cwd: string,
-    port: number,
-  ): Promise<ChildProcess | undefined> {
-    this.output.appendLine(`[preview] ${executable} ${args.join(" ")} (cwd: ${cwd})`);
-    this.execFailed = false;
-    const child = spawn(executable, args, { cwd });
-    this.server = child;
-    child.stdout?.on("data", (chunk: Buffer) =>
-      this.output.append(chunk.toString()),
-    );
-    child.stderr?.on("data", (chunk: Buffer) =>
-      this.output.append(chunk.toString()),
-    );
-    child.on("error", (error) => {
-      this.execFailed = true;
-      this.output.appendLine(`[preview] spawn failed: ${error.message}`);
-    });
-    child.on("exit", (code) => {
-      this.output.appendLine(`[preview] server exited with code ${code ?? 0}`);
-      if (this.server === child) this.server = undefined;
-    });
-
-    if (await waitForServer(port, child)) return child;
-    if (child.exitCode === null) child.kill();
-    if (this.server === child) this.server = undefined;
-    return undefined;
-  }
-
-  private stopServer(): void {
-    if (this.server) {
-      this.server.kill();
-      this.server = undefined;
-    }
-    this.currentFile = undefined;
-  }
-
   dispose(): void {
-    this.stopServer();
     this.panel?.dispose();
-    this.output.dispose();
   }
+}
+
+/**
+ * The shared head of every preview document.
+ *
+ * `img-src data:` is load-bearing and easy to miss. `default-src 'none'`
+ * covers `img-src`, and the cloud-provider icons in deployment views are
+ * inlined by `render.py` as `data:` URIs — so without this they vanish
+ * silently, with nothing in the UI to say why. Two of the thirteen
+ * hedge_fund views contain them; the other eleven look perfect.
+ *
+ * No `script-src`: the page has no script, and keeping it that way is why
+ * `enableScripts` is false.
+ */
+function head(title: string): string {
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; img-src data:; style-src 'unsafe-inline';" />
+  <title>${escapeHtml(title)}</title>
+  <style>
+    html, body { margin: 0; padding: 0; height: 100%; }
+    body {
+      display: flex;
+      background: var(--vscode-editor-background);
+      color: var(--vscode-editor-foreground);
+      font-family: var(--vscode-font-family);
+      font-size: var(--vscode-font-size);
+    }
+  </style>
+</head>`;
+}
+
+/**
+ * The diagram, scaled to fit the panel.
+ *
+ * `c4 render` emits an SVG with its own width/height. Overriding them in
+ * CSS and leaning on the viewBox lets the picture fit whatever width the
+ * panel happens to be — which is the entire reason this surface exists.
+ */
+function svgHtml(svg: string, label: string): string {
+  return `${head(label)}
+<body>
+  <main>${svg}</main>
+  <style>
+    main { margin: auto; padding: 12px; width: 100%; box-sizing: border-box; }
+    svg { width: 100%; height: auto; max-height: calc(100vh - 24px); display: block; }
+  </style>
+</body>
+</html>`;
+}
+
+/**
+ * A parse error, in place of the diagram.
+ *
+ * Showing this rather than the last good picture is the point. The old
+ * preview did the opposite: the server keeps serving the previous
+ * workspace on a failed reload, and the SPA renders every error inside a
+ * sidebar that auto-collapses below 900px — so a broken DSL looked exactly
+ * like a working one.
+ */
+function errorHtml(message: string): string {
+  return `${head("c4studio")}
+<body>
+  <main>
+    <h2>This view could not be rendered</h2>
+    <pre>${escapeHtml(message)}</pre>
+  </main>
+  <style>
+    main { margin: auto; padding: 24px; max-width: 60em; }
+    h2 { font-size: 1.1em; font-weight: 600; margin: 0 0 12px; }
+    pre {
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: var(--vscode-editor-font-family);
+      background: var(--vscode-textCodeBlock-background);
+      padding: 12px;
+      border-radius: 4px;
+      margin: 0;
+    }
+  </style>
+</body>
+</html>`;
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }

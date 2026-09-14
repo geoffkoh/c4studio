@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import * as path from "node:path";
 import * as vscode from "vscode";
 
-import { resolveServerCommand } from "./resolve";
+import { resolveC4Command } from "./resolve";
 
 /** One record emitted by `c4 check --json`. */
 interface CheckRecord {
@@ -120,7 +120,7 @@ export class DiagnosticsManager implements vscode.Disposable {
       path.dirname(file);
 
     if (this.command === null) {
-      this.command = await resolveServerCommand(cwd, this.storageDir, this.output);
+      this.command = await resolveC4Command(cwd, this.storageDir, this.output);
       if (this.command === null) {
         this.output.appendLine("[check] no backend available; diagnostics disabled");
         return;
