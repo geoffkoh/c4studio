@@ -33,9 +33,27 @@ function webviewShell(origin: string): string {
   </style>
 </head>
 <body>
-  <iframe src="${origin}/" allow="clipboard-read; clipboard-write"></iframe>
+  <iframe src="${origin}/?embed=1" allow="clipboard-read; clipboard-write"></iframe>
 </body>
 </html>`;
+}
+
+/** The extension spawns `c4 webapp <file>`, so the server always has a
+    workspace by the time the webview opens. Embed mode has no file tree to
+    load one with, so reproduce that here. */
+async function loadWorkspace(page: import("@playwright/test").Page) {
+  await page.goto(`http://127.0.0.1:${PORT}/`);
+  const rail = page.locator(".rail--left");
+  if (await rail.isVisible()) await rail.click();
+  await page
+    .getByRole("searchbox", { name: "Search files" })
+    .fill("internet_banking");
+  await page
+    .getByRole("button", { name: "internet_banking.dsl", exact: true })
+    .click();
+  await expect(page.locator(".react-flow__node").first()).toBeVisible({
+    timeout: 15_000,
+  });
 }
 
 test.describe("VS Code webview shell", () => {
@@ -49,6 +67,7 @@ test.describe("VS Code webview shell", () => {
   test("the app loads inside the webview's iframe and CSP", async ({ page }) => {
     // A VS Code side panel, roughly.
     await page.setViewportSize({ width: 520, height: 800 });
+    await loadWorkspace(page);
 
     const failures: string[] = [];
     page.on("console", (message) => {
@@ -59,12 +78,12 @@ test.describe("VS Code webview shell", () => {
     await page.goto(`http://127.0.0.1:${PORT}/__webview`);
     const app = page.frameLocator("iframe");
 
-    // If the CSP or the iframe broke the app, this never appears.
-    await expect(app.locator(".topbar")).toBeVisible({ timeout: 15_000 });
-    // The sidebar stays in the DOM when collapsed (`hidden`, so the file
-    // tree keeps its expansion), so assert the state rather than counting.
-    await expect(app.locator(".rail--left")).toBeVisible();
-    await expect(app.locator(".sidebar")).toBeHidden();
+    // If the CSP or the iframe broke the app, this never appears. The
+    // canvas rather than the topbar, because `?embed=1` has no topbar —
+    // which is the whole point of the shell now carrying that parameter.
+    await expect(app.locator(".graph")).toBeVisible({ timeout: 15_000 });
+    await expect(app.locator(".topbar")).toHaveCount(0);
+    await expect(app.locator(".rail--left")).toHaveCount(0);
 
     // A blocked stylesheet or script shows up here, and would otherwise be
     // invisible: the page would simply look wrong.
@@ -74,19 +93,19 @@ test.describe("VS Code webview shell", () => {
 
   test("at panel width the chrome does not eat the panel", async ({ page }) => {
     await page.setViewportSize({ width: 520, height: 800 });
+    await loadWorkspace(page);
     await page.goto(`http://127.0.0.1:${PORT}/__webview`);
     const app = page.frameLocator("iframe");
-    await expect(app.locator(".topbar")).toBeVisible({ timeout: 15_000 });
+    await expect(app.locator(".graph")).toBeVisible({ timeout: 15_000 });
 
     // The original complaint, measured where it actually happens: fixed
     // chrome once exceeded 100% of this width, so the panes computed to a
-    // negative size.
-    const railWidth = await app
-      .locator(".rail--left")
-      .evaluate((el) => el.getBoundingClientRect().width)
-      .catch(() => 0);
-    expect(railWidth, "the sidebar should start as a rail here").toBeLessThan(40);
-    expect(railWidth).toBeGreaterThan(0);
+    // negative size. In embed mode there is no fixed chrome left — the
+    // canvas is the panel.
+    const graph = await app
+      .locator(".graph")
+      .evaluate((el) => el.getBoundingClientRect().width);
+    expect(graph, "the canvas should have the whole panel").toBeGreaterThan(500);
 
     // And nothing may scroll sideways inside the frame.
     const overflow = await app.locator("body").evaluate(
