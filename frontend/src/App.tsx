@@ -66,6 +66,31 @@ function storedSidebarOpen(): boolean {
   return window.innerWidth >= SIDEBAR_AUTO_HIDE_PX;
 }
 
+/**
+ * Embed mode: the diagram and a view picker, nothing else.
+ *
+ * Read from the URL rather than from a server flag, because the surface
+ * that needs it — the VS Code webview — is a cross-origin iframe the
+ * extension cannot reach into. The URL is the only channel across that
+ * boundary.
+ *
+ * A query param rather than `--embed` on the server for a second reason:
+ * version skew. The extension already retries its spawn without
+ * `--viewer` because an older c4studio exits 2 on an unknown flag. An
+ * older *SPA* simply ignores `?embed=1` and renders as it always did.
+ *
+ * Deliberately independent of `readOnly`. `--viewer` is a permission mode
+ * and this is a chrome mode; conflating them would make an editable embed
+ * impossible to add later.
+ */
+function embedMode(): boolean {
+  try {
+    return new URLSearchParams(window.location.search).get("embed") === "1";
+  } catch {
+    return false;
+  }
+}
+
 /** How often to ask the server whether the loaded source changed on disk. */
 const RELOAD_POLL_MS = 2000;
 
@@ -91,6 +116,8 @@ export default function App() {
   const [openRequest, setOpenRequest] = useState<OpenRequest | null>(null);
   const [newWorkspaceOpen, setNewWorkspaceOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(storedSidebarOpen);
+  // Fixed for the life of the page: the URL does not change under us.
+  const [embed] = useState(embedMode);
   const [reloadTick, setReloadTick] = useState(0);
   const [helpOpen, setHelpOpen] = useState(false);
   // `null` until the probe answers, and if it never does. Treated as
@@ -202,6 +229,26 @@ export default function App() {
       cancelled = true;
     };
   }, []);
+
+  /**
+   * Open a view as soon as there is one to open.
+   *
+   * Without this the app sits on "No view selected — Choose a renderable
+   * view from the sidebar", and below 900px the sidebar starts collapsed,
+   * so there is nothing to choose from. In embed mode there is no sidebar
+   * at all, which turns a poor first impression into a dead end.
+   *
+   * `/api/views` has sorted the DSL's `default` first since PP-119, so
+   * this is mostly "the first one" — but it skips `image` and `custom`
+   * views, which are listed as unsupported precisely so a caller does not
+   * open a panel that can only be empty.
+   */
+  useEffect(() => {
+    if (selectedView || views.length === 0) return;
+    const opening = views.find((view) => view.default && view.supported)
+      ?? views.find((view) => view.supported);
+    if (opening) setSelectedView(opening);
+  }, [views, selectedView]);
 
   /** Refetch workspace + views after a server-side live reload. */
   const refresh = useCallback(async () => {
@@ -375,7 +422,8 @@ export default function App() {
   );
 
   return (
-    <div className="app">
+    <div className={embed ? "app app--embed" : "app"}>
+      {embed ? null : (
       <TopBar
         workspaceName={workspace?.name ?? null}
         filePath={currentPath}
@@ -387,8 +435,23 @@ export default function App() {
         sidebarOpen={sidebarOpen}
         onToggleSidebar={() => setSidebarOpen((open) => !open)}
       />
+      )}
+      {/* The errors used to live inside the sidebar, which auto-collapses
+          below 900px and does not exist at all in embed mode — so a failed
+          reload showed a stale diagram and said nothing. A strip, only
+          when there is something to say. */}
+      {error || reloadError ? (
+        <div className="alerts">
+          {error ? <div className="error">{error}</div> : null}
+          {reloadError ? (
+            <div className="error">
+              <strong>Live reload paused:</strong> {reloadError}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
       <div className="body">
-        {sidebarOpen ? null : (
+        {embed || sidebarOpen ? null : (
           <button
             className="rail rail--left"
             onClick={() => setSidebarOpen(true)}
@@ -402,13 +465,7 @@ export default function App() {
             not throw away the file tree's expansion and search, which is
             exactly the state someone collapses it to get out of the way
             of, not to lose. */}
-        <aside className="sidebar" hidden={!sidebarOpen}>
-          {error ? <div className="error">{error}</div> : null}
-          {reloadError ? (
-            <div className="error">
-              <strong>Live reload paused:</strong> {reloadError}
-            </div>
-          ) : null}
+        <aside className="sidebar" hidden={embed || !sidebarOpen}>
           {diagnostics.length > 0 ? (
             <details className="diagnostics">
               <summary>
@@ -459,6 +516,12 @@ export default function App() {
               saveExpansion={saveExpansion}
               saveLayout={saveLayout}
               resetLayout={deleteLayout}
+              chrome={
+                embed
+                  ? { toolbar: false, minimap: false, controls: "basic" }
+                  : undefined
+              }
+              onSelectView={embed ? setSelectedView : undefined}
             />
           ) : page === "explorer" ? (
             <ExplorerPane

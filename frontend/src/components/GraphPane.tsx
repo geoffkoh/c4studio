@@ -159,7 +159,38 @@ interface GraphPaneProps {
     chrome: Record<string, [number, number]>,
   ) => Promise<unknown>;
   resetLayout: (key: string) => Promise<unknown>;
+  /**
+   * Which of the canvas's own panels to draw.
+   *
+   * One object rather than four booleans: four booleans is sixteen states
+   * of which exactly two are ever wanted, and the reader has to work out
+   * which. Absent means "everything", so nothing else in the app changes.
+   *
+   * Measured at a 400px panel, the reason this exists: `.edge-style` is
+   * 725px wide (its own comment still claims ~470px) and is clipped by
+   * `overflow: hidden`, so Mouse/Pan/Select cannot even be clicked; the
+   * minimap is 200×150 — 9.3% of the canvas — thumbnailing a diagram
+   * `fitView` has already fitted entirely on screen.
+   */
+  chrome?: GraphChrome;
+  /** Switch view from inside the canvas, when there is no sidebar to. */
+  onSelectView?: (view: ViewInfo) => void;
 }
+
+export interface GraphChrome {
+  /** The Mouse/Edges/Reset/Hover/Snap/export panel, top-right. */
+  toolbar?: boolean;
+  minimap?: boolean;
+  /** React Flow's zoom cluster. `false` hides it; `"basic"` drops the
+      interactivity lock, which means nothing on a glance surface. */
+  controls?: boolean | "basic";
+}
+
+const FULL_CHROME: Required<GraphChrome> = {
+  toolbar: true,
+  minimap: true,
+  controls: true,
+};
 
 /** Convert the API graph payload into React Flow nodes/edges. */
 async function toFlow(
@@ -362,7 +393,10 @@ export function GraphPane({
   saveExpansion,
   saveLayout,
   resetLayout,
+  chrome,
+  onSelectView,
 }: GraphPaneProps) {
+  const show = { ...FULL_CHROME, ...chrome };
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [status, setStatus] = useState<"idle" | "loading" | "error" | "ready">(
@@ -1147,10 +1181,20 @@ export function GraphPane({
   const fitKey = useMemo(() => view?.key ?? "none", [view]);
 
   if (!view) {
+    // Two different situations wearing one message. With chrome, there is
+    // a sidebar to point at. In embed mode there is not — and the only way
+    // to get here is a server started with no workspace, since the view
+    // auto-select opens one as soon as `/api/views` returns any. Saying
+    // "use the sidebar" to someone who has none is worse than saying
+    // nothing.
     return (
       <div className="notice">
-        <div className="notice__title">No view selected</div>
-        <p>Choose a renderable view from the sidebar to see its diagram.</p>
+        <div className="notice__title">No view to show</div>
+        <p>
+          {onSelectView
+            ? "This server has no workspace loaded."
+            : "Choose a renderable view from the sidebar to see its diagram."}
+        </p>
       </div>
     );
   }
@@ -1245,8 +1289,38 @@ export function GraphPane({
         minZoom={0.1}
         proOptions={{ hideAttribution: true }}
       >
-        {trail.length > 1 ? (
+        {/* One persistent panel, not two that swap.
+            A `<select>` that appears only when the breadcrumb does not
+            would be a control moving between states — the spatial
+            stability failure. And the breadcrumb cannot carry navigation
+            alone: `viewTrail` returns a lineage of length 1 for
+            systemLandscape, dynamic, deployment and filtered views (6 of
+            the 13 in samples/c4studio), and it reaches ancestors only, so
+            it strands you at the root with no way back down. */}
+        {onSelectView || trail.length > 1 ? (
           <Panel position="top-left" className="breadcrumb">
+            {onSelectView ? (
+              <select
+                className="breadcrumb__picker"
+                value={view.key}
+                aria-label="View"
+                onChange={(event) => {
+                  const next = views.find((v) => v.key === event.target.value);
+                  if (next) onSelectView(next);
+                }}
+              >
+                {views
+                  .filter((candidate) => candidate.supported)
+                  .map((candidate) => (
+                    <option key={candidate.key} value={candidate.key}>
+                      {candidate.title || candidate.key}
+                    </option>
+                  ))}
+              </select>
+            ) : null}
+            {onSelectView && trail.length > 1 ? (
+              <span className="breadcrumb__sep">›</span>
+            ) : null}
             {trail.map((crumb, index) => (
               <span key={crumb.key} className="breadcrumb__item">
                 {index > 0 ? <span className="breadcrumb__sep">›</span> : null}
@@ -1271,6 +1345,7 @@ export function GraphPane({
           onAlign={handleAlign}
           onDistribute={handleDistribute}
         />
+        {show.toolbar ? (
         <Panel position="top-right" className="edge-style">
           <span className="edge-style__title">Mouse</span>
           {INTERACTIONS.map((mode) => (
@@ -1345,6 +1420,7 @@ export function GraphPane({
             </span>
           ) : null}
         </Panel>
+        ) : null}
         {isDynamic && maxStep > 0 ? (
           <Panel position="bottom-center" className="anim-controls">
             <button
@@ -1411,7 +1487,12 @@ export function GraphPane({
           />
         ) : null}
         <Background gap={16} />
-        <Controls />
+        {show.controls ? (
+          // `showInteractive` is the padlock: meaningless where there is
+          // nothing to edit, and it is a quarter of the cluster's height.
+          <Controls showInteractive={show.controls !== "basic"} />
+        ) : null}
+        {show.minimap ? (
         <MiniMap
           pannable
           zoomable
@@ -1421,6 +1502,7 @@ export function GraphPane({
             return data?.color ?? "#78909c";
           }}
         />
+        ) : null}
       </ReactFlow>
     </div>
   );

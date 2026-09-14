@@ -2451,3 +2451,58 @@ button {
     max-width: calc(100% - 120px);
   }
 }
+
+
+/* ---------------------------------------------------------------- *
+ * Embed mode (`?embed=1`): the diagram and a view picker.
+ *
+ * Used by the VS Code preview, which loads the SPA into a panel often
+ * 400px wide. Measured there, the app chrome is a 41px topbar and a 26px
+ * rail — but the expensive part was never those. It was the canvas's own
+ * floating panels: a 725px toolbar clipped by `overflow: hidden`, and a
+ * 200x150 minimap thumbnailing a diagram already fitted on screen. Those
+ * are gone via the `chrome` prop; this only removes the app frame.
+ *
+ * A mode, not a breakpoint. Deliberately no third @media rule: a media
+ * query cannot see a VS Code panel dragged narrower, which is why
+ * SplitPane uses a ResizeObserver.
+ * ---------------------------------------------------------------- */
+
+.app--embed .body {
+  /* No sidebar and no rail, so the canvas starts at the edge. */
+  height: 100%;
+}
+
+.alerts {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+
+.alerts:empty {
+  display: none;
+}
+
+/* The view picker lives in the breadcrumb panel so there is one control
+   in one place, whatever the trail depth. */
+.breadcrumb__picker {
+  font: inherit;
+  font-size: 12px;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 1px 4px;
+  max-width: 190px;
+}
+
+.breadcrumb__picker:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+@media (max-width: 699px) {
+  .breadcrumb__picker {
+    max-width: 130px;
+  }
+}

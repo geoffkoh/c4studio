@@ -99,7 +99,15 @@ async function waitForServer(
   return false;
 }
 
-/** Webview shell: a full-bleed iframe onto the local c4studio server. */
+/** Webview shell: a full-bleed iframe onto the local c4studio server.
+
+    `?embed=1` asks the SPA for the diagram and a view picker and nothing
+    else — no topbar, no sidebar, no diagram toolbar, no minimap. It is a
+    query param rather than a server flag because this iframe is
+    cross-origin: the extension cannot reach inside it, so the URL is the
+    only channel it has. An older SPA ignores the parameter and renders as
+    it always did, which is why no version dance is needed here the way it
+    is for `--viewer`. */
 function iframeHtml(port: number): string {
   const origin = `http://127.0.0.1:${port}`;
   return `<!DOCTYPE html>
@@ -114,7 +122,7 @@ function iframeHtml(port: number): string {
   </style>
 </head>
 <body>
-  <iframe src="${origin}/" allow="clipboard-read; clipboard-write"></iframe>
+  <iframe src="${origin}/?embed=1" allow="clipboard-read; clipboard-write"></iframe>
 </body>
 </html>`;
 }
