@@ -103,7 +103,8 @@ show-definition link into the Source pane.
 
 The built SPA ships inside the package (`c4studio/webapp/static/`),
 so end users need no Node toolchain. To rebuild the frontend after
-changes (requires Node 18+):
+changes (requires Node 20.19+ or 22.12+, what Vite asks for — distinct
+from the Node 18+ that `c4 render` needs at runtime, below):
 
 The frontend is an npm workspace: `packages/diagram-core` holds the
 diagram layer (layout, node/edge components, image export) and
