@@ -17,7 +17,9 @@
     "Visualization"
   ],
   "main": "./dist/extension.js",
-  "activationEvents": [],
+  "activationEvents": [
+    "onLanguage:structurizr-dsl"
+  ],
   "contributes": {
     "languages": [
       {
@@ -44,13 +46,23 @@
       {
         "command": "c4studio.openPreview",
         "title": "Open Diagram Preview",
-        "category": "Pystructurizr",
+        "category": "C4Studio",
         "icon": "$(type-hierarchy-sub)"
+      },
+      {
+        "command": "c4studio.showView",
+        "title": "Show View\u2026",
+        "category": "C4Studio"
+      },
+      {
+        "command": "c4studio.openInStudio",
+        "title": "Open in Studio (browser)",
+        "category": "C4Studio"
       },
       {
         "command": "c4studio.checkFile",
         "title": "Check for Problems",
-        "category": "Pystructurizr"
+        "category": "C4Studio"
       }
     ],
     "menus": {
@@ -59,11 +71,24 @@
           "command": "c4studio.openPreview",
           "when": "editorLangId == structurizr-dsl",
           "group": "navigation"
+        },
+        {
+          "command": "c4studio.showView",
+          "when": "editorLangId == structurizr-dsl",
+          "group": "navigation"
         }
       ],
       "commandPalette": [
         {
           "command": "c4studio.openPreview",
+          "when": "editorLangId == structurizr-dsl"
+        },
+        {
+          "command": "c4studio.showView",
+          "when": "editorLangId == structurizr-dsl"
+        },
+        {
+          "command": "c4studio.openInStudio",
           "when": "editorLangId == structurizr-dsl"
         },
         {
