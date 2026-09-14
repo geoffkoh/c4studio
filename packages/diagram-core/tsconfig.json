@@ -9,6 +9,12 @@
     "isolatedModules": true,
     "moduleDetection": "force",
     "resolveJsonModule": true,
+    // Explicit since TypeScript 7. TS 5 auto-included every `@types/*`
+    // it could find by walking up from this file; TS 7 does not, and
+    // `src/cli.ts` — the headless renderer entry point — lost `process`
+    // and `Buffer`. Only `node` is installed here, so this narrows
+    // nothing that was actually in use.
+    "types": ["node"],
 
     "composite": true,
     "declaration": true,
