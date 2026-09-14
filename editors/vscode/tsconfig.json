@@ -9,7 +9,12 @@
     "noImplicitReturns": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "noEmit": true
+    "noEmit": true,
+    // Same TypeScript 7 change as packages/diagram-core: `@types/*` are
+    // no longer auto-included, and `src/resolve.ts` lost `process`,
+    // `Buffer` and the `node:` builtins. `vscode` is listed for the same
+    // reason — the extension host API is a @types package like any other.
+    "types": ["node", "vscode"]
   },
   "include": ["src"]
 }
