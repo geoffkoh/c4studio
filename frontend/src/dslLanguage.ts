@@ -10,7 +10,12 @@ import type { StringStream } from "@codemirror/language";
 import { EditorView } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
 
-import { DSL_PATTERNS, classifyDslWord, type DslTokenClass } from "./highlight";
+import {
+  DSL_PATTERNS,
+  classifyDslWord,
+  hashCommentStartsHere,
+  type DslTokenClass,
+} from "./highlight";
 
 interface DslState {
   /** Inside a block comment that opened on an earlier line. */
@@ -37,6 +42,17 @@ function token(stream: StringStream, state: DslState): DslTokenClass | null {
   if (stream.eatSpace()) return null;
 
   if (stream.match(DSL_PATTERNS.lineComment)) return "comment";
+  // Before `color`, because both start with `#`. The guard is what keeps
+  // them apart: only a `#` with nothing but whitespace before it on the
+  // line is a comment, and `stream.sol()` cannot answer that here because
+  // `eatSpace()` above has already moved past the indentation.
+  if (
+    stream.peek() === "#" &&
+    hashCommentStartsHere(stream.string, stream.start) &&
+    stream.match(DSL_PATTERNS.hashComment)
+  ) {
+    return "comment";
+  }
   if (stream.match(DSL_PATTERNS.blockCommentOpen)) {
     state.inComment = true;
     return blockComment(stream, state);
