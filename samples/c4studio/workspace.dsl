@@ -4,6 +4,9 @@ workspace "c4studio" "c4studio described in its own DSL, rendered by itself." {
     !adrs adrs
 
     model {
+        # Split across model/ so each file stays readable on its own. Both
+        # comment forms work here: `#` only opens a comment at the start of
+        # a line, so the `#08427b` in styles below is still a colour.
         !include model/people.dsl
         !include model/c4studio.dsl
         !include model/integrations.dsl

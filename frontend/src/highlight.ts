@@ -74,6 +74,15 @@ export const DSL_PROPERTIES: ReadonlySet<string> = new Set([
  */
 export const DSL_PATTERNS = {
   lineComment: /^\/\/[^\n]*/,
+  /**
+   * `#` to end of line — but **only** valid where nothing but whitespace
+   * precedes it, which this pattern cannot express on its own. The caller
+   * has to check that; see `hashCommentStartsHere`.
+   *
+   * Mid-line a `#` is a colour (`background #1a2b3c`), so matching this
+   * unguarded would swallow the rest of every style line.
+   */
+  hashComment: /^#[^\n]*/,
   blockCommentOpen: /^\/\*/,
   blockCommentClose: /^\*\//,
   string: /^"(?:[^"\\]|\\.)*"/,
@@ -85,6 +94,21 @@ export const DSL_PATTERNS = {
   /** Lookahead marking `name` in `name = element` as a definition. */
   assignment: /^[ \t]*=/,
 } as const;
+
+/**
+ * Whether a `#` at `index` in `line` opens a comment.
+ *
+ * True only when nothing but whitespace precedes it, which is the rule the
+ * parser applies (`HASH_COMMENT` is anchored `^[ \t]*#`) and the rule
+ * structurizr-java applies (`COMMENT_PATTERN` is `^\s*?(//|#)`). Mid-line,
+ * a `#` is the start of a hex colour instead.
+ *
+ * Lives here beside the pattern rather than in the tokenizer so the two
+ * halves of one rule cannot drift apart.
+ */
+export function hashCommentStartsHere(line: string, index: number): boolean {
+  return line.slice(0, index).trim() === "";
+}
 
 /** Classify a bare word: a keyword, a style property, or neither. */
 export function classifyDslWord(word: string): DslTokenClass | null {
