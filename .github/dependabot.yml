@@ -62,6 +62,17 @@ updates:
       # VS Code of every user, which is a release decision — so it is made by
       # editing both fields together, not by merging a types bump.
       - dependency-name: "@types/vscode"
+      # Same rule, same reason: types must not exceed the runtime floor, or
+      # the compiler accepts APIs the host does not have. The floor is Node
+      # 18, and it is a promise to users — README.md says the rebuild needs
+      # Node 18+, and render.py raises "Install Node 18 or newer" when it
+      # cannot find one. packages/diagram-core is the sharp end: it is
+      # bundled into the committed renderer that ships in the wheel and runs
+      # on the user's own Node. editors/vscode is the same shape, with
+      # `engines.vscode ^1.85.0` — VS Code 1.85 builds on Node 18.17.1.
+      # Raising either means raising the stated floor, which is a release
+      # decision rather than a types bump.
+      - dependency-name: "@types/node"
     groups:
       npm-minor-and-patch:
         patterns: ["*"]
