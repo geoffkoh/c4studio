@@ -8,7 +8,7 @@ open right now, and what to do next.
 **Keep it current.** It is only worth reading if it is true, so update it
 when you finish a run of work, not when you remember.
 
-Last updated: **14 September 2026**.
+Last updated: **14 September 2026**, after clearing the Dependabot majors.
 
 ---
 
@@ -19,8 +19,9 @@ Last updated: **14 September 2026**.
 | PyPI | **0.3.0** — published 13 Sep 2026, tagged `v0.3.0`, verified by isolated install |
 | VS Code extension | **0.3.1**, packaged as `.vsix` only. Not on the Marketplace, and versioned independently of the Python package |
 | `main` | Green. Four CI jobs: Python gate, bundle + layout, VS Code extension packaging, and the `render` dogfood |
-| Open PRs | Seven Dependabot **majors** — see below. Nothing else |
-| Open `PP` tickets | None |
+| Open PRs | **None** |
+| Open `PP` tickets | **None** |
+| Frontend runtime | React **19**, TypeScript **7**, Vite **8**, marked **18**. `reactflow` stays on **11** — see below |
 
 ---
 
@@ -93,27 +94,61 @@ an unguarded rule swallows the rest of every `background #08427b` line.
 
 ---
 
-## Open now: seven Dependabot majors
+## Open now
 
-These arrived on the Monday schedule after the release. Dependabot is
-configured to keep majors out of the grouped PRs so they get read — so
-read them. **Every one needs the manual bundle rebuild** (CLAUDE.md), and
-a bundler or framework swap is exactly where a green build and a broken
-app diverge.
+**Nothing.** No open PRs, no open `PP` tickets.
 
-Ordered by what I would do first:
+---
 
-| PR | Bump | Assessment |
+## The Dependabot majors, and how they went
+
+All seven, resolved 14 September. Kept because the *reasoning* is the
+reusable part — the next framework bump will ask the same questions.
+
+| Bump | Outcome | |
 |---|---|---|
-| #186 | `@types/node` 18 → 26 (root) | `packages/diagram-core` is bundled into the **headless Node renderer** that ships in the wheel. Typing against Node 26 while users may run older is the same mistake as PP-163. Check what the renderer actually requires before taking it |
-| #188 | `@types/node` 18 → 26 (`editors/vscode`) | **Probably decline.** `engines.vscode` is `^1.85.0`, and that VS Code ships Node 18. This is PP-163 again in a different package — types must not exceed the host floor. If declined, add it to the `ignore` list beside `@types/vscode` with the reason |
-| #184 | `marked` 15 → 18 | Three majors. Used in exactly one place, `frontend/src/components/DocsPane.tsx`, to render workspace documentation. Small blast radius, but check the API and render `samples/hedge_fund` docs before and after |
-| #185 / #187 | `typescript` 5.9 → 7.0 (root + extension) | A major compiler bump across a workspace with strict settings. Do the two together or the two trees disagree. Expect real work |
-| #183 / #182 | `react` + `react-dom` 18 → 19 | **The large one, and last.** Must be done as a pair. The real question is React Flow: check its peer range before starting, because `packages/diagram-core` is consumed by both the SPA *and* the headless renderer, and the renderer must keep working without a DOM |
+| `@types/node` 18 → 26, both trees | **Declined** | PP-165, #197 |
+| `marked` 15 → 18 | Taken | PP-166, #198 |
+| `typescript` 5 → 7 | Taken | PP-167, #199 |
+| `react` + `react-dom` 18 → 19 | Taken | PP-168, #200 |
 
-Suggested shape: one ticket each, `@types/node` decisions first (cheap,
-and one of them is likely a decline with a `dependabot.yml` entry), then
-`marked`, then TypeScript, then React as its own piece of work.
+**The `@types/node` decline is the one to remember.** Types must not exceed
+the runtime floor, and the floor here is Node 18 — promised in `README.md`
+and in the error `render.py` raises when it cannot find a node binary.
+`packages/diagram-core` is bundled into the committed renderer that ships
+in the wheel and runs on the *user's* Node, so nothing in this repo would
+have caught the mismatch: CI runs Node 20 and the failure lands on someone
+else's machine. Both are now in `dependabot.yml`'s ignore list beside
+`@types/vscode`, which was pinned for the same reason in PP-163. Raising
+any of them means raising the stated floor — a release decision.
+
+**TypeScript 7 is the Go rewrite**, not an increment, and it broke exactly
+one thing: TS 5 auto-included every `@types/*` it could find by walking up
+from the tsconfig, and TS 7 does not. The two Node-facing files — the
+renderer CLI and the extension's resolver — lost `process`, `Buffer`,
+`fetch` and the `node:` builtins. Fixed by naming them in `types`. The
+evidence it was safe is that the committed bundle came out **byte-identical**.
+
+**React 19 looked like it should fail, and didn't.** `reactflow@11.11.4`
+is the frozen final v11, and xyflow's tracker says v11 does not support
+React 19 because of `zustand ^4.4.1` — which really is what is installed
+(4.5.7). It builds regardless, which proves nothing, so the canvas was
+driven directly: load a view, select a node, drag it, zoom, capture every
+console message. 7 nodes before and after, node moved by (35, 23), no
+React warnings. The tracker is aimed at older zustand; 4.5.7 is a late 4.x.
+
+Cost, stated rather than buried: **React 19 adds ~8% gzipped payload**
+(281.47 → 304.28 kB).
+
+### Two things found on the way
+
+- **`e2e/docs.spec.ts` now exists.** The Docs page had *no* coverage, which
+  is how a three-major bump to its only dependency (`marked`) could have
+  landed on a green build alone.
+- **Three 409s appear when dragging a node**, from layout-sidecar saves
+  racing. Confirmed pre-existing — the same probe on React 18 produces the
+  same three — so they were not caused by any of this, and nobody has
+  looked at them. Worth a ticket if they ever become noise.
 
 ---
 
@@ -156,6 +191,12 @@ Each of these cost time on 13 September.
   let it through review. Ignored in `pyproject.toml`, with the reasoning.
 - **Check `../structurizr` before believing a ticket.** Two of the four
   parser tickets described the wrong bug, and one grep settled both.
+- **"It builds" is not evidence for a framework bump.** React 19 compiled
+  and type-checked cleanly against a React Flow version whose maintainers
+  say does not support it. What settled it was driving the canvas and
+  watching the console. Equally: when a probe turns up errors, run the same
+  probe on the version you are moving *from* before blaming the bump —
+  three 409s here were pre-existing.
 - **CodeMirror only renders its viewport.** A Playwright assertion about a
   token 100 lines down fails with `Received: 0`, which is indistinguishable
   from the bug it was meant to catch. Scroll until the line exists.
