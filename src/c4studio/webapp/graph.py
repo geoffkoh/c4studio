@@ -56,6 +56,34 @@ def is_supported(view: View) -> bool:
     return view.type in _SUPPORTED_TYPES
 
 
+def views_index(workspace: Workspace) -> list[dict[str, Any]]:
+    """Return the serialisable index of all views in ``workspace``.
+
+    The DSL ``default`` view (when set) is flagged and listed first so a
+    consumer's pick-the-first-view behaviour opens it initially.
+
+    Lives here rather than in ``server.py`` because it is not web-specific:
+    ``c4 list-views --json`` serves the VS Code extension from the same
+    function, so the CLI and the API cannot drift into disagreeing about
+    which view is the default or which types are renderable.
+    """
+    default_key = workspace.views.configuration.default_view
+    entries: list[dict[str, Any]] = [
+        {
+            "key": view.key,
+            "type": view.type.value,
+            "title": view.title,
+            "element_id": view.element_id,
+            "supported": is_supported(view),
+            "default": bool(default_key) and view.key == default_key,
+        }
+        for view in workspace.views
+    ]
+    if default_key:
+        entries.sort(key=lambda entry: not entry["default"])
+    return entries
+
+
 def react_flow_graph(
     workspace: Workspace,
     view: View,

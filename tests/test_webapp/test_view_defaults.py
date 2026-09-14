@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 from c4studio.parser.dsl import parse_dsl
-from c4studio.webapp.graph import react_flow_graph
-from c4studio.webapp.server import _views_index
+from c4studio.webapp.graph import react_flow_graph, views_index
 
 DSL = """
 workspace "W" {
@@ -29,7 +28,7 @@ workspace "W" {
 
 def test_views_index_flags_and_orders_default_first() -> None:
     ws = parse_dsl(DSL)
-    index = _views_index(ws)
+    index = views_index(ws)
     assert index[0]["key"] == "ctx"
     assert index[0]["default"] is True
     assert all(not entry["default"] for entry in index[1:])
@@ -38,7 +37,7 @@ def test_views_index_flags_and_orders_default_first() -> None:
 def test_views_index_keeps_declaration_order_without_default() -> None:
     ws = parse_dsl(DSL)
     ws.views.configuration.default_view = ""
-    index = _views_index(ws)
+    index = views_index(ws)
     assert [entry["key"] for entry in index] == ["land", "ctx"]
 
 
