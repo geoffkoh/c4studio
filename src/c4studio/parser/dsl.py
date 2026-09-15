@@ -1287,7 +1287,7 @@ class _Parser:
             return True
         if kw == "perspectives" and hasattr(element, "perspectives"):
             self._advance()
-            element.perspectives.extend(self._parse_perspectives_block())
+            self._parse_perspectives_block(element.perspectives)
             return True
         if kw == "healthcheck" and hasattr(element, "health_checks"):
             # healthCheck <name> <url> [interval] [timeout]
@@ -1342,29 +1342,146 @@ class _Parser:
         self._expect(RBRACE)
         return props
 
-    def _parse_perspectives_block(self) -> list[Perspective]:
-        """Parse ``{ <name> <description> [value] ... }`` lines."""
-        perspectives: list[Perspective] = []
+    def _parse_perspectives_block(self, into: list[Perspective]) -> None:
+        """Parse a ``perspectives { … }`` block, appending to ``into``.
+
+        Upstream ``PerspectiveParser`` accepts two statement forms::
+
+            <name> <description> [value]
+            perspective <name> {
+                description <description>
+                value <value>
+                url <url>
+            }
+
+        The block form needs the ``perspective`` keyword and exactly one name
+        before the brace. Upstream rejects a malformed line and a duplicate
+        name outright; here each is reported and skipped instead.
+
+        Args:
+            into: The model item's perspective list.
+        """
         if not self._match(LBRACE):
-            return perspectives
+            return
         self._expect(LBRACE)
         while not self._match(RBRACE, EOF):
-            if not self._match(STRING, IDENT):
+            tok = self._peek()
+            if tok.type == LBRACE:
+                self._skip_perspective_junk(tok, "a block with no perspective name")
+                continue
+            if not self._match(STRING, IDENT, NUMBER):
                 self._advance()
                 continue
-            tok = self._advance()
-            values = [tok.value.strip('"')]
-            while self._match(STRING, IDENT) and self._peek().line == tok.line:
-                values.append(self._advance().value.strip('"'))
-            perspectives.append(
-                Perspective(
-                    name=values[0],
-                    description=values[1] if len(values) > 1 else "",
-                    value=values[2] if len(values) > 2 else "",
-                )
-            )
+            if (
+                tok.type == IDENT
+                and tok.value.lower() == "perspective"
+                and self._perspective_block_follows()
+            ):
+                perspective = self._parse_perspective_block()
+                self._add_perspective(into, perspective, tok)
+                continue
+            line_perspective = self._parse_perspective_line()
+            if line_perspective is not None:
+                self._add_perspective(into, line_perspective, tok)
         self._expect(RBRACE)
-        return perspectives
+
+    def _perspective_block_follows(self) -> bool:
+        """Whether the ``perspective`` at the cursor opens ``<name> {``."""
+        line = self._peek().line
+        ahead = self._tokens[self._pos + 1 : self._pos + 3]
+        return (
+            len(ahead) == 2
+            and ahead[0].type in (STRING, IDENT, NUMBER)
+            and ahead[1].type == LBRACE
+            and all(t.line == line for t in ahead)
+        )
+
+    def _parse_perspective_line(self) -> Perspective | None:
+        """Parse ``<name> <description> [value]``; report and skip otherwise."""
+        first = self._peek()
+        values: list[str] = []
+        while self._match(STRING, IDENT, NUMBER) and self._peek().line == first.line:
+            values.append(self._advance().value.strip('"'))
+        if self._match(LBRACE) and self._peek().line == first.line:
+            hint = (
+                "use 'perspective <name> { … }'"
+                if len(values) == 1
+                else "a block takes exactly one name"
+            )
+            self._skip_perspective_junk(first, f"a block ({hint})")
+            return None
+        if not 2 <= len(values) <= 3:
+            self._warn(
+                f"perspective {values[0]!r} expects <name> <description> [value], "
+                f"got {len(values)} token(s); skipped",
+                line=first.line,
+                column=first.column,
+                end_column=first.end_column,
+                code="invalid-perspective",
+            )
+            return None
+        return Perspective(
+            name=values[0],
+            description=values[1],
+            value=values[2] if len(values) == 3 else "",
+        )
+
+    def _parse_perspective_block(self) -> Perspective:
+        """Parse ``perspective <name> { description|value|url <text> }``."""
+        self._advance()  # consume 'perspective'
+        perspective = Perspective(name=self._advance().value.strip('"'))
+        self._expect(LBRACE)
+        while not self._match(RBRACE, EOF):
+            tok = self._peek()
+            kw = tok.value.lower() if tok.type == IDENT else ""
+            if kw not in ("description", "value", "url"):
+                self._skip_perspective_junk(tok, "an unknown perspective property")
+                continue
+            self._advance()
+            if self._match(STRING, IDENT, NUMBER) and self._peek().line == tok.line:
+                setattr(perspective, kw, self._advance().value.strip('"'))
+            else:
+                self._warn(
+                    f"{kw} in perspective {perspective.name!r} expects a value; "
+                    "ignored",
+                    line=tok.line,
+                    column=tok.column,
+                    end_column=tok.end_column,
+                    code="invalid-perspective",
+                )
+        self._expect(RBRACE)
+        return perspective
+
+    def _skip_perspective_junk(self, tok: Token, what: str) -> None:
+        """Skip the rest of ``tok``'s line, and any block it opens, reporting it."""
+        while not self._match(RBRACE, EOF) and self._peek().line == tok.line:
+            if self._match(LBRACE):
+                self._skip_block()
+                break
+            self._advance()
+        self._warn(
+            f"skipped {what} {tok.value!r} in perspectives",
+            line=tok.line,
+            column=tok.column,
+            end_column=tok.end_column,
+            code="invalid-perspective",
+        )
+
+    def _add_perspective(
+        self, into: list[Perspective], perspective: Perspective, tok: Token
+    ) -> None:
+        """Append ``perspective`` unless its name is taken, as upstream requires."""
+        if any(p.name == perspective.name for p in into):
+            self._warn(
+                f"a perspective named {perspective.name!r} already exists; "
+                "duplicate skipped",
+                line=tok.line,
+                column=tok.column,
+                end_column=tok.end_column,
+                code="duplicate-perspective",
+            )
+            return
+        into.append(perspective)
 
     def _parse_enterprise(self, ws: Workspace) -> None:
         self._advance()  # consume 'enterprise'
@@ -1511,7 +1628,7 @@ class _Parser:
                 rel.properties.update(self._parse_properties_block())
             elif kw == "perspectives":
                 self._advance()
-                rel.perspectives.extend(self._parse_perspectives_block())
+                self._parse_perspectives_block(rel.perspectives)
             else:
                 token = self._advance()
                 hint = ""
