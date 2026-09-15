@@ -48,7 +48,7 @@ import {
 } from "@c4studio/diagram-core";
 import { buildTrail, crumbLabel, drillTarget } from "../navigation";
 import { isTypingTarget } from "../shortcuts";
-import type { GraphData, ViewInfo, Workspace } from "../types";
+import type { GPerspective, GraphData, ViewInfo, Workspace } from "../types";
 import {
   EdgeContextMenu,
   type EdgeMenuState,
@@ -104,6 +104,14 @@ const INTERACTIONS: { value: Interaction; label: string }[] = [
 // Mouse buttons that pan while in select mode. Middle only: the right
 // button opens the relationship context menu.
 const PAN_BUTTONS = [1];
+
+/** The named perspective on a node's or edge's data, if it carries one. */
+function findPerspective(
+  data: { perspectives?: GPerspective[] } | undefined,
+  name: string,
+): GPerspective | undefined {
+  return data?.perspectives?.find((p) => p.name === name);
+}
 
 function storedEdgeStyle(): EdgeStyle {
   const raw = window.localStorage.getItem(EDGE_STYLE_STORAGE_KEY);
@@ -249,6 +257,7 @@ async function toFlow(
         curveOffset,
         waypoints: e.waypoints,
         labelOffset: e.labelOffset,
+        perspectives: e.perspectives,
       },
       // Workspace relationship styles where they matched, the dashed
       // Structurizr-parity defaults everywhere else.
@@ -370,6 +379,15 @@ export function GraphPane({
   );
   const [error, setError] = useState<string | null>(null);
   const [edgeStyle, setEdgeStyle] = useState<EdgeStyle>(storedEdgeStyle);
+  // The perspective being shown (PP-173). Kept across views, as upstream
+  // keeps its filter; ignored on a model that has no perspective by that
+  // name, so reloading after a rename does not leave everything faded.
+  const [perspective, setPerspective] = useState<string | null>(null);
+  const [perspectiveNames, setPerspectiveNames] = useState<string[]>([]);
+  const activePerspective =
+    perspective !== null && perspectiveNames.includes(perspective)
+      ? perspective
+      : null;
   // Hover emphasis: highlight the hovered relationship, dim the rest.
   const [hoverEmphasis, setHoverEmphasis] = useState<boolean>(storedHoverEmphasis);
   const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
@@ -965,8 +983,25 @@ export function GraphPane({
               : ("future" as const)
           : undefined;
       const hovered = edge.id === activeHover;
+      const shown =
+        activePerspective !== null
+          ? findPerspective(edge.data, activePerspective)
+          : undefined;
+      // A relationship `Perspective:` style recolours the line and its
+      // arrowhead together, as a relationship style does.
+      const recolour =
+        shown?.color && !hovered
+          ? {
+              style: { ...edge.style, stroke: shown.color },
+              markerEnd: {
+                ...(edge.markerEnd as object),
+                color: shown.color,
+              } as Edge["markerEnd"],
+            }
+          : {};
       return {
         ...edge,
+        ...recolour,
         // The marker swap is what lights the arrowhead up with the path:
         // markers keep their colour from edge definition, not from hover
         // styling, so the hovered edge gets the highlighted marker def.
@@ -976,6 +1011,8 @@ export function GraphPane({
           pathStyle: edgeStyle,
           animState,
           hoverState: hovered ? ("hovered" as const) : undefined,
+          dimmed: activePerspective !== null && !shown,
+          perspective: shown,
           onHoverChange: hoverEmphasis ? setHoveredEdgeId : undefined,
           onWaypointDrag: handleWaypointDrag,
           onLabelDrag: handleLabelDrag,
@@ -992,6 +1029,7 @@ export function GraphPane({
     animStep,
     hoverEmphasis,
     hoveredEdgeId,
+    activePerspective,
     handleWaypointDrag,
     handleWaypointDragEnd,
     handleWaypointMenu,
@@ -1012,13 +1050,50 @@ export function GraphPane({
   }, [edges]);
 
   const styledNodes = useMemo(() => {
-    if (!isDynamic || animStep === null) return nodes;
+    const animating = isDynamic && animStep !== null;
+    if (!animating && activePerspective === null) return nodes;
+    // Upstream fades the boundaries too once anything is faded, so the
+    // eye is left on what carries the perspective.
+    const anyFaded =
+      activePerspective !== null &&
+      nodes.some(
+        (node) =>
+          node.type === "element" &&
+          !findPerspective(node.data, activePerspective),
+      );
     return nodes.map((node) => {
-      const firstStep = firstStepByNode.get(node.id);
-      const future = firstStep !== undefined && firstStep > animStep;
-      return { ...node, className: future ? "anim-future" : undefined };
+      const classes: string[] = [];
+      if (animating) {
+        const firstStep = firstStepByNode.get(node.id);
+        if (firstStep !== undefined && firstStep > animStep) {
+          classes.push("anim-future");
+        }
+      }
+      let data = node.data;
+      if (activePerspective !== null && !isChromeNode(node.id)) {
+        const shown =
+          node.type === "element"
+            ? findPerspective(node.data, activePerspective)
+            : undefined;
+        if (shown) {
+          data = {
+            ...node.data,
+            color: shown.background ?? node.data.color,
+            textColor: shown.textColor ?? node.data.textColor,
+            stroke: shown.stroke ?? node.data.stroke,
+            perspective: shown,
+          };
+        } else if (node.type === "element" || anyFaded) {
+          classes.push("perspective-faded");
+        }
+      }
+      return {
+        ...node,
+        data,
+        className: classes.length > 0 ? classes.join(" ") : undefined,
+      };
     });
-  }, [nodes, isDynamic, animStep, firstStepByNode]);
+  }, [nodes, isDynamic, animStep, firstStepByNode, activePerspective]);
 
   useEffect(() => {
     if (!view || !view.supported) {
@@ -1058,6 +1133,7 @@ export function GraphPane({
             collapsed: data.collapsedIds ?? [],
           });
         }
+        setPerspectiveNames(data.perspectives ?? []);
         const flow = await toFlow(
           data,
           view,
@@ -1334,6 +1410,38 @@ export function GraphPane({
           >
             Snap
           </button>
+          {perspectiveNames.length > 0 ? (
+            <>
+              <span className="edge-style__divider" />
+              <label
+                className="edge-style__title"
+                htmlFor="perspective-picker"
+              >
+                Perspective
+              </label>
+              <select
+                id="perspective-picker"
+                className={
+                  "edge-style__select" +
+                  (activePerspective !== null
+                    ? " edge-style__select--active"
+                    : "")
+                }
+                title="Fade everything that does not carry this perspective"
+                value={activePerspective ?? ""}
+                onChange={(event) =>
+                  setPerspective(event.target.value || null)
+                }
+              >
+                <option value="">None</option>
+                {perspectiveNames.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </>
+          ) : null}
           {layoutState !== "idle" ? (
             <span
               className={

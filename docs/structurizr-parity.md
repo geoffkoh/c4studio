@@ -55,7 +55,8 @@ inferring behaviour from this document when the two might disagree.
 | Filtered views (tag include/exclude) | ✅ | ✅ | `filtered <baseKey> <include\|exclude> <tags> [key] [title]`; implicit tags participate; empty boundaries pruned; layout direction inherited from the base view |
 | Custom / image views | ✅ | ◐ | Parsed from DSL + JSON round-trip; not yet rendered in the webapp |
 | Per-type view fields (`enterpriseBoundaryVisible`, `externalSoftwareSystemBoundariesVisible`, `containerId`, `externalContainerBoundariesVisible`, `generatedKey`, `dimensions`, `mergeFromRemote`) | ✅ | ✅ | Held on the single `View` dataclass with structurizr-core's names and defaults, and round-tripped through workspace JSON. Java's nine typed view classes are deliberately not mirrored — see PP-36 |
-| Perspectives / animation of static views / health checks | ✅ | ◐ | Parsed from DSL + JSON export; not rendered |
+| Perspectives | ✅ | ◐ | **Static perspectives are rendered (PP-173).** A toolbar picker offers every perspective name in the model; anything without the chosen perspective fades to 0.1, as do the boundaries, and what has it gets a badge showing its value. `Perspective:<name>` and `Perspective:<name>[value==X]` element and relationship styles are resolved on the server, following upstream's `findStyleForPerspective`. Container and software system instances inherit perspectives from what they instantiate, as upstream does. An edge lifted from several relationships carries no perspectives, the same way upstream's implied relationships have none. **Dynamic perspectives** (a `url` the UI polls for a live value) are not implemented: the `url` is parsed and exported, but nothing fetches it. Not in `c4 render` output. |
+| Animation of static views / health checks | ✅ | ◐ | Parsed from DSL + JSON export; not rendered |
 
 ## Navigation & exploration
 
@@ -74,7 +75,7 @@ inferring behaviour from this document when the two might disagree.
 | Feature | Java UI | c4studio |
 | --- | --- | --- |
 | DSL parsing incl. `!include` | ✅ | ✅ |
-| Element body metadata (`description`, `technology`, `url`, `tags`, `properties`, `perspectives`) | ✅ | ✅ parsed into the model + JSON export; not rendered |
+| Element body metadata (`description`, `technology`, `url`, `tags`, `properties`, `perspectives`) | ✅ | ✅ parsed into the model + JSON export; perspectives drive the viewer's perspective overlay (PP-173) |
 | `properties` at workspace / model / views scope | ✅ three distinct holders | ✅ `Workspace.properties` (top level of the JSON, as `AbstractWorkspace.properties`), `Model.properties`, and the views configuration. They were two-thirds wrong until PP-105: workspace properties were written to the views configuration, and `views { properties … }` was skipped entirely |
 | Relationship metadata (positional tags + nested `tags`/`url`/`properties`/`perspectives`) and `this`/implicit-source relationships | ✅ | ✅ parsed into the model + JSON export |
 | Default relationship colour | `#444444` (`structurizr-ui.js`, `LIGHT_MODE_DEFAULTS.color`) | ⚠ **`#707070` — a deliberate divergence.** Upstream's value is 9.7:1 on white and reads as heavy ink; relationships are supporting detail in a C4 diagram, not its subject. `#707070` is 4.95:1, still well clear of the 3:1 WCAG 1.4.11 floor for non-text. Thickness (2) and line style (dashed) still match upstream, and a workspace `styles` block overrides all three |
@@ -119,7 +120,7 @@ editor (PP-125).
 
 ### Remaining gaps, should they ever be worth closing
 
-1. **Custom / image views, perspectives** — long-tail Structurizr
+1. **Custom / image views, dynamic perspectives** — long-tail Structurizr
    features with niche usage.
 2. **Multi-user anything** — locking, branches, accounts. Ruled out by
    design, not backlog: c4studio is local-first and shares through git.

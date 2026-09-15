@@ -3,6 +3,13 @@ import { Handle, Position, type NodeProps } from "reactflow";
 
 import { metaLine, nodeTooltip } from "../nodeMetrics";
 
+/** The active perspective as it applies to one item (PP-173). */
+export interface PerspectiveBadge {
+  name: string;
+  description: string;
+  value: string;
+}
+
 /** Colour used when the backend supplies no palette colour for a kind. */
 const FALLBACK_COLOR = "#78909c";
 
@@ -34,6 +41,16 @@ export interface ElementNodeData {
   expandable?: boolean;
   /** Callback wired by the graph pane to expand/collapse this node. */
   onToggleExpand?: (id: string, expand: boolean) => void;
+  /** Set while a perspective is shown and this element carries it. */
+  perspective?: PerspectiveBadge;
+}
+
+/** Hover text for a perspective badge: its name, description and value. */
+export function perspectiveHint(perspective: PerspectiveBadge): string {
+  const head = perspective.value
+    ? `${perspective.name}: ${perspective.value}`
+    : perspective.name;
+  return perspective.description ? `${head}\n${perspective.description}` : head;
 }
 
 /** CSS modifier class per Structurizr shape; unlisted shapes use the default. */
@@ -87,7 +104,10 @@ function ElementNodeComponent({ id, data }: NodeProps<ElementNodeData>) {
   const drillHint = drillable
     ? `Double-click to open ${data.drillLabel ?? "view"}`
     : null;
-  const hint = [overflow, drillHint].filter(Boolean).join("\n\n") || undefined;
+  const perspectiveText = data.perspective ? perspectiveHint(data.perspective) : null;
+  const hint =
+    [perspectiveText, overflow, drillHint].filter(Boolean).join("\n\n") ||
+    undefined;
 
   const handleExpand = (event: MouseEvent) => {
     event.stopPropagation();
@@ -122,6 +142,13 @@ function ElementNodeComponent({ id, data }: NodeProps<ElementNodeData>) {
         <div className="node__desc">{data.description}</div>
       ) : null}
       {drillable ? <div className="node__drill">⊕</div> : null}
+      {data.perspective ? (
+        // Absolutely placed on the border, so it never changes the size
+        // the layout measured the box at.
+        <div className="node__perspective">
+          {data.perspective.value || data.perspective.name}
+        </div>
+      ) : null}
       {expandable ? (
         <button
           className="node__expand"

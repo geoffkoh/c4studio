@@ -69,7 +69,11 @@ export {
   type GraphPayloadNode,
   type RenderOptions,
 } from "./svg";
-export { ElementNode, type ElementNodeData } from "./components/ElementNode";
+export {
+  ElementNode,
+  type ElementNodeData,
+  type PerspectiveBadge,
+} from "./components/ElementNode";
 export { BoundaryNode, type BoundaryNodeData } from "./components/BoundaryNode";
 export { FloatingEdge, type FloatingEdgeData } from "./components/FloatingEdge";
 export { ExportButtons } from "./components/ExportButtons";

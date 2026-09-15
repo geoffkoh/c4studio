@@ -12,6 +12,7 @@ import {
 } from "reactflow";
 
 import { EDGE_HOVER_COLOUR, EDGE_HOVER_WIDTH } from "../edgePaint";
+import { perspectiveHint, type PerspectiveBadge } from "./ElementNode";
 
 export interface FloatingEdgeData {
   /** Dragged offset from the label's computed place, in flow units. */
@@ -27,6 +28,10 @@ export interface FloatingEdgeData {
   animState?: "past" | "active" | "future";
   /** Set on the hovered edge so it pops; other edges are unaffected. */
   hoverState?: "hovered";
+  /** Faded because a perspective is shown that this relationship lacks. */
+  dimmed?: boolean;
+  /** Set while a perspective is shown and this relationship carries it. */
+  perspective?: PerspectiveBadge;
   /** Lets the label participate in hover tracking. */
   onHoverChange?: (edgeId: string | null) => void;
   /**
@@ -196,6 +201,8 @@ interface EdgeLabelProps {
   offset?: [number, number];
   animState?: string;
   hovered: boolean;
+  dimmed?: boolean;
+  perspective?: PerspectiveBadge;
   onHoverChange?: (edgeId: string | null) => void;
   onDrag?: (edgeId: string, dx: number, dy: number) => void;
   onDragEnd?: () => void;
@@ -223,6 +230,8 @@ function EdgeLabel({
   offset,
   animState,
   hovered,
+  dimmed,
+  perspective,
   onHoverChange,
   onDrag,
   onDragEnd,
@@ -238,7 +247,7 @@ function EdgeLabel({
       className={
         "edge-label nodrag nopan" +
         (animState === "active" ? " edge-label--active" : "") +
-        (animState === "future" ? " edge-label--future" : "") +
+        (animState === "future" || dimmed ? " edge-label--future" : "") +
         (hovered ? " edge-label--hovered" : "") +
         (draggable ? " edge-label--draggable" : "")
       }
@@ -283,9 +292,21 @@ function EdgeLabel({
         onDrag(id, 0, 0);
         onDragEnd?.();
       }}
-      title={draggable ? "Drag to move; double-click to reset" : undefined}
+      title={
+        [
+          perspective ? perspectiveHint(perspective) : null,
+          draggable ? "Drag to move; double-click to reset" : null,
+        ]
+          .filter(Boolean)
+          .join("\n\n") || undefined
+      }
     >
       {text}
+      {perspective ? (
+        <span className="edge-label__perspective">
+          {perspective.value || perspective.name}
+        </span>
+      ) : null}
     </div>
   );
 }
@@ -408,7 +429,10 @@ export function FloatingEdge({
       ? { stroke: EDGE_HOVER_COLOUR, strokeWidth: EDGE_HOVER_WIDTH - 0.4 }
       : animState === "future"
         ? { opacity: 0.08 }
-        : {};
+        : data?.dimmed
+          ? // Upstream fades what lacks the shown perspective to 0.1.
+            { opacity: 0.1 }
+          : {};
   const edgeStyle = { ...style, ...emphasis };
 
   return (
@@ -438,6 +462,8 @@ export function FloatingEdge({
             offset={data.labelOffset}
             animState={animState}
             hovered={hovered}
+            dimmed={data.dimmed}
+            perspective={data.perspective}
             onHoverChange={data.onHoverChange}
             onDrag={data.onLabelDrag}
             onDragEnd={data.onLabelDragEnd}
