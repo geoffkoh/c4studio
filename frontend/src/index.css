@@ -654,6 +654,41 @@ button {
   opacity: 0.18;
 }
 
+/* ---- Perspectives (PP-173) ---- */
+/* What lacks the shown perspective fades, at upstream's 0.1. */
+.react-flow__node.perspective-faded {
+  opacity: 0.1;
+}
+
+/* Sits on the top border, so it adds nothing to the measured box. */
+.node__perspective {
+  position: absolute;
+  top: -9px;
+  left: 8px;
+  max-width: calc(100% - 16px);
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.edge-label__perspective {
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 6px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
 .anim-controls {
   display: flex;
   align-items: center;
@@ -885,6 +920,23 @@ button {
 
 .edge-style__option--active {
   background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.edge-style__select {
+  font: inherit;
+  font-size: 12px;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 2px 4px;
+  max-width: 10rem;
+}
+
+.edge-style__select--active {
+  border-color: var(--accent);
   color: var(--accent);
   font-weight: 600;
 }

@@ -25,9 +25,11 @@ from c4studio.models import (
     Container,
     CustomElement,
     DeploymentNode,
+    ElementStyle,
     FilterMode,
     Location,
     Person,
+    Perspective,
     RankDirection,
     Relationship,
     RelationshipStyle,
@@ -344,6 +346,7 @@ def _edges(
                     "label": label,
                     "technology": technology,
                     **_edge_paint(styles, rel),
+                    **({} if lifted else _edge_perspectives(rel)),
                 },
             }
         )
@@ -568,6 +571,178 @@ def _edge_paint(styles: list[RelationshipStyle], rel: Relationship) -> dict[str,
     return paint
 
 
+#: Style tag prefix that paints an active perspective, upstream
+#: ``structurizr-ui.js``: ``Perspective:<name>`` for every item carrying the
+#: perspective, ``Perspective:<name>[value==<value>]`` for one value of it.
+PERSPECTIVE_STYLE_PREFIX = "Perspective:"
+
+
+def _perspective_entries(perspectives: Iterable[Perspective]) -> list[dict[str, str]]:
+    """Serialisable perspectives, first occurrence of each name winning."""
+    entries: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for perspective in perspectives:
+        name = perspective.name.strip()
+        if name in seen:
+            continue
+        seen.add(name)
+        entries.append(
+            {
+                "name": name,
+                "description": perspective.description,
+                "value": perspective.value,
+            }
+        )
+    return entries
+
+
+def _edge_perspectives(rel: Relationship) -> dict[str, Any]:
+    """Edge data for the relationship's perspectives; empty when it has none.
+
+    Only for an edge that *is* this relationship (or a deployment replica
+    of it). A lifted edge stands for however many relationships were
+    lifted onto it, so it carries none — as upstream, where implied
+    relationships are created without perspectives.
+    """
+    entries = _perspective_entries(rel.perspectives)
+    return {"perspectives": entries} if entries else {}
+
+
+def perspective_names(workspace: Workspace) -> list[str]:
+    """Every perspective name used anywhere in the model, sorted.
+
+    Workspace-wide rather than per view, as upstream offers them: picking a
+    perspective no element in this view carries dims the whole view, which
+    is itself the answer to "does anything here have one?".
+
+    Args:
+        workspace: The workspace to scan.
+
+    Returns:
+        Distinct, stripped perspective names in sorted order.
+    """
+    names = {
+        p.name.strip()
+        for perspectives in _perspectives_by_element(workspace).values()
+        for p in perspectives
+    }
+    names.update(
+        p.name.strip() for r in workspace.relationships for p in r.perspectives
+    )
+    return sorted(names)
+
+
+def _perspectives_by_element(workspace: Workspace) -> dict[str, list[Perspective]]:
+    """Perspectives per element id, instances inheriting their element's.
+
+    Upstream ``getPerspectiveForElement`` falls back from a software system
+    or container instance to the element it instantiates; an instance's own
+    perspective of the same name wins.
+    """
+    index: dict[str, list[Perspective]] = {}
+    for person in workspace.model.people:
+        index[person.id] = person.perspectives
+    for custom in workspace.model.custom_elements:
+        index[custom.id] = custom.perspectives
+    for system in workspace.model.software_systems:
+        index[system.id] = system.perspectives
+        for container in system.containers:
+            index[container.id] = container.perspectives
+            for component in container.components:
+                index[component.id] = component.perspectives
+
+    def walk(node: DeploymentNode) -> None:
+        index[node.id] = node.perspectives
+        for infra in node.infrastructure_nodes:
+            index[infra.id] = infra.perspectives
+        for ssi in node.software_system_instances:
+            inherited = index.get(ssi.software_system_id, [])
+            index[ssi.id] = [*ssi.perspectives, *inherited]
+        for ci in node.container_instances:
+            inherited = index.get(ci.container_id, [])
+            index[ci.id] = [*ci.perspectives, *inherited]
+        for child in node.children:
+            walk(child)
+
+    for node in workspace.model.deployment_nodes:
+        walk(node)
+    return index
+
+
+def _perspective_style[S: (ElementStyle, RelationshipStyle)](
+    styles: list[S], name: str, value: str
+) -> S | None:
+    """The style painting ``name`` at ``value``, per upstream resolution.
+
+    Mirrors ``findStyleForPerspective``: the last plain ``Perspective:<name>``
+    style, replaced by the last ``Perspective:<name>[value==<value>]`` that
+    matches. The whole style is chosen, not merged. Upstream matches the tag
+    by prefix, so ``Perspective:Sec`` would also paint ``Security``; the name
+    is matched exactly here. Dark-scheme variants are skipped, as for every
+    other style the viewer resolves.
+    """
+    base = PERSPECTIVE_STYLE_PREFIX + name
+    chosen: S | None = None
+    for style in styles:
+        if style.tag == base and style.color_scheme != ColorScheme.DARK:
+            chosen = style
+    for style in styles:
+        if (
+            style.tag == f"{base}[value=={value}]"
+            and style.color_scheme != ColorScheme.DARK
+        ):
+            chosen = style
+    return chosen
+
+
+def _attach_perspectives(workspace: Workspace, data: GraphData) -> None:
+    """Put perspectives, and the paint each one gets, on nodes and edges.
+
+    Node perspectives are looked up by element id here; edge perspectives
+    were attached where each edge was built, because only that code knows
+    whether the edge is a relationship or a lift of several. Each entry
+    carries the resolved ``Perspective:`` style fields — ``background``,
+    ``textColor`` and ``stroke`` for elements, ``color`` for relationships
+    — so every renderer paints a perspective without re-implementing style
+    resolution. Idempotent: a filtered view runs it over its base's graph
+    a second time.
+    """
+    element_styles = [
+        *theme_styles(workspace).element_styles,
+        *workspace.views.configuration.styles.element_styles,
+    ]
+    relationship_styles = _relationship_styles(workspace)
+    by_element = _perspectives_by_element(workspace)
+
+    for node in data["nodes"]:
+        entries = _perspective_entries(by_element.get(node["id"], []))
+        if not entries:
+            node["data"].pop("perspectives", None)
+            continue
+        for entry in entries:
+            element_style = _perspective_style(
+                element_styles, entry["name"], entry["value"]
+            )
+            if element_style is None:
+                continue
+            for field, attribute in (
+                ("background", "background"),
+                ("textColor", "color"),
+                ("stroke", "stroke"),
+            ):
+                if getattr(element_style, attribute):
+                    entry[field] = getattr(element_style, attribute)
+        node["data"]["perspectives"] = entries
+
+    for edge in data["edges"]:
+        for entry in edge["data"].get("perspectives", []):
+            relationship_style = _perspective_style(
+                relationship_styles, entry["name"], entry["value"]
+            )
+            if relationship_style is not None and relationship_style.color:
+                entry["color"] = relationship_style.color
+
+
 def _edge_text(styles: list[RelationshipStyle], rel: Relationship) -> tuple[str, str]:
     """Return the (description, technology) an edge should show.
 
@@ -760,6 +935,7 @@ def _deployment_data(workspace: Workspace, view: View) -> GraphData:
                     "label": label,
                     "technology": technology,
                     **_edge_paint(rel_styles, rel),
+                    **_edge_perspectives(rel),
                 },
             }
         )
@@ -865,6 +1041,7 @@ def _dynamic_data(workspace: Workspace, view: View) -> GraphData:
                         if model_rel is not None
                         else {}
                     ),
+                    **(_edge_perspectives(model_rel) if model_rel is not None else {}),
                 },
             }
         )
@@ -991,6 +1168,7 @@ def build_view_graph(
     if collapse:
         _collapse_group_nodes(data, collapse)
         data["legend"] = legend_entries(data["nodes"])
+    _attach_perspectives(workspace, data)
     _attach_layout_hints(workspace, view, data)
     return data
 
@@ -1113,6 +1291,10 @@ def _collapse_group_nodes(data: GraphData, collapse: set[str]) -> None:
             if existing["data"].get("label") != edge["data"].get("label"):
                 existing["data"]["label"] = f"{merge_counts[key]} relationships"
             continue
+        if (source, target) != (edge["source"], edge["target"]):
+            # Now a lift onto the group: it stands for its members'
+            # relationships, not one of them (see _edge_perspectives).
+            edge["data"].pop("perspectives", None)
         edge["source"] = source
         edge["target"] = target
         merged[key] = edge

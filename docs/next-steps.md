@@ -92,6 +92,24 @@ future change to comment, string or colour rules needs both.
 The fix needed a guard, not just a pattern — mid-line a `#` is a colour, so
 an unguarded rule swallows the rest of every `background #08427b` line.
 
+### Perspectives (15 September): PP-172, PP-173
+
+**PP-172: the parser misread the block form.** Upstream accepts
+`perspective <name> { description … value … url … }` as well as the
+one-line form. c4studio read the block as perspectives named `description`,
+`value` and `url`, with no warning. The block form needs the `perspective`
+keyword: a bare `Name { … }` is invalid upstream too. A
+first answer given in-session said otherwise, and reading
+`StructurizrDslParser` settled it.
+
+**PP-173: static perspective overlay.** A picker in the diagram toolbar,
+shown only when the model has perspectives. Upstream's "static vs
+dynamic" split is about where the **value** comes from, not the view
+type: a perspective with a `url` is polled for a live value, and that
+part is not built. Style resolution happens in `graph/view_graph.py`, so
+the SPA only paints what the server sends. The live view's legend still
+shows the unperspectived colours while a perspective is active.
+
 ---
 
 ## Open now

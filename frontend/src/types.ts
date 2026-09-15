@@ -61,6 +61,8 @@ export interface GNode {
     expandable?: boolean;
     /** On boundary nodes produced by expanding a container. */
     expanded?: boolean;
+    /** The element's perspectives, own then inherited (instances). */
+    perspectives?: GPerspective[];
   };
   /** Present on nodes nested inside a boundary group node. */
   parentId?: string;
@@ -68,6 +70,21 @@ export interface GNode {
   position?: { x: number; y: number };
   /** Persisted boundary dimensions, when the user resized it. */
   size?: { width: number; height: number };
+}
+
+/** One perspective on a node or edge, with any `Perspective:` style
+    already resolved by the server. Paint fields are absent when no style
+    set them. */
+export interface GPerspective {
+  name: string;
+  description: string;
+  value: string;
+  /** Element paint. */
+  background?: string;
+  textColor?: string;
+  stroke?: string;
+  /** Relationship paint. */
+  color?: string;
 }
 
 /** A React Flow edge as returned by GET /api/views/{key}/graph. */
@@ -88,6 +105,9 @@ export interface GEdge {
   lineStyle?: string;
   thickness?: number;
   opacity?: number;
+  /** Present only on an edge that is one relationship, not a lift of
+      several. */
+  perspectives?: GPerspective[];
 }
 
 /** Response body from GET /api/views/{key}/graph. */
@@ -102,6 +122,8 @@ export interface GraphData {
   nodeSeparation?: number;
   /** Distinct element styles used by this view, for the legend. */
   legend?: { label: string; colour: string; shape: string; border?: string }[];
+  /** Every perspective name in the model, sorted; offered by the picker. */
+  perspectives?: string[];
   /** Expansion state the server applied — the request's explicit lists, or
       the layout sidecar's saved state when the request named none. Clients
       seed their toggles from these on first load of a view. */

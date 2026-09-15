@@ -14,6 +14,7 @@ from c4studio.graph.view_graph import (
     KIND_COLOURS,
     build_view_graph,
     effective_layout,
+    perspective_names,
     rank_direction,
 )
 from c4studio.models import View, ViewType, Workspace
@@ -141,6 +142,8 @@ def react_flow_graph(
         for field in ("color", "lineStyle", "thickness", "opacity"):
             if field in edge_data:
                 edge[field] = edge_data[field]
+        if "perspectives" in edge_data:
+            edge["perspectives"] = edge_data["perspectives"]
         edges.append(edge)
 
     # Filtered views carry no layout of their own; inherit the base view's.
@@ -162,6 +165,9 @@ def react_flow_graph(
         # Derived once in the graph layer so the viewer, the toolbar export
         # and headless render all show the same legend (PP-99).
         "legend": graph_data.get("legend", []),
+        # Every name in the model, not just this view's, so the picker
+        # offers the same list on every view (PP-173).
+        "perspectives": perspective_names(workspace),
         "rankDirection": direction,
         "rankSeparation": rank_separation,
         "nodeSeparation": node_separation,
