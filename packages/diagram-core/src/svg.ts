@@ -30,6 +30,7 @@ import {
   normalizeStoredPositions,
   type RankDirection,
 } from "./layout";
+import { applyPerspective, type Perspective } from "./perspective";
 import {
   CHAR_RATIO,
   DESC_GAP,
@@ -85,6 +86,11 @@ export interface GraphPayloadNode {
     strokeWidth?: number;
     /** Percentage, as Structurizr spells it. */
     opacity?: number;
+    /** Perspectives the element carries, with any `Perspective:` style
+        already resolved by the server. */
+    perspectives?: Perspective[];
+    /** Set by `applyPerspective`: the value to badge this node with. */
+    perspectiveBadge?: string;
   };
 }
 
@@ -97,6 +103,7 @@ export interface GraphPayloadEdge {
   /** Resolved relationship-style paint; absent fields use the defaults
       (dashed, per upstream Structurizr). */
   color?: string;
+  perspectives?: Perspective[];
   lineStyle?: string;
   thickness?: number;
   /** Percentage, as Structurizr spells it (0–100). */
@@ -133,6 +140,9 @@ export interface RenderOptions {
   showTitle?: boolean;
   /** Draw the legend below the diagram (default: true when entries exist). */
   showLegend?: boolean;
+  /** Show one perspective: fade what lacks it, badge what carries it, and
+      rebuild the legend from its values (PP-178). */
+  perspective?: string;
   /** Blank margin around the diagram bounds. */
   padding?: number;
   /** Page background; `null` leaves it transparent. */
@@ -176,6 +186,9 @@ const LEGEND_GAP = 24;
 const LEGEND_PAD = 12;
 const LEGEND_COLUMN_WIDTH = 220;
 const LEGEND_MAX_ROWS = 6;
+// The perspective value badge, matching `.node__perspective` in the app.
+const BADGE_SIZE = 10;
+const BADGE_HEIGHT = 16;
 //: A row label is usually a tag and fits one line; a `c4studio.legend`
 //: caption is prose and does not, so rows take a second line when any
 //: label needs it. Uniform across the grid, so the rows stay aligned.
@@ -459,6 +472,31 @@ function paintNode(node: Placed): string {
     }
   }
 
+  // The perspective value, on the top border — the same place the viewer
+  // puts it, and outside the measured box, so a badge never costs the
+  // node's own text a line.
+  const badge = node.data.perspectiveBadge;
+  if (badge) {
+    const text = escapeXml(badge);
+    const badgeWidth = text.length * BADGE_SIZE * CHAR_RATIO + 10;
+    const badgeX = node.x + 8;
+    const badgeY = node.y - BADGE_HEIGHT / 2;
+    parts.push(
+      `<rect x="${round(badgeX)}" y="${round(badgeY)}" width="${round(badgeWidth)}" ` +
+        `height="${BADGE_HEIGHT}" rx="7" ry="7" fill="${EDGE_LABEL_BG}" ` +
+        `stroke="${EDGE_LABEL_BORDER}"/>` +
+        textLine(
+          text,
+          badgeX + badgeWidth / 2,
+          badgeY + BADGE_HEIGHT - 4,
+          BADGE_SIZE,
+          EDGE_LABEL_COLOUR,
+          1,
+          600,
+        ),
+    );
+  }
+
   // Structurizr's opacity is a percentage over the whole element, so it
   // wraps the finished node — the label must fade with its box, not stay
   // crisp on top of a washed-out shape.
@@ -471,19 +509,24 @@ function paintNode(node: Placed): string {
 
 function paintBoundary(node: Placed): string {
   const label = escapeXml(node.data.label ?? "");
+  const opacity = node.data.opacity;
+  const fade =
+    opacity !== undefined && opacity < 100
+      ? ` opacity="${round(Math.max(0, opacity) / 100)}"`
+      : "";
   const meta = node.data.boundaryLabel;
   const type = meta
     ? `<tspan font-weight="400" font-style="italic" opacity="0.85"> [${escapeXml(meta)}]</tspan>`
     : "";
-  return (
+  const markup =
     `<rect x="${round(node.x)}" y="${round(node.y)}" width="${round(node.width)}" ` +
     `height="${round(node.height)}" rx="${BOUNDARY_RADIUS}" ry="${BOUNDARY_RADIUS}" ` +
     `fill="${BOUNDARY_FILL}" stroke="${BOUNDARY_STROKE}" stroke-width="2" ` +
     `stroke-dasharray="6 4"/>` +
     `<text x="${round(node.x + 12)}" y="${round(node.y + node.height - 9)}" ` +
     `font-family="${FONT}" font-size="${BOUNDARY_LABEL_SIZE}" font-weight="600" ` +
-    `fill="${BOUNDARY_LABEL_COLOUR}">${label}${type}</text>`
-  );
+    `fill="${BOUNDARY_LABEL_COLOUR}">${label}${type}</text>`;
+  return fade ? `<g${fade}>${markup}</g>` : markup;
 }
 
 /** One arrowhead marker per line colour, so heads match their lines. */
@@ -563,12 +606,14 @@ function paintEdge(
   const cy = (mid.y + next.y) / 2;
   const [line] = wrap(edge.label, 220, EDGE_LABEL_SIZE, 1);
   const width = line.length * EDGE_LABEL_SIZE * CHAR_RATIO + 10;
-  return (
-    path +
+  // The plate fades with its line: a crisp label over a faded
+  // relationship reads as the label belonging to something else, which is
+  // exactly what a perspective is trying to say it does not.
+  const label =
     `<rect x="${round(cx - width / 2)}" y="${round(cy - 8)}" width="${round(width)}" ` +
     `height="16" rx="4" ry="4" fill="${EDGE_LABEL_BG}" stroke="${EDGE_LABEL_BORDER}"/>` +
-    textLine(line, cx, cy + 3.5, EDGE_LABEL_SIZE, EDGE_LABEL_COLOUR)
-  );
+    textLine(line, cx, cy + 3.5, EDGE_LABEL_SIZE, EDGE_LABEL_COLOUR);
+  return path + (opacity ? `<g${opacity}>${label}</g>` : label);
 }
 
 /** Widest line a 14px swatch can show and still read as a line. */
@@ -754,6 +799,9 @@ export async function renderSvg(
   options: RenderOptions = {},
 ): Promise<string> {
   const padding = options.padding ?? 24;
+  if (options.perspective) {
+    payload = applyPerspective(payload, options.perspective);
+  }
   const { nodes, edges } = toFlow(payload);
 
   const anyMissing = payload.nodes.some((n) => !n.position);

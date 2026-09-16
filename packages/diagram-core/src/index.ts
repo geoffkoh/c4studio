@@ -63,6 +63,11 @@ export {
 } from "./align";
 export { exportDiagram, type ExportFormat } from "./export";
 export {
+  applyPerspective,
+  perspectiveLegendEntries,
+  type Perspective,
+} from "./perspective";
+export {
   renderSvg,
   type GraphPayload,
   type GraphPayloadEdge,

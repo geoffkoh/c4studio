@@ -42,12 +42,12 @@ import {
   FloatingEdge,
   insertionIndex,
   layoutGraph,
+  perspectiveLegendEntries,
   normalizeStoredPositions,
   type ElementNodeData,
   type FloatingEdgeData,
 } from "@c4studio/diagram-core";
 import { buildTrail, crumbLabel, drillTarget } from "../navigation";
-import { perspectiveLegendEntries } from "../perspectiveLegend";
 import { isTypingTarget } from "../shortcuts";
 import type { GPerspective, GraphData, ViewInfo, Workspace } from "../types";
 import {

@@ -7,7 +7,8 @@
  * side re-implements the other.
  *
  * Usage: node diagram-render.mjs [--title "..."] [--padding 24]
- *                                 [--no-title] [--no-legend] < graph.json
+ *                                 [--no-title] [--no-legend]
+ *                                 [--perspective "Security"] < graph.json
  */
 
 import { renderSvg, type GraphPayload } from "./svg";
@@ -17,6 +18,7 @@ interface CliOptions {
   padding?: number;
   showTitle?: boolean;
   showLegend?: boolean;
+  perspective?: string;
 }
 
 function parseArgs(argv: string[]): CliOptions {
@@ -26,6 +28,7 @@ function parseArgs(argv: string[]): CliOptions {
     else if (argv[i] === "--padding") options.padding = Number(argv[++i]);
     else if (argv[i] === "--no-title") options.showTitle = false;
     else if (argv[i] === "--no-legend") options.showLegend = false;
+    else if (argv[i] === "--perspective") options.perspective = argv[++i];
   }
   return options;
 }
