@@ -117,7 +117,12 @@ class TestGraphData:
         )
         # `Relationship` is implicit on every relationship, so metadata goes
         # everywhere; the description only where the tag matches.
-        assert _edge(workspace, "u", "api") == {"label": "", "technology": ""}
+        # `styleTag` names the legend row this edge contributes (PP-174).
+        assert _edge(workspace, "u", "api") == {
+            "label": "",
+            "technology": "",
+            "styleTag": "Sensitive",
+        }
         assert _edge(workspace, "api", "db") == {
             "label": "Reads/writes",
             "technology": "",

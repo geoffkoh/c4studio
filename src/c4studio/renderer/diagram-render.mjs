@@ -9723,8 +9723,32 @@ function paintEdge(edge, placed) {
 	const width = line.length * EDGE_LABEL_SIZE * CHAR_RATIO + 10;
 	return path + `<rect x="${round(cx - width / 2)}" y="${round(cy - 8)}" width="${round(width)}" height="16" rx="4" ry="4" fill="${EDGE_LABEL_BG}" stroke="${EDGE_LABEL_BORDER}"/>` + textLine(line, cx, cy + 3.5, EDGE_LABEL_SIZE, EDGE_LABEL_COLOUR);
 }
+/** Widest line a 14px swatch can show and still read as a line. */
+var LEGEND_LINE_MAX_WIDTH = 3;
+/** Dash patterns at swatch scale, keyed by line style. */
+var LEGEND_LINE_DASH = {
+	dashed: " stroke-dasharray=\"3 2\"",
+	dotted: " stroke-dasharray=\"1 2\"",
+	solid: ""
+};
+/**
+* A miniature relationship: the line as styled, with an arrowhead.
+*
+* Drawn as an explicit triangle rather than through `marker-end`, so the
+* row does not depend on a marker def existing for this colour.
+*/
+function legendLineSwatch(entry, x, y) {
+	const size = LEGEND_SWATCH;
+	const colour = entry.colour || "#707070";
+	const width = Math.min(entry.thickness ?? 2, LEGEND_LINE_MAX_WIDTH);
+	const dash = LEGEND_LINE_DASH[entry.lineStyle === "solid" || entry.lineStyle === "dashed" || entry.lineStyle === "dotted" ? entry.lineStyle : EDGE_LINE_STYLE];
+	const mid = y + size / 2;
+	const head = x + size + 4;
+	return `<path d="M${round(x)} ${round(mid)} H${round(head - 6)}" fill="none" stroke="${colour}" stroke-width="${width}"${dash}/><path d="M${round(head - 7)} ${round(mid - 3.5)} L${round(head)} ${round(mid)} L${round(head - 7)} ${round(mid + 3.5)} Z" fill="${colour}"/>`;
+}
 /** A miniature of the node shape, so the swatch reads as what it explains. */
 function legendSwatch(entry, x, y) {
+	if (entry.kind === "relationship") return legendLineSwatch(entry, x, y);
 	const size = LEGEND_SWATCH;
 	const half = size / 2;
 	const fill = entry.colour || FALLBACK_FILL;

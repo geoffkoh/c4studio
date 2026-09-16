@@ -104,11 +104,17 @@ export interface GraphPayloadEdge {
 }
 
 export interface LegendEntry {
+  /** What the row explains; a relationship row draws a line, not a box. */
+  kind?: "element" | "relationship";
   label: string;
-  colour: string;
-  shape: string;
+  colour?: string;
+  /** Element rows only. */
+  shape?: string;
   /** "Dashed" | "Dotted" | "Solid" | "" — the swatch must show what the row claims. */
   border?: string;
+  /** Relationship rows only; absent fields fall back to the line defaults. */
+  lineStyle?: string;
+  thickness?: number;
 }
 
 export interface GraphPayload {
@@ -561,8 +567,50 @@ function paintEdge(
   );
 }
 
+/** Widest line a 14px swatch can show and still read as a line. */
+const LEGEND_LINE_MAX_WIDTH = 3;
+
+/** Dash patterns at swatch scale, keyed by line style. */
+const LEGEND_LINE_DASH: Record<string, string> = {
+  dashed: ' stroke-dasharray="3 2"',
+  dotted: ' stroke-dasharray="1 2"',
+  solid: "",
+};
+
+/**
+ * A miniature relationship: the line as styled, with an arrowhead.
+ *
+ * Drawn as an explicit triangle rather than through `marker-end`, so the
+ * row does not depend on a marker def existing for this colour.
+ */
+function legendLineSwatch(entry: LegendEntry, x: number, y: number): string {
+  const size = LEGEND_SWATCH;
+  const colour = entry.colour || EDGE_COLOUR;
+  const width = Math.min(entry.thickness ?? EDGE_WIDTH, LEGEND_LINE_MAX_WIDTH);
+  const lineStyle =
+    entry.lineStyle === "solid" ||
+    entry.lineStyle === "dashed" ||
+    entry.lineStyle === "dotted"
+      ? entry.lineStyle
+      : EDGE_LINE_STYLE;
+  // Swatch-scale dashes, not the edge's width-scaled ones: an 18px line
+  // at the real ratios fits a single dash and reads as solid, which is
+  // the one thing the row exists to distinguish. Same patterns the
+  // element border swatch uses.
+  const dash = LEGEND_LINE_DASH[lineStyle];
+  const mid = y + size / 2;
+  const head = x + size + 4;
+  return (
+    `<path d="M${round(x)} ${round(mid)} H${round(head - 6)}" fill="none" ` +
+    `stroke="${colour}" stroke-width="${width}"${dash}/>` +
+    `<path d="M${round(head - 7)} ${round(mid - 3.5)} L${round(head)} ${round(mid)} ` +
+    `L${round(head - 7)} ${round(mid + 3.5)} Z" fill="${colour}"/>`
+  );
+}
+
 /** A miniature of the node shape, so the swatch reads as what it explains. */
 function legendSwatch(entry: LegendEntry, x: number, y: number): string {
+  if (entry.kind === "relationship") return legendLineSwatch(entry, x, y);
   const size = LEGEND_SWATCH;
   const half = size / 2;
   const fill = entry.colour || FALLBACK_FILL;

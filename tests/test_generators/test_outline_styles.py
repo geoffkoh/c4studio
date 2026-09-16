@@ -136,7 +136,11 @@ class TestLegend:
         entries = _legend(workspace)
         assert entries, "the view has styles, so it must have a legend"
         for entry in entries:
-            assert set(entry) == {"label", "colour", "shape", "border"}
+            # Relationship rows carry only what a style set (PP-174), so
+            # the fixed shape is the element one.
+            assert entry["kind"] in {"element", "relationship"}
+            if entry["kind"] == "element":
+                assert set(entry) == {"kind", "label", "colour", "shape", "border"}
 
     def test_two_tags_differing_only_by_border_are_two_rows(self) -> None:
         workspace = parse_dsl(
@@ -160,7 +164,7 @@ class TestLegend:
             """
         )
         entries = build_view_graph(workspace, workspace.views[0])["legend"]
-        borders = {e["label"]: e["border"] for e in entries}
+        borders = {e["label"]: e["border"] for e in entries if e["kind"] == "element"}
         assert borders["New"] == "Solid"
         assert borders["Planned"] == "Dashed"
 
