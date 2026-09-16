@@ -91,22 +91,37 @@ test.describe("DSL highlighting", () => {
     // editor knew none of these words: `highlight.ts` is the SPA's only
     // copy of the vocabulary, so a keyword missing there is a keyword the
     // editor cannot see — the same shape of drift as PP-164.
-    await openSource(page, "logistics_network.dsl", "workspace \"NorthWind Logistics\"");
-    await scrollTo(page, "perspectives {");
-
-    const block = page.locator(".editor__surface .cm-line", { hasText: "perspectives {" }).first();
-    await expect(block.locator(".dsl-keyword")).toHaveCount(1);
+    await openSource(
+      page,
+      "logistics_network.dsl",
+      'workspace "NorthWind Logistics"',
+    );
+    // Both assertions are about one screenful: `url` on line 49 and the
+    // `perspectives` block on line 54. Asserting against a line 70 further
+    // down failed on CI and passed locally — a StreamLanguage highlights
+    // as its parser catches up, so a deep line can render as plain text
+    // first, and "no token yet" is indistinguishable from "not a keyword".
+    // The generous timeouts are for the same reason.
+    await scrollTo(page, 'url "https://api.northwind.example');
 
     // `url` went in with the perspective words: it is a model-item body
     // property the vocabulary had never carried, so a `perspective` block
     // would have been lit half way.
-    await scrollTo(page, "url \"https://wiki.northwind.example");
     const url = page
       .locator(".editor__surface .cm-line", {
-        hasText: "url \"https://wiki.northwind.example",
+        hasText: 'url "https://api.northwind.example',
       })
       .first();
-    await expect(url.locator(".dsl-property")).toHaveCount(1);
+    await expect(url.locator(".dsl-property")).toHaveCount(1, {
+      timeout: 20_000,
+    });
+
+    const block = page
+      .locator(".editor__surface .cm-line", { hasText: "perspectives {" })
+      .first();
+    await expect(block.locator(".dsl-keyword")).toHaveCount(1, {
+      timeout: 20_000,
+    });
   });
 
   test("a mid-line # is still a colour", async ({ page }) => {
