@@ -45,6 +45,10 @@ export const DSL_KEYWORDS: ReadonlySet<string> = new Set([
   "themes",
   "branding",
   "terminology",
+  // Perspectives: the block, and the `perspective <name> { … }` form
+  // inside it (PP-177). The parser has taken both since PP-172.
+  "perspectives",
+  "perspective",
 ]);
 
 export const DSL_PROPERTIES: ReadonlySet<string> = new Set([
@@ -64,6 +68,17 @@ export const DSL_PROPERTIES: ReadonlySet<string> = new Set([
   "height",
   "thickness",
   "dashed",
+  // Model-item body properties. `value` and `url` are what a
+  // `perspective` block is made of, and the rest were missing with them
+  // — this set is the SPA's only copy of the vocabulary, so a keyword
+  // absent here is a keyword the editor cannot see (PP-177).
+  "description",
+  "technology",
+  "tags",
+  "url",
+  "value",
+  "properties",
+  "metadata",
 ]);
 
 /**
