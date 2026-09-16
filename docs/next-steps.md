@@ -168,6 +168,24 @@ First e2e coverage of the overlay is in `e2e/perspectives.spec.ts`, and
 the legend assertion was **checked red** against the previous bundle
 before being trusted green.
 
+### Editor vocabulary for perspectives (17 September): PP-177
+
+`highlight.ts` is the SPA's only copy of the DSL vocabulary, and it
+carried neither `perspectives` nor `perspective` — nor, it turned out,
+`description`, `technology`, `tags`, `url`, `value`, `properties` or
+`metadata`. A perspective block would have lit half way even after adding
+just its own two words, so the model-item body properties went in with
+them. Completion comes free: `dslComplete.ts` builds its list from these
+same sets.
+
+**The e2e spec ordering trap.** The new highlighting test passed alone and
+failed in the full run: switching files swaps the buffer under the same
+CodeMirror instance, and the first paint can be the new text with no
+tokens yet. `openSource` now waits for a line unique to the file before
+anything asserts, and every line locator is scoped to `.editor__surface`.
+Worth remembering the next time a spec here is green on its own — these
+specs share one backend and one `AppState`.
+
 ---
 
 ## Open now

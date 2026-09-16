@@ -25,18 +25,32 @@ import { expect, test, type Page } from "@playwright/test";
  * buffer — a `#` comment in `model` and `#08427b` in `styles`. Via the
  * search box for the reason layout.spec.ts gives: the backend holds the
  * loaded workspace, so clicking through the tree works once per server. */
-async function openC4studioSource(page: Page) {
+async function openSource(
+  page: Page,
+  path = "c4studio/workspace.dsl",
+  marker = "workspace \"c4studio\"",
+) {
   await page.goto("/");
   const rail = page.locator(".rail--left");
   if (await rail.isVisible()) await rail.click();
-  await page
-    .getByRole("searchbox", { name: "Search files" })
-    .fill("c4studio/workspace.dsl");
-  await page.getByRole("button", { name: "workspace.dsl", exact: true }).click();
+  await page.getByRole("searchbox", { name: "Search files" }).fill(path);
+  const file = path.split("/").pop() as string;
+  await page.getByRole("button", { name: file, exact: true }).click();
   await page.getByRole("button", { name: "Source" }).click();
   await expect(page.locator(".editor__surface .cm-editor")).toBeVisible();
+  // Switching files while another workspace is loaded swaps the buffer
+  // under the same editor, and the first paint can be the new text with
+  // the old (or no) tokens. Waiting for a line this file alone contains
+  // means the assertions below are about highlighting rather than about
+  // catching the editor mid-swap.
+  await expect(
+    page.locator(".editor__surface .cm-line", { hasText: marker }).first(),
+  ).toBeVisible({ timeout: 15_000 });
   await page.getByRole("searchbox", { name: "Search files" }).fill("");
 }
+
+/** The c4studio sample, which carries both `#` cases in one buffer. */
+const openC4studioSource = (page: Page) => openSource(page);
 
 /** Scroll the editor until `text` is rendered.
  *
@@ -47,7 +61,7 @@ async function openC4studioSource(page: Page) {
 async function scrollTo(page: Page, text: string) {
   const scroller = page.locator(".editor__surface .cm-scroller");
   for (let i = 0; i < 40; i++) {
-    if (await page.locator(".cm-line", { hasText: text }).count()) return;
+    if (await page.locator(".editor__surface .cm-line", { hasText: text }).count()) return;
     await scroller.evaluate((el) => {
       el.scrollTop += el.clientHeight;
     });
@@ -61,7 +75,7 @@ test.describe("DSL highlighting", () => {
   }) => {
     await openC4studioSource(page);
 
-    const line = page.locator(".cm-line", { hasText: "Split across model/" });
+    const line = page.locator(".editor__surface .cm-line", { hasText: "Split across model/" });
     await expect(line).toHaveCount(1);
     await expect(line.locator(".dsl-comment")).toHaveCount(1);
 
@@ -72,11 +86,49 @@ test.describe("DSL highlighting", () => {
     await expect(line.locator(".dsl-property")).toHaveCount(0);
   });
 
+  test("the perspective vocabulary is painted (PP-177)", async ({ page }) => {
+    // `logistics_network.dsl` is the sample carrying perspectives. The
+    // editor knew none of these words: `highlight.ts` is the SPA's only
+    // copy of the vocabulary, so a keyword missing there is a keyword the
+    // editor cannot see — the same shape of drift as PP-164.
+    await openSource(
+      page,
+      "logistics_network.dsl",
+      'workspace "NorthWind Logistics"',
+    );
+    // Both assertions are about one screenful: `url` on line 49 and the
+    // `perspectives` block on line 54. Asserting against a line 70 further
+    // down failed on CI and passed locally — a StreamLanguage highlights
+    // as its parser catches up, so a deep line can render as plain text
+    // first, and "no token yet" is indistinguishable from "not a keyword".
+    // The generous timeouts are for the same reason.
+    await scrollTo(page, 'url "https://api.northwind.example');
+
+    // `url` went in with the perspective words: it is a model-item body
+    // property the vocabulary had never carried, so a `perspective` block
+    // would have been lit half way.
+    const url = page
+      .locator(".editor__surface .cm-line", {
+        hasText: 'url "https://api.northwind.example',
+      })
+      .first();
+    await expect(url.locator(".dsl-property")).toHaveCount(1, {
+      timeout: 20_000,
+    });
+
+    const block = page
+      .locator(".editor__surface .cm-line", { hasText: "perspectives {" })
+      .first();
+    await expect(block.locator(".dsl-keyword")).toHaveCount(1, {
+      timeout: 20_000,
+    });
+  });
+
   test("a mid-line # is still a colour", async ({ page }) => {
     await openC4studioSource(page);
     await scrollTo(page, "background #08427b");
 
-    const line = page.locator(".cm-line", { hasText: "background #08427b" });
+    const line = page.locator(".editor__surface .cm-line", { hasText: "background #08427b" });
     // If the comment pattern were added without the start-of-line guard,
     // this line would paint as a comment from the `#` onward — worse than
     // the bug being fixed.
