@@ -72,6 +72,20 @@ export interface GNode {
   size?: { width: number; height: number };
 }
 
+/** One legend row. `kind` says which half of the shape applies: an
+    element row draws a swatch of the node, a relationship row draws the
+    line with an arrowhead. A relationship row carries only what a style
+    set — the renderers supply the rest from the line defaults. */
+export interface GLegendEntry {
+  kind: "element" | "relationship";
+  label: string;
+  colour?: string;
+  shape?: string;
+  border?: string;
+  lineStyle?: string;
+  thickness?: number;
+}
+
 /** One perspective on a node or edge, with any `Perspective:` style
     already resolved by the server. Paint fields are absent when no style
     set them. */
@@ -121,7 +135,7 @@ export interface GraphData {
   rankSeparation?: number;
   nodeSeparation?: number;
   /** Distinct element styles used by this view, for the legend. */
-  legend?: { label: string; colour: string; shape: string; border?: string }[];
+  legend?: GLegendEntry[];
   /** Every perspective name in the model, sorted; offered by the picker. */
   perspectives?: string[];
   /** Expansion state the server applied — the request's explicit lists, or

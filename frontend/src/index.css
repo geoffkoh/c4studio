@@ -2381,6 +2381,16 @@ button {
   border: 1.5px dashed #90a4ae;
 }
 
+/* A relationship row draws its line, so the box styling is all off. */
+.legend__swatch--line {
+  width: 18px;
+  height: 12px;
+  background: none;
+  border: none;
+  border-radius: 0;
+  overflow: visible;
+}
+
 /* Draggable relationship labels. The grab cursor is the only affordance —
    the label already looks interactive when hovered. */
 .edge-label--draggable {

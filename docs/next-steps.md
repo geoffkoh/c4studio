@@ -110,6 +110,30 @@ part is not built. Style resolution happens in `graph/view_graph.py`, so
 the SPA only paints what the server sends. The live view's legend still
 shows the unperspectived colours while a perspective is active.
 
+### Relationship rows in the legend (16 September): PP-174
+
+The legend was built from element styles only, so a tagged and styled
+relationship was painted and never explained. Upstream's diagram key has
+always had these rows. **No DSL change** — `relationship "<tag>" { … }`
+was already parsed and painted; only the row was missing.
+
+Two things worth knowing if you touch this again:
+
+- **Swatch dashes are drawn at swatch scale, not the edge's.** The real
+  ratios are width-scaled (`10 6` at width 2), which fits a single dash in
+  an 18px line and reads as *solid* — so the default dashed relationship
+  looked identical to a solid one in the first cut. Caught by looking at
+  the rendered SVG, not by any test.
+- **An element row is still labelled by the last matching tag**, while the
+  new relationship rows join every matched tag as upstream does. That
+  inconsistency is deliberate: element labels are pinned by
+  `tests/test_samples/test_delta_release.py` and changing them would churn
+  every committed diagram.
+
+Legend entries now carry `kind` (`"element"` / `"relationship"`), which
+changed the shape pinned by `tests/test_legend.py` and
+`tests/test_generators/test_outline_styles.py`.
+
 ---
 
 ## Open now

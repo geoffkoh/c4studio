@@ -485,22 +485,42 @@ BOUNDARY_LEGEND: dict[str, str] = {
 }
 
 
-def legend_entries(nodes: list[GraphNode]) -> list[dict[str, str]]:
-    """Distinct element styles used by ``nodes``, in first-appearance order.
+#: What an unstyled relationship is called. Upstream resolves every drawn
+#: relationship to a style, so a plain one lands under the implicit
+#: ``Relationship`` tag and the default dashed line still gets explained.
+DEFAULT_RELATIONSHIP_LABEL = "Relationship"
 
-    One entry per visually distinct combination, labelled by the style tag
-    that produced it when there was one and by the C4 kind otherwise. Order
-    follows the node list rather than a set, so repeated renders stay
-    byte-identical — committed diagrams must not churn.
+
+def legend_entries(
+    nodes: list[GraphNode], edges: list[GraphEdge] | None = None
+) -> list[dict[str, Any]]:
+    """Distinct styles used by ``nodes`` and ``edges``, first-appearance order.
+
+    One entry per visually distinct combination. An element row is labelled
+    by the style tag that produced it when there was one and by the C4 kind
+    otherwise; a relationship row by every tag whose style matched, joined
+    as upstream's ``createTagsList`` joins them, and by ``Relationship``
+    when only the implicit tag did. Order follows the node and edge lists
+    rather than a set, so repeated renders stay byte-identical — committed
+    diagrams must not churn.
+
+    Relationship rows carry only what a style actually set: the defaults
+    live in the renderers (``edgeDefaults.ts``), so a row for an unstyled
+    relationship draws whatever the renderer draws for one.
 
     Args:
         nodes: Graph nodes, after styles have been applied.
+        edges: Graph edges, after paint has been resolved. Omitted for a
+            node-only legend.
 
     Returns:
-        Entries of ``label``, ``colour``, ``shape`` and ``border``; a single
-        boundary entry is appended when the view draws any.
+        Entries carrying ``kind`` — ``"element"`` or ``"relationship"``.
+        Element entries add ``label``, ``colour``, ``shape`` and ``border``;
+        a single boundary entry is appended when the view draws any.
+        Relationship entries add ``label`` and any of ``colour``,
+        ``lineStyle`` and ``thickness`` that a style set.
     """
-    entries: list[dict[str, str]] = []
+    entries: list[dict[str, Any]] = []
     seen: set[tuple[str, str, str, str]] = set()
     has_boundary = False
     for node in nodes:
@@ -525,10 +545,42 @@ def legend_entries(nodes: list[GraphNode]) -> list[dict[str, str]]:
             continue
         seen.add(key)
         entries.append(
-            {"label": label, "colour": colour, "shape": shape, "border": border}
+            {
+                "kind": "element",
+                "label": label,
+                "colour": colour,
+                "shape": shape,
+                "border": border,
+            }
         )
     if has_boundary:
-        entries.append(dict(BOUNDARY_LEGEND))
+        entries.append({"kind": "element", **BOUNDARY_LEGEND})
+    entries.extend(_relationship_legend_entries(edges or []))
+    return entries
+
+
+def _relationship_legend_entries(edges: list[GraphEdge]) -> list[dict[str, Any]]:
+    """One row per distinct relationship style drawn, in edge order."""
+    entries: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, str, int | None]] = set()
+    for edge in edges:
+        data = edge.get("data", {})
+        label = str(data.get("styleTag") or DEFAULT_RELATIONSHIP_LABEL)
+        colour = str(data.get("color", ""))
+        line_style = str(data.get("lineStyle", ""))
+        thickness = data.get("thickness")
+        key = (label, colour, line_style, thickness)
+        if key in seen:
+            continue
+        seen.add(key)
+        entry: dict[str, Any] = {"kind": "relationship", "label": label}
+        if colour:
+            entry["colour"] = colour
+        if line_style:
+            entry["lineStyle"] = line_style
+        if thickness is not None:
+            entry["thickness"] = thickness
+        entries.append(entry)
     return entries
 
 
@@ -555,9 +607,16 @@ def _edge_paint(styles: list[RelationshipStyle], rel: Relationship) -> dict[str,
     if not styles:
         return paint
     tags = {"Relationship", *rel.tags}
+    matched: list[str] = []
     for style in styles:
         if style.tag not in tags or style.color_scheme == ColorScheme.DARK:
             continue
+        # What the legend row is called. Upstream's `createTagsList` joins
+        # every matched tag, dropping the implicit `Relationship` — a
+        # relationship styled as both `Async` and `New` gets one row saying
+        # so, rather than a row per tag or a silent pick between them.
+        if style.tag != "Relationship" and style.tag not in matched:
+            matched.append(style.tag)
         if style.color:
             paint["color"] = style.color
         if style.thickness is not None:
@@ -568,6 +627,8 @@ def _edge_paint(styles: list[RelationshipStyle], rel: Relationship) -> dict[str,
             paint["lineStyle"] = style.style.value.lower()
         elif style.dashed is not None:
             paint["lineStyle"] = "dashed" if style.dashed else "solid"
+    if matched:
+        paint["styleTag"] = ", ".join(matched)
     return paint
 
 
@@ -1167,7 +1228,7 @@ def build_view_graph(
     data = _view_graph_data(workspace, view, expand)
     if collapse:
         _collapse_group_nodes(data, collapse)
-        data["legend"] = legend_entries(data["nodes"])
+        data["legend"] = legend_entries(data["nodes"], data["edges"])
     _attach_perspectives(workspace, data)
     _attach_layout_hints(workspace, view, data)
     return data
@@ -1458,7 +1519,7 @@ def _view_graph_data(
 
 def _with_legend(data: GraphData) -> GraphData:
     """Attach legend entries to finished graph data, in place."""
-    data["legend"] = legend_entries(data["nodes"])
+    data["legend"] = legend_entries(data["nodes"], data["edges"])
     return data
 
 

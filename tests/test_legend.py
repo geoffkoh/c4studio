@@ -8,6 +8,7 @@ viewer, and both renderers consume the same entries.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -61,6 +62,28 @@ workspace "W" {
 """
 
 
+RELATIONSHIPS = """
+workspace "W" {{
+    model {{
+        s = softwareSystem "S" {{
+            a = container "A"
+            b = container "B"
+            c = container "C"
+        }}
+        a -> b "Calls"
+        b -> c "Queues work for" "Kafka" "Async,New"
+        a -> c "Reads from"
+    }}
+    views {{
+        container s "cont" {{ include * }}
+        styles {{
+            {styles}
+        }}
+    }}
+}}
+"""
+
+
 def _view(workspace: Workspace, key: str) -> View:
     return next(v for v in workspace.views if v.key == key)
 
@@ -103,16 +126,28 @@ class TestEntries:
         """Ordering by node order, not a set, keeps renders byte-identical."""
         workspace = parse_dsl(WORKSPACE)
         data = build_view_graph(workspace, _view(workspace, "cont"))
-        assert data["legend"] == legend_entries(data["nodes"])
+        assert data["legend"] == legend_entries(data["nodes"], data["edges"])
         again = build_view_graph(workspace, _view(workspace, "cont"))
         assert again["legend"] == data["legend"]
 
     def test_entries_carry_what_a_swatch_needs(self) -> None:
         workspace = parse_dsl(WORKSPACE)
         for entry in build_view_graph(workspace, _view(workspace, "cont"))["legend"]:
+            if entry["kind"] == "relationship":
+                # A relationship row carries only what a style set; the
+                # renderers supply the rest from their own defaults (PP-174).
+                assert entry["label"]
+                assert set(entry) <= {
+                    "kind",
+                    "label",
+                    "colour",
+                    "lineStyle",
+                    "thickness",
+                }
+                continue
             # `border` joined the contract in PP-107 so the swatch can draw
             # the outline the row's style declares.
-            assert set(entry) == {"label", "colour", "shape", "border"}
+            assert set(entry) == {"kind", "label", "colour", "shape", "border"}
             assert entry["colour"].startswith("#")
             assert entry["shape"]
 
@@ -125,6 +160,91 @@ class TestEntries:
         entry_labels = [e["label"] for e in data["legend"]]
         for label in boundary_labels:
             assert label not in entry_labels
+
+
+class TestRelationshipRows:
+    """Rows for relationship styles (PP-174).
+
+    Upstream's diagram key draws an arrow per relationship style in use
+    (``structurizr-diagram.js:5040``) and labels it with every matched tag
+    joined, via ``createTagsList``. c4studio painted those lines but left
+    them unexplained.
+    """
+
+    def _entries(self, dsl: str) -> list[dict[str, Any]]:
+        workspace = parse_dsl(dsl)
+        data = build_view_graph(workspace, _view(workspace, "cont"))
+        return [e for e in data["legend"] if e["kind"] == "relationship"]
+
+    def test_unstyled_relationships_get_one_default_row(self) -> None:
+        """The default dashed grey line is explained, as upstream does."""
+        [row] = self._entries(RELATIONSHIPS.format(styles=""))
+        assert row["label"] == "Relationship"
+        # Nothing was set, so the renderers' own defaults draw the swatch.
+        assert set(row) == {"kind", "label"}
+
+    def test_a_styled_tag_names_its_row_and_carries_the_paint(self) -> None:
+        rows = self._entries(
+            RELATIONSHIPS.format(
+                styles='relationship "New" { color #2e7d32 thickness 4 style solid }'
+            )
+        )
+        new = next(r for r in rows if r["label"] == "New")
+        assert new["colour"] == "#2e7d32"
+        assert new["thickness"] == 4
+        assert new["lineStyle"] == "solid"
+        # The untagged relationships still contribute their own row.
+        assert [r["label"] for r in rows] == ["Relationship", "New"]
+
+    def test_several_matched_tags_are_joined_as_upstream_joins_them(self) -> None:
+        rows = self._entries(
+            RELATIONSHIPS.format(
+                styles=(
+                    'relationship "Async" { style dotted }\n'
+                    '            relationship "New" { color #2e7d32 }'
+                )
+            )
+        )
+        assert "Async, New" in [r["label"] for r in rows]
+
+    def test_a_tag_with_no_style_never_names_a_row(self) -> None:
+        """Only styles in use appear, so an unstyled tag is invisible."""
+        rows = self._entries(RELATIONSHIPS.format(styles=""))
+        assert [r["label"] for r in rows] == ["Relationship"]
+
+    def test_identically_styled_relationships_share_one_row(self) -> None:
+        rows = self._entries(
+            RELATIONSHIPS.format(styles='relationship "Relationship" { color #123456 }')
+        )
+        assert len(rows) == 1
+        assert rows[0]["colour"] == "#123456"
+
+    def test_a_view_with_no_edges_has_no_relationship_row(self) -> None:
+        workspace = parse_dsl(
+            """
+            workspace "W" {
+                model {
+                    s = softwareSystem "S" {
+                        a = container "A"
+                    }
+                }
+                views {
+                    container s "cont" { include * }
+                }
+            }
+            """
+        )
+        data = build_view_graph(workspace, _view(workspace, "cont"))
+        assert [e for e in data["legend"] if e["kind"] == "relationship"] == []
+
+    def test_rows_come_after_the_element_rows(self) -> None:
+        """Elements, then the boundary, then relationships."""
+        workspace = parse_dsl(RELATIONSHIPS.format(styles=""))
+        kinds = [
+            e["kind"]
+            for e in build_view_graph(workspace, _view(workspace, "cont"))["legend"]
+        ]
+        assert kinds == sorted(kinds, key=lambda k: k == "relationship")
 
 
 class TestEveryViewType:
