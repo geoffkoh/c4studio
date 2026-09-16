@@ -191,6 +191,7 @@ _ELEMENT_STYLE_PROPS = frozenset(
         "height",
         "metadata",
         "description",
+        "properties",
     }
 )
 
@@ -1822,6 +1823,12 @@ class _Parser:
                 continue
             prop_token = self._advance()
             prop = prop_token.value.lower()
+            if prop == "properties" and self._match(LBRACE):
+                # A style is a PropertyHolder upstream (`AbstractStyle`), so
+                # this is the documented place for anything the language
+                # itself has no keyword for — see `c4studio.legend`.
+                style.properties.update(self._parse_properties_block())
+                continue
             if prop in ("light", "dark") and self._match(LBRACE):
                 variant = ElementStyle(
                     tag=style.tag,
@@ -1897,6 +1904,9 @@ class _Parser:
                 self._advance()
                 continue
             prop = self._advance().value.lower()
+            if prop == "properties" and self._match(LBRACE):
+                style.properties.update(self._parse_properties_block())
+                continue
             if prop in ("light", "dark") and self._match(LBRACE):
                 variant = RelationshipStyle(
                     tag=style.tag,

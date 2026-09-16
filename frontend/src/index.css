@@ -2343,7 +2343,9 @@ button {
 .legend__label {
   font-size: 11px;
   color: #44546f;
-  white-space: nowrap;
+  /* A tag fits one line; a `c4studio.legend` caption is prose, so rows
+     wrap rather than pushing the panel off the canvas. */
+  max-width: 200px;
 }
 
 .legend__swatch {

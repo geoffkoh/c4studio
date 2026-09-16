@@ -479,6 +479,7 @@ def _element_style(style: ElementStyle) -> JsonDict:
             "description": style.description,
             "colorScheme": style.color_scheme.value if style.color_scheme else None,
             "iconPosition": style.icon_position.value if style.icon_position else None,
+            "properties": dict(style.properties),
         }
     )
 
@@ -500,6 +501,7 @@ def _relationship_style(style: RelationshipStyle) -> JsonDict:
             "metadata": style.metadata,
             "description": style.description,
             "colorScheme": style.color_scheme.value if style.color_scheme else None,
+            "properties": dict(style.properties),
         }
     )
 

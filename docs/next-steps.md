@@ -134,6 +134,24 @@ Legend entries now carry `kind` (`"element"` / `"relationship"`), which
 changed the shape pinned by `tests/test_legend.py` and
 `tests/test_generators/test_outline_styles.py`.
 
+### Legend captions and style properties (16 September): PP-175
+
+Two things in one change, the first a parity fix that stood on its own:
+`properties { … }` inside a style block is valid upstream DSL
+(`StructurizrDslParser.java:675-679`) and c4studio dropped it silently,
+losing it from JSON round-trips too. `ElementStyle` and
+`RelationshipStyle` now carry it.
+
+On top of that, `c4studio.legend` on a style names that style's legend
+row — the way to get wording into a legend that a tag name cannot carry,
+without leaving Structurizr's grammar. **The namespaced-property escape
+hatch is the pattern to reach for** whenever c4studio needs to express
+something the DSL has no keyword for: upstream ignores the key, the file
+still parses everywhere, and `c4studio.autolayout` was already doing this.
+
+Captions are prose, so legend rows now wrap to a second line (all rows, to
+keep the grid aligned) and `.legend__label` lost its `nowrap`.
+
 ---
 
 ## Open now

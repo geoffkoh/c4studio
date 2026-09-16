@@ -9508,6 +9508,7 @@ var LEGEND_GAP = 24;
 var LEGEND_PAD = 12;
 var LEGEND_COLUMN_WIDTH = 220;
 var LEGEND_MAX_ROWS = 6;
+var LEGEND_MAX_LABEL_LINES = 2;
 var ARROW = 10;
 var EDGE_LABEL_SIZE = 10;
 var EDGE_LABEL_COLOUR = "#6b7684";
@@ -9780,18 +9781,23 @@ function legendSwatch(entry, x, y) {
 * doubling the height of the image.
 */
 function paintLegend(entries, x, y) {
+	const labelWidth = 186;
+	const labels = entries.map((entry) => wrap(entry.label, labelWidth, LEGEND_LABEL_SIZE, LEGEND_MAX_LABEL_LINES));
 	const rows = Math.min(entries.length, LEGEND_MAX_ROWS);
-	const width = Math.ceil(entries.length / LEGEND_MAX_ROWS) * LEGEND_COLUMN_WIDTH + 24;
-	const height = rows * LEGEND_ROW + 24;
+	const columns = Math.ceil(entries.length / LEGEND_MAX_ROWS);
+	const rowHeight = labels.some((lines) => lines.length > 1) ? 35 : LEGEND_ROW;
+	const width = columns * LEGEND_COLUMN_WIDTH + 24;
+	const height = rows * rowHeight + 24;
 	const parts = [`<rect x="${round(x)}" y="${round(y)}" width="${round(width)}" height="${round(height)}" rx="6" fill="#ffffff" stroke="${EDGE_LABEL_BORDER}"/>`];
 	entries.forEach((entry, index) => {
 		const column = Math.floor(index / LEGEND_MAX_ROWS);
 		const row = index % LEGEND_MAX_ROWS;
 		const cellX = x + LEGEND_PAD + column * LEGEND_COLUMN_WIDTH;
-		const cellY = y + LEGEND_PAD + row * LEGEND_ROW;
+		const cellY = y + LEGEND_PAD + row * rowHeight;
 		parts.push(legendSwatch(entry, cellX, cellY + 3));
-		const [label] = wrap(entry.label, 186, LEGEND_LABEL_SIZE, 1);
-		parts.push(textLine(label ?? "", cellX + LEGEND_SWATCH + 8, cellY + LEGEND_SWATCH - 2, LEGEND_LABEL_SIZE, LEGEND_LABEL_COLOUR, 1, 400, "start"));
+		labels[index].forEach((line, lineIndex) => {
+			parts.push(textLine(line, cellX + LEGEND_SWATCH + 8, cellY + LEGEND_SWATCH - 2 + lineIndex * 13, LEGEND_LABEL_SIZE, LEGEND_LABEL_COLOUR, 1, 400, "start"));
+		});
 	});
 	return {
 		markup: parts.join(""),
