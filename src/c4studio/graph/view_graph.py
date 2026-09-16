@@ -427,6 +427,12 @@ def _apply_styles(workspace: Workspace, nodes: list[GraphNode]) -> None:
             # ("Container"). `Element` is the catch-all and names nothing.
             if style.tag != "Element":
                 data["styleTag"] = style.tag
+            # A caption set by the *last* matching style wins, as its paint
+            # does; `Element` may carry one, since it is a real style even
+            # though it names nothing.
+            caption = style.properties.get(LEGEND_LABEL_PROPERTY, "")
+            if caption:
+                data["styleLabel"] = caption
             if style.background:
                 data["background"] = style.background
             if style.color:
@@ -531,7 +537,7 @@ def legend_entries(
             continue
         if kind not in _KIND_NAMES:
             continue
-        label = str(data.get("styleTag") or _KIND_NAMES[kind])
+        label = str(data.get("styleLabel") or data.get("styleTag") or _KIND_NAMES[kind])
         colour = str(data.get("background") or KIND_COLOURS.get(kind, ""))
         default_shape = "Person" if kind.startswith("person") else "RoundedBox"
         shape = str(data.get("shape") or default_shape)
@@ -565,7 +571,9 @@ def _relationship_legend_entries(edges: list[GraphEdge]) -> list[dict[str, Any]]
     seen: set[tuple[str, str, str, int | None]] = set()
     for edge in edges:
         data = edge.get("data", {})
-        label = str(data.get("styleTag") or DEFAULT_RELATIONSHIP_LABEL)
+        label = str(
+            data.get("styleLabel") or data.get("styleTag") or DEFAULT_RELATIONSHIP_LABEL
+        )
         colour = str(data.get("color", ""))
         line_style = str(data.get("lineStyle", ""))
         thickness = data.get("thickness")
@@ -617,6 +625,9 @@ def _edge_paint(styles: list[RelationshipStyle], rel: Relationship) -> dict[str,
         # so, rather than a row per tag or a silent pick between them.
         if style.tag != "Relationship" and style.tag not in matched:
             matched.append(style.tag)
+        caption = style.properties.get(LEGEND_LABEL_PROPERTY, "")
+        if caption:
+            paint["styleLabel"] = caption
         if style.color:
             paint["color"] = style.color
         if style.thickness is not None:
@@ -630,6 +641,13 @@ def _edge_paint(styles: list[RelationshipStyle], rel: Relationship) -> dict[str,
     if matched:
         paint["styleTag"] = ", ".join(matched)
     return paint
+
+
+#: Style property that names a legend row, when the tag is not wording
+#: enough. A style is a ``PropertyHolder`` upstream (``AbstractStyle``), so
+#: this is valid Structurizr DSL that upstream simply ignores — the same
+#: escape hatch as ``structurizr.perspective.interval`` (PP-175).
+LEGEND_LABEL_PROPERTY = "c4studio.legend"
 
 
 #: Style tag prefix that paints an active perspective, upstream

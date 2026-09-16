@@ -247,6 +247,69 @@ class TestRelationshipRows:
         assert kinds == sorted(kinds, key=lambda k: k == "relationship")
 
 
+class TestCaptions:
+    """`c4studio.legend` names a row when the tag cannot (PP-175).
+
+    Valid upstream DSL — a style is a `PropertyHolder` — so a workspace
+    carrying one still parses everywhere; upstream just ignores the key.
+    """
+
+    CAPTIONS = """
+    workspace "W" {{
+        model {{
+            s = softwareSystem "S" {{
+                a = container "A" {{ tags "Datastore" }}
+                b = container "B"
+            }}
+            a -> b "Reads" "" "New"
+        }}
+        views {{
+            container s "cont" {{ include * }}
+            styles {{
+                {styles}
+            }}
+        }}
+    }}
+    """
+
+    def _labels(self, styles: str) -> list[str]:
+        workspace = parse_dsl(self.CAPTIONS.format(styles=styles))
+        data = build_view_graph(workspace, _view(workspace, "cont"))
+        return [e["label"] for e in data["legend"]]
+
+    def test_caption_replaces_an_element_tag(self) -> None:
+        labels = self._labels(
+            'element "Datastore" { properties { "c4studio.legend" "Durable store" } }'
+        )
+        assert "Durable store" in labels
+        assert "Datastore" not in labels
+
+    def test_caption_replaces_a_relationship_tag(self) -> None:
+        labels = self._labels(
+            'relationship "New" { properties { "c4studio.legend" "Added in 24" } }'
+        )
+        assert "Added in 24" in labels
+        assert "New" not in labels
+
+    def test_a_style_without_one_still_uses_its_tag(self) -> None:
+        labels = self._labels('element "Datastore" { shape Cylinder }')
+        assert "Datastore" in labels
+
+    def test_the_last_matching_style_wins_as_its_paint_does(self) -> None:
+        labels = self._labels(
+            'element "Datastore" { properties { "c4studio.legend" "First" } }\n'
+            '                element "Element" '
+            '{ properties { "c4studio.legend" "Second" } }'
+        )
+        assert "Second" in labels
+        assert "First" not in labels
+
+    def test_an_unrelated_property_names_nothing(self) -> None:
+        labels = self._labels('element "Datastore" { properties { "owner" "team-a" } }')
+        assert "Datastore" in labels
+        assert "team-a" not in labels
+
+
 class TestEveryViewType:
     @pytest.mark.parametrize(
         "key",

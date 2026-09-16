@@ -449,6 +449,7 @@ def _parse_element_style(data: dict[str, Any]) -> ElementStyle:
         description=data.get("description"),
         color_scheme=_enum_or_none(ColorScheme, data.get("colorScheme")),
         icon_position=_enum_or_none(IconPosition, data.get("iconPosition")),
+        properties=dict(data.get("properties", {})),
     )
 
 
@@ -468,6 +469,7 @@ def _parse_relationship_style(data: dict[str, Any]) -> RelationshipStyle:
         metadata=data.get("metadata"),
         description=data.get("description"),
         color_scheme=_enum_or_none(ColorScheme, data.get("colorScheme")),
+        properties=dict(data.get("properties", {})),
     )
 
 

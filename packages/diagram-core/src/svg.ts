@@ -176,6 +176,10 @@ const LEGEND_GAP = 24;
 const LEGEND_PAD = 12;
 const LEGEND_COLUMN_WIDTH = 220;
 const LEGEND_MAX_ROWS = 6;
+//: A row label is usually a tag and fits one line; a `c4studio.legend`
+//: caption is prose and does not, so rows take a second line when any
+//: label needs it. Uniform across the grid, so the rows stay aligned.
+const LEGEND_MAX_LABEL_LINES = 2;
 
 // From edgeDefaults.ts, which deliberately imports no reactflow so this
 // headless path can share it. They used to be separate copies.
@@ -676,10 +680,17 @@ function paintLegend(
   x: number,
   y: number,
 ): { markup: string; width: number; height: number } {
+  const labelWidth = LEGEND_COLUMN_WIDTH - LEGEND_SWATCH - 20;
+  const labels = entries.map((entry) =>
+    wrap(entry.label, labelWidth, LEGEND_LABEL_SIZE, LEGEND_MAX_LABEL_LINES),
+  );
   const rows = Math.min(entries.length, LEGEND_MAX_ROWS);
   const columns = Math.ceil(entries.length / LEGEND_MAX_ROWS);
+  const rowHeight = labels.some((lines) => lines.length > 1)
+    ? LEGEND_ROW + LEGEND_LABEL_SIZE + 2
+    : LEGEND_ROW;
   const width = columns * LEGEND_COLUMN_WIDTH + 2 * LEGEND_PAD;
-  const height = rows * LEGEND_ROW + 2 * LEGEND_PAD;
+  const height = rows * rowHeight + 2 * LEGEND_PAD;
 
   const parts = [
     `<rect x="${round(x)}" y="${round(y)}" width="${round(width)}" height="${round(height)}" ` +
@@ -689,26 +700,22 @@ function paintLegend(
     const column = Math.floor(index / LEGEND_MAX_ROWS);
     const row = index % LEGEND_MAX_ROWS;
     const cellX = x + LEGEND_PAD + column * LEGEND_COLUMN_WIDTH;
-    const cellY = y + LEGEND_PAD + row * LEGEND_ROW;
+    const cellY = y + LEGEND_PAD + row * rowHeight;
     parts.push(legendSwatch(entry, cellX, cellY + 3));
-    const [label] = wrap(
-      entry.label,
-      LEGEND_COLUMN_WIDTH - LEGEND_SWATCH - 20,
-      LEGEND_LABEL_SIZE,
-      1,
-    );
-    parts.push(
-      textLine(
-        label ?? "",
-        cellX + LEGEND_SWATCH + 8,
-        cellY + LEGEND_SWATCH - 2,
-        LEGEND_LABEL_SIZE,
-        LEGEND_LABEL_COLOUR,
-        1,
-        400,
-        "start",
-      ),
-    );
+    labels[index].forEach((line, lineIndex) => {
+      parts.push(
+        textLine(
+          line,
+          cellX + LEGEND_SWATCH + 8,
+          cellY + LEGEND_SWATCH - 2 + lineIndex * (LEGEND_LABEL_SIZE + 2),
+          LEGEND_LABEL_SIZE,
+          LEGEND_LABEL_COLOUR,
+          1,
+          400,
+          "start",
+        ),
+      );
+    });
   });
   return { markup: parts.join(""), width, height };
 }

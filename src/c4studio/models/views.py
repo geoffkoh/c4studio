@@ -182,6 +182,7 @@ class ElementStyle:
     description: bool | None = None
     color_scheme: ColorScheme | None = None
     icon_position: IconPosition | None = None
+    properties: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -202,6 +203,7 @@ class RelationshipStyle:
     metadata: bool | None = None
     description: bool | None = None
     color_scheme: ColorScheme | None = None
+    properties: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
