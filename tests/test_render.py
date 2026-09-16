@@ -60,6 +60,72 @@ def _view(workspace: Workspace, key: str) -> View:
     return next(v for v in workspace.views if v.key == key)
 
 
+class TestPerspectiveFlag:
+    """`c4 render --perspective` (PP-178).
+
+    The overlay the viewer has shown since PP-173, in the file that gets
+    committed — so a security or ownership view can be an artefact rather
+    than something you have to open the app to see.
+    """
+
+    LOGISTICS = SAMPLES / "logistics_network.dsl"
+
+    def test_an_unknown_name_is_refused_with_the_available_ones(self) -> None:
+        """A name nothing carries would render a uniformly faded diagram.
+
+        The viewer can afford that — its picker lists what exists. At the
+        command line the same result is indistinguishable from a bug.
+        """
+        runner = CliRunner()
+        result = runner.invoke(
+            cli, ["render", str(self.LOGISTICS), "--perspective", "nope"]
+        )
+        assert result.exit_code != 0
+        assert "No perspective named 'nope'" in result.output
+        assert "capacity, reliability, security" in result.output
+
+    def test_the_check_happens_before_node_is_needed(self) -> None:
+        """So the refusal reads the same on a machine without Node."""
+        runner = CliRunner()
+        result = runner.invoke(
+            cli, ["render", str(self.LOGISTICS), "--perspective", "nope"]
+        )
+        assert "Node" not in result.output
+
+    @needs_node
+    def test_the_diagram_is_repainted_for_the_perspective(self) -> None:
+        workspace = parse_dsl_file(self.LOGISTICS)
+        view = _view(workspace, "PlatformContainers")
+        plain = render_view(workspace, view)
+        shown = render_view(workspace, view, perspective="security")
+
+        # The value badge, which only the overlay draws.
+        assert ">security</text>" in shown
+        assert ">security</text>" not in plain
+        # Everything without it fades; `opacity` is what the emitter
+        # already honours, so the overlay needs no notion of its own.
+        assert 'opacity="0.1"' in shown
+        assert 'opacity="0.1"' not in plain
+
+    @needs_node
+    def test_the_legend_lists_the_perspective_not_the_styles(self) -> None:
+        workspace = parse_dsl_file(self.LOGISTICS)
+        view = _view(workspace, "PlatformContainers")
+        shown = render_view(workspace, view, perspective="security")
+        assert ">Not in security</text>" in shown
+        # A style row here would explain a colour the diagram is no longer
+        # painted with.
+        assert ">Message Bus</text>" not in shown
+
+    @needs_node
+    def test_without_the_flag_nothing_changes(self) -> None:
+        workspace = parse_dsl_file(self.LOGISTICS)
+        view = _view(workspace, "PlatformContainers")
+        assert render_view(workspace, view) == render_view(
+            workspace, view, perspective=None
+        )
+
+
 class TestWithoutNode:
     def test_the_bundled_renderer_ships_with_the_package(self) -> None:
         """The wheel must carry it; a stale checkout is the usual cause."""

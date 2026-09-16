@@ -77,6 +77,7 @@ def render_view(
     title: str | None = None,
     show_title: bool = True,
     show_legend: bool = True,
+    perspective: str | None = None,
 ) -> str:
     """Render ``view`` as a standalone SVG document.
 
@@ -97,6 +98,11 @@ def render_view(
             document ``<title>`` is written either way — it is metadata,
             not ink.
         show_legend: Draw the legend of styles used, when the view has any.
+        perspective: Show one perspective — fade what does not carry it,
+            badge what does, and list its values in the legend. The name
+            is not validated here; one nothing carries fades the diagram
+            whole, which is the honest answer to "does anything here have
+            it?" and what the viewer's picker does too.
 
     Returns:
         A complete SVG document.
@@ -124,6 +130,8 @@ def render_view(
         command.append("--no-title")
     if not show_legend:
         command.append("--no-legend")
+    if perspective:
+        command += ["--perspective", perspective]
 
     try:
         result = subprocess.run(

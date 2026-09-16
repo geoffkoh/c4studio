@@ -9485,6 +9485,170 @@ async function normalizeStoredPositions(nodes, edges) {
 	});
 }
 //#endregion
+//#region src/perspective.ts
+/** Swatch colour for a value that no `Perspective:` style painted. */
+var UNSTYLED_COLOUR = "#90a4ae";
+/** Swatch colour for the row explaining what faded out. */
+var FADED_COLOUR = "#d7dce1";
+/** Opacity, as a Structurizr percentage, for what lacks the perspective.
+The renderers already fade a node or an edge by this, so the overlay
+needs no separate notion of "faded". */
+var FADED_OPACITY = 10;
+/** The named perspective on a node's or edge's data, if it carries one. */
+function find(perspectives, name) {
+	return perspectives?.find((p) => p.name === name);
+}
+/**
+* A row's wording: the perspective's value, or its name when it has none.
+*
+* A perspective is free to carry only a description (`security "PII
+* encrypted at rest"`), and every such item then lands on one row saying
+* which perspective it is — still the answer to "what is highlighted".
+*/
+function labelFor(perspective, name) {
+	return perspective.value || name;
+}
+/**
+* Legend rows for the perspective being shown, replacing the style rows.
+*
+* One row per distinct value carried by something on the diagram —
+* elements first, then relationships, each in the order they appear so
+* repeated renders stay stable — plus a final row for what faded, when
+* anything did. A value that no `Perspective:` style painted gets a
+* neutral swatch: the items keep their own colours, so no single colour
+* would be telling the truth, and the row is then saying which items
+* carry the value rather than what colour means what.
+*
+* @param nodes Graph nodes, carrying their perspectives.
+* @param edges Graph edges, carrying theirs.
+* @param name The perspective being shown.
+* @returns Rows in the same shape the legend already renders.
+*/
+function perspectiveLegendEntries(nodes, edges, name) {
+	const entries = [];
+	const seen = /* @__PURE__ */ new Set();
+	let anyFaded = false;
+	for (const node of nodes) {
+		if (node.type !== "element") continue;
+		const shown = find(node.data.perspectives, name);
+		if (!shown) {
+			anyFaded = true;
+			continue;
+		}
+		const label = labelFor(shown, name);
+		const colour = shown.background ?? UNSTYLED_COLOUR;
+		const key = `element:${label}:${colour}`;
+		if (seen.has(key)) continue;
+		seen.add(key);
+		entries.push({
+			kind: "element",
+			label,
+			colour,
+			shape: "RoundedBox",
+			border: ""
+		});
+	}
+	for (const edge of edges) {
+		const shown = find(edge.data?.perspectives, name);
+		if (!shown) {
+			anyFaded = true;
+			continue;
+		}
+		const label = labelFor(shown, name);
+		const key = `relationship:${label}:${shown.color ?? ""}`;
+		if (seen.has(key)) continue;
+		seen.add(key);
+		entries.push({
+			kind: "relationship",
+			label,
+			...shown.color ? { colour: shown.color } : {}
+		});
+	}
+	if (anyFaded) entries.push({
+		kind: "element",
+		label: `Not in ${name}`,
+		colour: FADED_COLOUR,
+		shape: "RoundedBox",
+		border: ""
+	});
+	return entries;
+}
+/**
+* A payload repainted for one perspective, as the viewer paints it.
+*
+* Everything that carries the perspective keeps its place and takes the
+* `Perspective:` style's colours (when one matched) plus a badge showing
+* its value; everything else — boundaries included, once anything has
+* faded — drops to `FADED_OPACITY`. The legend is rebuilt from the
+* values, for the reason at the top of this file.
+*
+* Expressed as a transform of the payload rather than as painting rules
+* so the SVG emitter needs no notion of perspectives at all: fading is
+* the `opacity` it already honours, and recolouring is the `background`
+* it already reads.
+*
+* @param payload The graph payload as the server built it.
+* @param name The perspective to show.
+* @returns A new payload; the original is not modified.
+*/
+function applyPerspective(payload, name) {
+	const entries = perspectiveLegendEntries(payload.nodes.map((node) => ({
+		type: node.data.kind === "boundary" ? "boundary" : "element",
+		data: node.data
+	})), payload.edges.map((edge) => ({ data: { perspectives: edge.perspectives } })), name);
+	let anyFaded = false;
+	const nodes = payload.nodes.map((node) => {
+		if (node.data.kind === "boundary") return node;
+		const shown = node.data.perspectives?.find((p) => p.name === name);
+		if (!shown) {
+			anyFaded = true;
+			return {
+				...node,
+				data: {
+					...node.data,
+					opacity: FADED_OPACITY
+				}
+			};
+		}
+		return {
+			...node,
+			data: {
+				...node.data,
+				...shown.background ? { background: shown.background } : {},
+				...shown.textColor ? { textColor: shown.textColor } : {},
+				...shown.stroke ? { stroke: shown.stroke } : {},
+				perspectiveBadge: shown.value || name
+			}
+		};
+	});
+	const edges = payload.edges.map((edge) => {
+		const shown = edge.perspectives?.find((p) => p.name === name);
+		if (!shown) {
+			anyFaded = true;
+			return {
+				...edge,
+				opacity: FADED_OPACITY
+			};
+		}
+		return {
+			...edge,
+			...shown.color ? { color: shown.color } : {}
+		};
+	});
+	return {
+		...payload,
+		nodes: anyFaded ? nodes.map((node) => node.data.kind === "boundary" ? {
+			...node,
+			data: {
+				...node.data,
+				opacity: FADED_OPACITY
+			}
+		} : node) : nodes,
+		edges,
+		legend: entries
+	};
+}
+//#endregion
 //#region src/svg.ts
 var FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
 var NODE_RADIUS = 8;
@@ -9508,6 +9672,8 @@ var LEGEND_GAP = 24;
 var LEGEND_PAD = 12;
 var LEGEND_COLUMN_WIDTH = 220;
 var LEGEND_MAX_ROWS = 6;
+var BADGE_SIZE = 10;
+var BADGE_HEIGHT = 16;
 var LEGEND_MAX_LABEL_LINES = 2;
 var ARROW = 10;
 var EDGE_LABEL_SIZE = 10;
@@ -9668,15 +9834,26 @@ function paintNode(node) {
 			cursor += 13;
 		}
 	}
+	const badge = node.data.perspectiveBadge;
+	if (badge) {
+		const text = escapeXml(badge);
+		const badgeWidth = text.length * BADGE_SIZE * CHAR_RATIO + 10;
+		const badgeX = node.x + 8;
+		const badgeY = node.y - BADGE_HEIGHT / 2;
+		parts.push(`<rect x="${round(badgeX)}" y="${round(badgeY)}" width="${round(badgeWidth)}" height="${BADGE_HEIGHT}" rx="7" ry="7" fill="${EDGE_LABEL_BG}" stroke="${EDGE_LABEL_BORDER}"/>` + textLine(text, badgeX + badgeWidth / 2, badgeY + BADGE_HEIGHT - 4, BADGE_SIZE, EDGE_LABEL_COLOUR, 1, 600));
+	}
 	const opacity = node.data.opacity;
 	if (opacity !== void 0 && opacity < 100) return `<g opacity="${round(Math.max(0, opacity) / 100)}">${parts.join("")}</g>`;
 	return parts.join("");
 }
 function paintBoundary(node) {
 	const label = escapeXml(node.data.label ?? "");
+	const opacity = node.data.opacity;
+	const fade = opacity !== void 0 && opacity < 100 ? ` opacity="${round(Math.max(0, opacity) / 100)}"` : "";
 	const meta = node.data.boundaryLabel;
 	const type = meta ? `<tspan font-weight="400" font-style="italic" opacity="0.85"> [${escapeXml(meta)}]</tspan>` : "";
-	return `<rect x="${round(node.x)}" y="${round(node.y)}" width="${round(node.width)}" height="${round(node.height)}" rx="${BOUNDARY_RADIUS}" ry="${BOUNDARY_RADIUS}" fill="${BOUNDARY_FILL}" stroke="${BOUNDARY_STROKE}" stroke-width="2" stroke-dasharray="6 4"/><text x="${round(node.x + 12)}" y="${round(node.y + node.height - 9)}" font-family="${FONT}" font-size="${BOUNDARY_LABEL_SIZE}" font-weight="600" fill="${BOUNDARY_LABEL_COLOUR}">${label}${type}</text>`;
+	const markup = `<rect x="${round(node.x)}" y="${round(node.y)}" width="${round(node.width)}" height="${round(node.height)}" rx="${BOUNDARY_RADIUS}" ry="${BOUNDARY_RADIUS}" fill="${BOUNDARY_FILL}" stroke="${BOUNDARY_STROKE}" stroke-width="2" stroke-dasharray="6 4"/><text x="${round(node.x + 12)}" y="${round(node.y + node.height - 9)}" font-family="${FONT}" font-size="${BOUNDARY_LABEL_SIZE}" font-weight="600" fill="${BOUNDARY_LABEL_COLOUR}">${label}${type}</text>`;
+	return fade ? `<g${fade}>${markup}</g>` : markup;
 }
 /** One arrowhead marker per line colour, so heads match their lines. */
 function arrowMarkerId(colour) {
@@ -9714,7 +9891,9 @@ function paintEdge(edge, placed) {
 	const colour = edge.color || "#707070";
 	const strokeWidth = edge.thickness ?? 2;
 	const lineStyle = edge.lineStyle === "solid" || edge.lineStyle === "dashed" || edge.lineStyle === "dotted" ? edge.lineStyle : EDGE_LINE_STYLE;
-	const path = `<path d="${d}" fill="none" stroke="${colour}" stroke-width="${strokeWidth}"${lineStyle === "dashed" ? ` stroke-dasharray="${round(strokeWidth * 5)} ${round(strokeWidth * 3)}"` : lineStyle === "dotted" ? ` stroke-dasharray="${round(strokeWidth)} ${round(strokeWidth * 2.5)}"` : ""}${edge.opacity !== void 0 ? ` opacity="${edge.opacity / 100}"` : ""} marker-end="url(#${arrowMarkerId(colour)})"/>`;
+	const dash = lineStyle === "dashed" ? ` stroke-dasharray="${round(strokeWidth * 5)} ${round(strokeWidth * 3)}"` : lineStyle === "dotted" ? ` stroke-dasharray="${round(strokeWidth)} ${round(strokeWidth * 2.5)}"` : "";
+	const opacity = edge.opacity !== void 0 ? ` opacity="${edge.opacity / 100}"` : "";
+	const path = `<path d="${d}" fill="none" stroke="${colour}" stroke-width="${strokeWidth}"${dash}${opacity} marker-end="url(#${arrowMarkerId(colour)})"/>`;
 	if (!edge.label) return path;
 	const mid = points[Math.floor((points.length - 1) / 2)];
 	const next = points[Math.floor((points.length - 1) / 2) + 1] ?? mid;
@@ -9722,7 +9901,8 @@ function paintEdge(edge, placed) {
 	const cy = (mid.y + next.y) / 2;
 	const [line] = wrap(edge.label, 220, EDGE_LABEL_SIZE, 1);
 	const width = line.length * EDGE_LABEL_SIZE * CHAR_RATIO + 10;
-	return path + `<rect x="${round(cx - width / 2)}" y="${round(cy - 8)}" width="${round(width)}" height="16" rx="4" ry="4" fill="${EDGE_LABEL_BG}" stroke="${EDGE_LABEL_BORDER}"/>` + textLine(line, cx, cy + 3.5, EDGE_LABEL_SIZE, EDGE_LABEL_COLOUR);
+	const label = `<rect x="${round(cx - width / 2)}" y="${round(cy - 8)}" width="${round(width)}" height="16" rx="4" ry="4" fill="${EDGE_LABEL_BG}" stroke="${EDGE_LABEL_BORDER}"/>` + textLine(line, cx, cy + 3.5, EDGE_LABEL_SIZE, EDGE_LABEL_COLOUR);
+	return path + (opacity ? `<g${opacity}>${label}</g>` : label);
 }
 /** Widest line a 14px swatch can show and still read as a line. */
 var LEGEND_LINE_MAX_WIDTH = 3;
@@ -9838,6 +10018,7 @@ function toFlow(payload) {
 */
 async function renderSvg(payload, options = {}) {
 	const padding = options.padding ?? 24;
+	if (options.perspective) payload = applyPerspective(payload, options.perspective);
 	const { nodes, edges } = toFlow(payload);
 	const placed = place(payload.nodes.some((n) => !n.position) ? await layoutGraph(nodes, edges, payload.rankDirection ?? "TB", {
 		rankSeparation: payload.rankSeparation,
@@ -9882,7 +10063,8 @@ async function renderSvg(payload, options = {}) {
 * side re-implements the other.
 *
 * Usage: node diagram-render.mjs [--title "..."] [--padding 24]
-*                                 [--no-title] [--no-legend] < graph.json
+*                                 [--no-title] [--no-legend]
+*                                 [--perspective "Security"] < graph.json
 */
 function parseArgs(argv) {
 	const options = {};
@@ -9890,6 +10072,7 @@ function parseArgs(argv) {
 	else if (argv[i] === "--padding") options.padding = Number(argv[++i]);
 	else if (argv[i] === "--no-title") options.showTitle = false;
 	else if (argv[i] === "--no-legend") options.showLegend = false;
+	else if (argv[i] === "--perspective") options.perspective = argv[++i];
 	return options;
 }
 async function readStdin() {

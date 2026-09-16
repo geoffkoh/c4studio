@@ -186,6 +186,26 @@ anything asserts, and every line locator is scoped to `.editor__surface`.
 Worth remembering the next time a spec here is green on its own — these
 specs share one backend and one `AppState`.
 
+### Perspectives in `c4 render` (17 September): PP-178
+
+`c4 render --perspective <name>` now draws the overlay the viewer has
+shown since PP-173. Written as `applyPerspective` in
+`packages/diagram-core/src/perspective.ts` — a **transform of the payload**
+rather than painting rules, so `svg.ts` needs no notion of perspectives:
+fading is the `opacity` it already honours and recolouring the
+`background` it already reads. The legend rule moved into `diagram-core`
+with it, so the viewer and the file cannot disagree.
+
+An unknown name is refused, with the available ones listed, **before**
+Node is needed: the viewer can afford to fade the whole diagram because
+its picker shows what exists, but at a command line that result is
+indistinguishable from a bug.
+
+Two things the first render showed that no test would have: edge labels
+stayed crisp over faded lines (a label floating over nothing reads as
+belonging to something else), and the badge had to sit outside the
+measured box or it would cost a node's own text a line.
+
 ---
 
 ## Open now

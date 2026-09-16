@@ -11,6 +11,7 @@ from c4studio import templates
 from c4studio.diagnostics import Diagnostic, Severity
 from c4studio.generators.flowchart import FlowchartGenerator
 from c4studio.generators.mermaid import MermaidGenerator
+from c4studio.graph.view_graph import perspective_names
 from c4studio.models import Workspace
 from c4studio.render import RenderError, render_view
 from c4studio.webapp.graph import is_supported, views_index
@@ -153,6 +154,14 @@ def generate(
     default=False,
     help="Omit the legend of element styles used by the view.",
 )
+@click.option(
+    "--perspective",
+    default=None,
+    help=(
+        "Show one perspective: fade what does not carry it, badge what "
+        "does, and list its values in the legend."
+    ),
+)
 def render(
     input_file: Path,
     output: Path | None,
@@ -160,6 +169,7 @@ def render(
     padding: int,
     no_title: bool,
     no_legend: bool,
+    perspective: str | None,
 ) -> None:
     """Render diagrams from INPUT_FILE as standalone SVG.
 
@@ -169,6 +179,16 @@ def render(
     PATH. Views the renderer cannot draw (custom, image) are skipped.
     """
     workspace = _load_workspace(input_file)
+    if perspective is not None:
+        # Fail on a name nothing carries rather than writing a uniformly
+        # faded diagram: at the command line there is no picker to show
+        # what the model actually offers.
+        names = perspective_names(workspace)
+        if perspective not in names:
+            raise click.ClickException(
+                f"No perspective named '{perspective}' in this workspace. "
+                f"Available: {', '.join(names) or '(none)'}"
+            )
     views = [v for v in workspace.views if is_supported(v)]
     if view_key:
         views = [v for v in views if v.key == view_key]
@@ -191,6 +211,7 @@ def render(
                 padding=padding,
                 show_title=not no_title,
                 show_legend=not no_legend,
+                perspective=perspective,
             )
             if output is None:
                 click.echo(svg, nl=False)
