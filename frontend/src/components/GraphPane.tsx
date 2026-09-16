@@ -47,6 +47,7 @@ import {
   type FloatingEdgeData,
 } from "@c4studio/diagram-core";
 import { buildTrail, crumbLabel, drillTarget } from "../navigation";
+import { perspectiveLegendEntries } from "../perspectiveLegend";
 import { isTypingTarget } from "../shortcuts";
 import type { GPerspective, GraphData, ViewInfo, Workspace } from "../types";
 import {
@@ -1049,6 +1050,17 @@ export function GraphPane({
     return first;
   }, [edges]);
 
+  // Rebuilt from what the diagram is showing, so the legend and the paint
+  // cannot disagree. Null while no perspective is shown, which leaves the
+  // server's style rows in place.
+  const perspectiveLegend = useMemo(
+    () =>
+      activePerspective === null
+        ? null
+        : perspectiveLegendEntries(nodes, edges, activePerspective),
+    [nodes, edges, activePerspective],
+  );
+
   const styledNodes = useMemo(() => {
     const animating = isDynamic && animStep !== null;
     if (!animating && activePerspective === null) return nodes;
@@ -1070,7 +1082,14 @@ export function GraphPane({
         }
       }
       let data = node.data;
-      if (activePerspective !== null && !isChromeNode(node.id)) {
+      if (activePerspective !== null && isChromeNode(node.id)) {
+        // The legend explains styles; under a perspective the diagram is
+        // painted by perspective, so the rows are replaced rather than
+        // left saying something the colours no longer mean (PP-176).
+        if (node.data.kind === "legend") {
+          data = { ...node.data, entries: perspectiveLegend ?? [] };
+        }
+      } else if (activePerspective !== null) {
         const shown =
           node.type === "element"
             ? findPerspective(node.data, activePerspective)
@@ -1093,7 +1112,14 @@ export function GraphPane({
         className: classes.length > 0 ? classes.join(" ") : undefined,
       };
     });
-  }, [nodes, isDynamic, animStep, firstStepByNode, activePerspective]);
+  }, [
+    nodes,
+    isDynamic,
+    animStep,
+    firstStepByNode,
+    activePerspective,
+    perspectiveLegend,
+  ]);
 
   useEffect(() => {
     if (!view || !view.supported) {

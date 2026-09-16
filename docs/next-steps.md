@@ -152,6 +152,22 @@ still parses everywhere, and `c4studio.autolayout` was already doing this.
 Captions are prose, so legend rows now wrap to a second line (all rows, to
 keep the grid aligned) and `.legend__label` lost its `nowrap`.
 
+### The legend under a perspective (17 September): PP-176
+
+The overlay repaints the diagram but the legend kept explaining element
+styles, so it named colours the diagram was no longer using. Its rows are
+now rebuilt from what is on screen: one per distinct perspective value,
+plus a `Not in <name>` row for what faded. `frontend/src/perspectiveLegend.ts`
+holds the rule, pure and apart from the pane.
+
+A value that no `Perspective:` style painted gets a neutral swatch —
+those items keep their own colours, so no single colour would be telling
+the truth, and the row says *which items carry the value* instead.
+
+First e2e coverage of the overlay is in `e2e/perspectives.spec.ts`, and
+the legend assertion was **checked red** against the previous bundle
+before being trusted green.
+
 ---
 
 ## Open now
