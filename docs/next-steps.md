@@ -269,6 +269,38 @@ switch, so a test that passed alone failed in the suite. Assigning
 frame later. Pressing its `Mod-Home` binding and polling until the
 scroller is actually at the top does.
 
+### The VS Code preview became a picture (17 September): PP-170
+
+Chosen over PP-171, which kept the SPA in the webview and taught it to
+show less. Both were built to be compared; this one wins because it
+removes the machinery rather than accommodating it — no server, no port,
+no iframe for the common case — and because it carries its own escape
+hatch: `Open in Studio (browser)` spawns `c4 webapp` and opens a tab,
+which is a better home for a canvas with toolbars than a 400px panel.
+`Show View…` switches views through a quick-pick fed by
+`c4 list-views --json`, the same function behind `/api/views`, so the
+picker cannot disagree with Studio about the default.
+
+What it gives up: pan, zoom and drill-down in the panel, and a re-render
+per change rather than a live canvas. PP-171 is closed as the road not
+taken; its measurements are in the ticket.
+
+Two things the branch found that are worth keeping in mind:
+
+- **The CSP would have shipped broken.** `default-src 'none'` covers
+  `img-src`, and the renderer inlines theme icons as `data:` URIs — so
+  without `img-src data:` they vanish with no error, and only 2 of
+  hedge_fund's 13 views have any. `e2e/svg-preview.spec.ts` renders a
+  deployment view, asserts each image decodes, and asserts the failure
+  case too.
+- **Node is there even when it is not.** With neither `C4STUDIO_NODE` nor
+  `node` on PATH, the extension host is itself Node — measured,
+  `process.execPath` under `ELECTRON_RUN_AS_NODE` reports 24.18.1.
+
+Rebased onto 19 commits of `main` with no conflicts, and it inherits
+PP-180 for free: the preview runs plain `c4 render --view`, so the
+picture follows the layout you arranged.
+
 ---
 
 ## Open now

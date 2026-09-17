@@ -13,7 +13,7 @@ Mermaid C4 diagrams, and ships a local-first **Studio** — a FastAPI backend
 serving a React SPA that renders views as interactive React Flow graphs *and*
 edits the DSL that produces them (CodeMirror 6, autocomplete, live diagnostics,
 save-to-disk with conflict detection). A VS Code extension in `editors/vscode/`
-embeds it as a diagram preview, in Viewer mode.
+embeds it as a diagram preview.
 
 Published on PyPI as **`c4studio`**; the import package is `c4studio` and
 the CLI is `c4`. It was `pystructurizr-studio` / `pystructurizr` through 0.1.0
@@ -53,7 +53,7 @@ features that assume a hosted multi-user deployment.
 | `src/c4studio/renderer/diagram-render.mjs` | **Committed build artefact** — `diagram-core` bundled for Node, so the wheel can render without npm. Rebuilt by the root `npm run build`; never edit by hand. |
 | `packages/diagram-core/` | The renderer-agnostic diagram layer: `layout.ts` (compound dagre, **async by contract** so the engine can be swapped), the React Flow node/edge components, `export.ts` (PNG/SVG) and `edgePaint.ts`. Knows nothing about the API or app state — that is what lets the headless renderer and the embedded surfaces reuse it. |
 | `frontend/src/` | The SPA. Beyond the panes: `dslLanguage.ts` (CodeMirror `StreamLanguage`), `dslComplete.ts` (completion), `highlight.ts` (**the one copy of the DSL vocabulary** — build from it, never restate it), `fileTree.ts` and `lineDiff.ts` (pure, so they can be exercised headlessly). |
-| `editors/vscode/` | VS Code extension (TypeScript, esbuild, packaged as `.vsix`). The preview spawns `--viewer` and falls back when the flag is unknown — an older c4studio exits 2 on it. |
+| `editors/vscode/` | VS Code extension (TypeScript, esbuild, packaged as `.vsix`). The preview renders **one view as an SVG** via `c4 render --view` (PP-170) — no server, no port, no iframe — with `Show View…` to switch and `Open in Studio (browser)` for the full app, which is the only command that spawns `c4 webapp`. The webview CSP is `default-src 'none'` plus `img-src data:`, and dropping that `img-src` makes theme icons vanish silently; `e2e/svg-preview.spec.ts` pins it. |
 | `samples/` | Sample workspaces used for live verification. |
 
 ## Environment & Commands

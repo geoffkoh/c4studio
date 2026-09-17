@@ -24,20 +24,40 @@ Structurizr DSL support in VS Code, powered by
   checked as written. `!include`-ed fragments are still read from disk, so
   a problem introduced in an unsaved fragment appears once it is saved.
   Disable with `c4studio.diagnostics.enabled`.
-- **Interactive C4 diagram preview**: the "Pystructurizr: Open Diagram
-  Preview" command (also a button in the editor title bar of DSL files)
-  opens the full c4studio React Flow app beside your editor — view
-  sidebar, drag layouts, in-place expansion, themes and cloud-provider
-  icons, filtered views, dynamic-view animation, keyboard shortcuts.
-  Saving the DSL file (or any `!include` fragment) refreshes the preview
-  automatically within ~2 seconds.
+- **Diagram preview**: "C4Studio: Open Diagram Preview" (also a button in
+  the editor title bar of DSL files) paints one view beside your editor as
+  an SVG — themes, cloud-provider icons, filtered views and all. No
+  server, no port, no iframe. Saving the DSL file (or any `!include`
+  fragment) re-renders it. **"C4Studio: Show View…"** switches which view
+  is shown, listing every renderable one with the workspace default
+  marked; your choice sticks per file. The picture follows the layout you
+  arranged in the Studio, since `c4 render` reads the layout sidecar
+  beside the file.
+- **The full Studio, when you want it**: "C4Studio: Open in Studio
+  (browser)" spawns the web app and opens it in a browser tab — drag
+  layouts, in-place expansion, perspectives, dynamic-view animation,
+  keyboard shortcuts. A panel a few hundred pixels wide is the wrong
+  place for a canvas with its own toolbars; a browser tab is not.
 
 ## How the preview works
 
-The extension spawns a local `c4studio webapp` server for the file
-(bound to `127.0.0.1` on a free port) and embeds it in a webview. The
-server is killed when the preview panel closes. Its logs go to the
-"c4studio" output channel.
+The extension runs `c4 render <file> --view <key>` and puts the SVG in a
+webview. Nothing is spawned in the background and nothing listens on a
+port; the render's logs go to the "c4studio" output channel.
+
+The webview's CSP is `default-src 'none'` with `img-src data:` — the only
+thing it needs, because theme icons are inlined as `data:` URIs by the
+renderer, so a rendered diagram carries no external references.
+
+"Open in Studio (browser)" is the one command that starts a server: it
+spawns `c4 webapp` bound to `127.0.0.1` on a free port, waits for it to
+answer, and opens your browser. That server is killed when VS Code shuts
+the extension down.
+
+Rendering needs Node. When neither `C4STUDIO_NODE` nor a `node` on PATH
+is found, the extension host's own Node is used — it is an Electron
+process that can run as Node, which is why the preview works on a machine
+with no Node install.
 
 **No setup is required.** The backend is resolved automatically, first
 match wins (each attempt is logged to the output channel):
@@ -82,4 +102,6 @@ Then reload VS Code. (The extension is not on the Marketplace; local
 2. Open `editors/vscode/` in VS Code and press `F5` (Run Extension).
 3. In the Extension Development Host, open
    `samples/hedge_fund/workspace.dsl` and click the preview icon in the
-   editor title bar.
+   editor title bar. `OmsProduction` is the view worth opening first: it
+   is one of the two with cloud icons, which is what the CSP can silently
+   break.
