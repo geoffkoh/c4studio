@@ -43,6 +43,7 @@ import {
   insertionIndex,
   layoutGraph,
   perspectiveLegendEntries,
+  withLiveValue,
   normalizeStoredPositions,
   type ElementNodeData,
   type FloatingEdgeData,
@@ -87,6 +88,9 @@ const INTERACTION_STORAGE_KEY = "c4studio.interaction";
 // Drag snapping step. Matches the Background dot spacing so the dots read
 // as the grid being snapped to rather than as unrelated decoration.
 const SNAP_GRID: [number, number] = [16, 16];
+
+// Upstream's `structurizr.perspective.interval` default: 60s.
+const PERSPECTIVE_REFRESH_MS = 60_000;
 
 /**
  * What a left-drag on empty canvas does. Modal rather than a modifier so
@@ -153,6 +157,11 @@ interface GraphPaneProps {
     expand: string[] | null,
     collapse: string[] | null,
   ) => Promise<GraphData>;
+  /** Read live values for a perspective, keyed by the URL each came
+      from. Absent where the server does not offer them — the capability
+      is the server's to grant, so the UI cannot poll what it will not
+      answer (PP-179). */
+  loadPerspectiveValues?: (name: string) => Promise<Record<string, string>>;
   /** Persist expand/collapse state so it survives reloads. */
   saveExpansion: (
     key: string,
@@ -369,6 +378,7 @@ export function GraphPane({
   workspace,
   onNavigate,
   loadGraph,
+  loadPerspectiveValues,
   saveExpansion,
   saveLayout,
   resetLayout,
@@ -385,6 +395,10 @@ export function GraphPane({
   // name, so reloading after a rename does not leave everything faded.
   const [perspective, setPerspective] = useState<string | null>(null);
   const [perspectiveNames, setPerspectiveNames] = useState<string[]>([]);
+  // Live values for the shown perspective, keyed by the URL they came
+  // from. Empty unless the server was started with
+  // `--dynamic-perspectives` and something on screen declares one.
+  const [liveValues, setLiveValues] = useState<Record<string, string>>({});
   const activePerspective =
     perspective !== null && perspectiveNames.includes(perspective)
       ? perspective
@@ -969,6 +983,15 @@ export function GraphPane({
       .catch(() => setLayoutState("failed"));
   }, [view, resetLayout]);
 
+  /** The shown perspective on some data, with any live value applied. */
+  const shownPerspective = useCallback(
+    (data: { perspectives?: GPerspective[] } | undefined, name: string) => {
+      const found = findPerspective(data, name);
+      return found && withLiveValue(found, liveValues);
+    },
+    [liveValues],
+  );
+
   // Routing is presentation-only, so it is applied on the way into React
   // Flow rather than baked into the edge state.
   const styledEdges = useMemo(() => {
@@ -986,7 +1009,7 @@ export function GraphPane({
       const hovered = edge.id === activeHover;
       const shown =
         activePerspective !== null
-          ? findPerspective(edge.data, activePerspective)
+          ? shownPerspective(edge.data, activePerspective)
           : undefined;
       // A relationship `Perspective:` style recolours the line and its
       // arrowhead together, as a relationship style does.
@@ -1031,6 +1054,7 @@ export function GraphPane({
     hoverEmphasis,
     hoveredEdgeId,
     activePerspective,
+    shownPerspective,
     handleWaypointDrag,
     handleWaypointDragEnd,
     handleWaypointMenu,
@@ -1057,9 +1081,49 @@ export function GraphPane({
     () =>
       activePerspective === null
         ? null
-        : perspectiveLegendEntries(nodes, edges, activePerspective),
-    [nodes, edges, activePerspective],
+        : perspectiveLegendEntries(nodes, edges, activePerspective, liveValues),
+    [nodes, edges, activePerspective, liveValues],
   );
+
+  // Poll while a perspective with URLs is shown. One request covers the
+  // whole workspace, and the interval is upstream's default.
+  useEffect(() => {
+    if (activePerspective === null || !loadPerspectiveValues) return;
+    const hasUrl =
+      nodes.some((node) =>
+        node.data.perspectives?.some(
+          (p: GPerspective) => p.name === activePerspective && p.url,
+        ),
+      ) ||
+      edges.some((edge) =>
+        (edge.data as { perspectives?: GPerspective[] } | undefined)
+          ?.perspectives?.some((p) => p.name === activePerspective && p.url),
+      );
+    if (!hasUrl) return;
+
+    let cancelled = false;
+    const read = () => {
+      loadPerspectiveValues(activePerspective)
+        .then((values) => {
+          if (!cancelled) setLiveValues(values);
+        })
+        // A refresh that fails leaves the previous values on screen; the
+        // next tick tries again. The server already turns an unreachable
+        // host into a value, so this is the route itself being gone.
+        .catch(() => undefined);
+    };
+    read();
+    const timer = window.setInterval(read, PERSPECTIVE_REFRESH_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [activePerspective, loadPerspectiveValues, nodes, edges]);
+
+  // Values belong to the perspective they were read for.
+  useEffect(() => {
+    setLiveValues({});
+  }, [activePerspective]);
 
   const styledNodes = useMemo(() => {
     const animating = isDynamic && animStep !== null;
@@ -1092,7 +1156,7 @@ export function GraphPane({
       } else if (activePerspective !== null) {
         const shown =
           node.type === "element"
-            ? findPerspective(node.data, activePerspective)
+            ? shownPerspective(node.data, activePerspective)
             : undefined;
         if (shown) {
           data = {
@@ -1119,6 +1183,7 @@ export function GraphPane({
     firstStepByNode,
     activePerspective,
     perspectiveLegend,
+    shownPerspective,
   ]);
 
   useEffect(() => {

@@ -206,6 +206,33 @@ stayed crisp over faded lines (a label floating over nothing reads as
 belonging to something else), and the badge had to sit outside the
 measured box or it would cost a node's own text a line.
 
+### Dynamic perspectives (17 September): PP-179
+
+`c4 webapp --dynamic-perspectives` lets the **server** read a
+perspective's `url` and hand the value to the page, which badges it and
+lists it in the legend; it refreshes every 60s, as upstream does.
+
+**Off by default, and the reasoning is the point.** The assistant is
+opt-in because it sends the workspace out; this is opt-in for a sharper
+reason — the addresses come from the *workspace file*, so opening
+someone else's model would otherwise make this machine call their hosts.
+The capability is reported by `/api/capabilities` and the route refuses
+with 403 when off, so the guarantee holds against a crafted request
+rather than living in a hidden button. Only `http`/`https` are followed
+(a `file://` URL in a model must not turn a diagram into a way to read
+this disk), at most 50 distinct URLs per refresh, 10s timeout.
+
+**Values are keyed by URL, not by item.** A relationship declared in DSL
+has no id of its own — the graph layer names its edge after its
+endpoints, per view — so keying by URL is both what the client can match
+and what makes two items watching one endpoint cost one request. This
+was found by a test asserting `values["rel"]`, which is the sort of thing
+that only surfaces against a real workspace.
+
+The tests run a real `http.server` on localhost rather than patching
+`urlopen`: what is worth pinning is that the route *reaches* a URL and
+falls back the way upstream does, and a stub would assert none of it.
+
 ---
 
 ## Open now

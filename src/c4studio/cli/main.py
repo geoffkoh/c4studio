@@ -425,6 +425,16 @@ def new(
         "(pip install 'c4studio[assistant]')."
     ),
 )
+@click.option(
+    "--dynamic-perspectives",
+    is_flag=True,
+    help=(
+        "Let the server read a perspective's url for its live value. OFF "
+        "BY DEFAULT: the addresses come from the workspace file, so "
+        "opening someone else's model would otherwise make this machine "
+        "call their hosts. Only http and https are followed."
+    ),
+)
 @click.option("--port", default=8090, show_default=True, help="Port to listen on.")
 @click.option("--host", default="127.0.0.1", show_default=True)
 @click.option(
@@ -446,6 +456,7 @@ def webapp(
     no_browser: bool,
     viewer: bool,
     assistant: bool,
+    dynamic_perspectives: bool,
 ) -> None:
     """Launch the React web application backend for PATH.
 
@@ -483,4 +494,5 @@ def webapp(
         port=port,
         read_only=viewer,
         assistant=assistant,
+        dynamic_perspectives=dynamic_perspectives,
     )

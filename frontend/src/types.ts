@@ -93,6 +93,9 @@ export interface GPerspective {
   name: string;
   description: string;
   value: string;
+  /** Set when the value is read from here rather than written in the DSL
+      — a dynamic perspective, refreshed by the server (PP-179). */
+  url?: string;
   /** Element paint. */
   background?: string;
   textColor?: string;

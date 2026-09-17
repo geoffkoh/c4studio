@@ -37,6 +37,7 @@ from c4studio.webapp.loader import (
     load_workspace,
     watched_files,
 )
+from c4studio.webapp.perspectives import refresh_values
 
 _SOURCE_SUFFIXES = frozenset({".dsl", ".json", ".structurizr"})
 # Most graph payloads this many back. The cache key carries the expand and
@@ -64,10 +65,16 @@ class AppConfig:
             that arrangement is gitignored per-user UI state either way.
         assistant: Enable the assistant. **Off by default**, because it is
             the one feature that sends the workspace off this machine.
+        dynamic_perspectives: Let the server read a perspective's ``url``
+            for its live value. **Off by default**: unlike the assistant,
+            the addresses come from the workspace file, so opening
+            someone else's model must not make this machine call their
+            hosts.
     """
 
     read_only: bool = False
     assistant: bool = False
+    dynamic_perspectives: bool = False
 
 
 @dataclass
@@ -893,6 +900,7 @@ def create_app(
     *,
     read_only: bool = False,
     assistant: bool = False,
+    dynamic_perspectives: bool = False,
 ) -> FastAPI:
     """Build the FastAPI app serving the web backend.
 
@@ -906,6 +914,9 @@ def create_app(
             unaffected.
         assistant: Enable ``POST /api/assistant``. Off by default: it is
             the one route that sends the workspace to an external API.
+        dynamic_perspectives: Enable
+            ``GET /api/perspectives/{name}/values``, which reads the URLs
+            a workspace's perspectives declare. Off by default.
 
     Returns:
         A configured :class:`fastapi.FastAPI` instance.
@@ -913,7 +924,12 @@ def create_app(
     root = root.resolve()
     app = FastAPI(title="c4studio webapp")
     state = AppState(
-        root=root, config=AppConfig(read_only=read_only, assistant=assistant)
+        root=root,
+        config=AppConfig(
+            read_only=read_only,
+            assistant=assistant,
+            dynamic_perspectives=dynamic_perspectives,
+        ),
     )
 
     if initial is not None:
@@ -1038,8 +1054,37 @@ def create_app(
                 # Off unless asked for, and reported here so the UI cannot
                 # offer what the server will not do.
                 "assistant": (not read_only) and state.config.assistant,
+                # Reading a live value is not a write, so Viewer may do it
+                # — but only when the server was started with the flag.
+                "dynamicPerspectives": state.config.dynamic_perspectives,
             },
         }
+
+    @app.get("/api/perspectives/{name}/values")
+    async def perspective_values(
+        name: str, state: AppState = Depends(_get_state)
+    ) -> dict[str, Any]:
+        """Read the live value of every dynamic ``name`` perspective.
+
+        One request fans out to the URLs the workspace declares, so the
+        page never talks to those hosts itself — most would refuse it for
+        want of CORS headers, and a failure there would be silent.
+
+        Refuses with 403 unless the server was started with
+        ``--dynamic-perspectives``: the capability lives here rather than
+        in a hidden button, so the guarantee holds against a crafted
+        request.
+        """
+        if not state.config.dynamic_perspectives:
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    "Dynamic perspectives are off. Start the server with "
+                    "--dynamic-perspectives to let it read perspective URLs."
+                ),
+            )
+        workspace = _require_workspace(state)
+        return {"values": await refresh_values(workspace, name)}
 
     @app.post("/api/check")
     def check_source(
@@ -1734,6 +1779,7 @@ def run_server(
     *,
     read_only: bool = False,
     assistant: bool = False,
+    dynamic_perspectives: bool = False,
 ) -> None:
     """Run the web backend with uvicorn.
 
@@ -1743,12 +1789,20 @@ def run_server(
         host: Interface to bind to.
         port: TCP port to listen on.
         read_only: Serve in Viewer mode (see :func:`create_app`).
+        dynamic_perspectives: Let the server read perspective URLs (see
+            :func:`create_app`). Off by default.
         assistant: Enable the assistant route (see :func:`create_app`).
     """
     import uvicorn
 
     uvicorn.run(
-        create_app(root, initial, read_only=read_only, assistant=assistant),
+        create_app(
+            root,
+            initial,
+            read_only=read_only,
+            assistant=assistant,
+            dynamic_perspectives=dynamic_perspectives,
+        ),
         host=host,
         port=port,
         log_level="info",
