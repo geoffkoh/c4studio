@@ -155,6 +155,16 @@ def generate(
     help="Omit the legend of element styles used by the view.",
 )
 @click.option(
+    "--no-layout",
+    is_flag=True,
+    default=False,
+    help=(
+        "Ignore the layout sidecar and lay the diagram out afresh. The "
+        "sidecar is per-user state, so this is what makes the output the "
+        "same on any machine."
+    ),
+)
+@click.option(
     "--perspective",
     default=None,
     help=(
@@ -169,12 +179,16 @@ def render(
     padding: int,
     no_title: bool,
     no_legend: bool,
+    no_layout: bool,
     perspective: str | None,
 ) -> None:
     """Render diagrams from INPUT_FILE as standalone SVG.
 
     No browser and no server: the diagrams are laid out and painted by the
-    same code the web app runs, bundled for Node. This is the only command
+    same code the web app runs, bundled for Node. The layout sidecar
+    beside INPUT_FILE is honoured when there is one, so a rendered diagram
+    matches the arrangement you made in the Studio; ``--no-layout``
+    ignores it. This is the only command
     that needs Node.js installed; set C4STUDIO_NODE if it is not on
     PATH. Views the renderer cannot draw (custom, image) are skipped.
     """
@@ -212,6 +226,9 @@ def render(
                 show_title=not no_title,
                 show_legend=not no_legend,
                 perspective=perspective,
+                # The arrangement made in the Studio, unless asked for a
+                # fresh one. Sidecars sit beside the root source file.
+                layout_source=None if no_layout else input_file,
             )
             if output is None:
                 click.echo(svg, nl=False)

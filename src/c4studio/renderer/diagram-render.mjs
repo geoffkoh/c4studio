@@ -9417,20 +9417,30 @@ async function layoutGraph(nodes, edges, direction = "TB", spacing) {
 }
 async function normalizeStoredPositions(nodes, edges) {
 	const { parentOf, childrenOf } = buildHierarchy(nodes);
-	if (nodes.some((n) => {
-		const parent = n.parentNode;
-		return parent !== void 0 && parentOf.has(parent);
-	})) return await layoutGraph(nodes, edges);
+	if (childrenOf.size <= 1) return nodes;
 	const nodesById = new Map(nodes.map((n) => [n.id, n]));
-	const groups = /* @__PURE__ */ new Map();
-	for (const [parentId, children] of childrenOf) {
-		if (parentId === void 0) continue;
-		const group = nodesById.get(parentId);
-		const storedWidth = Number(group?.style?.width);
-		const storedHeight = Number(group?.style?.height);
-		if (group && storedWidth > 0 && storedHeight > 0) {
-			groups.set(parentId, {
-				position: group.position,
+	/** Depth of each node, so boundaries can be measured innermost first. */
+	const depthOf = (id) => {
+		let depth = 0;
+		let parent = parentOf.get(id);
+		while (parent !== void 0) {
+			depth += 1;
+			parent = parentOf.get(parent);
+		}
+		return depth;
+	};
+	const boxes = /* @__PURE__ */ new Map();
+	const parents = [...childrenOf.keys()].filter((id) => id !== void 0);
+	parents.sort((a, b) => depthOf(b) - depthOf(a));
+	const absoluteSize = (node) => boxes.get(node.id)?.size ?? nodeSize(node);
+	for (const parentId of parents) {
+		const children = childrenOf.get(parentId) ?? [];
+		const boundary = nodesById.get(parentId);
+		const storedWidth = Number(boundary?.style?.width);
+		const storedHeight = Number(boundary?.style?.height);
+		if (boundary && storedWidth > 0 && storedHeight > 0) {
+			boxes.set(parentId, {
+				position: boundary.position,
 				size: {
 					width: storedWidth,
 					height: storedHeight
@@ -9438,18 +9448,20 @@ async function normalizeStoredPositions(nodes, edges) {
 			});
 			continue;
 		}
-		let maxX = 0;
-		let maxY = 0;
 		let minX = Number.POSITIVE_INFINITY;
 		let minY = Number.POSITIVE_INFINITY;
+		let maxX = Number.NEGATIVE_INFINITY;
+		let maxY = Number.NEGATIVE_INFINITY;
 		for (const child of children) {
-			const size = nodeSize(child);
-			minX = Math.min(minX, child.position.x);
-			minY = Math.min(minY, child.position.y);
-			maxX = Math.max(maxX, child.position.x + size.width);
-			maxY = Math.max(maxY, child.position.y + size.height);
+			const position = boxes.get(child.id)?.position ?? child.position;
+			const size = absoluteSize(child);
+			minX = Math.min(minX, position.x);
+			minY = Math.min(minY, position.y);
+			maxX = Math.max(maxX, position.x + size.width);
+			maxY = Math.max(maxY, position.y + size.height);
 		}
-		groups.set(parentId, {
+		if (!Number.isFinite(minX)) continue;
+		boxes.set(parentId, {
 			position: {
 				x: minX - BOUNDARY_PAD_X,
 				y: minY - BOUNDARY_PAD_TOP
@@ -9460,28 +9472,23 @@ async function normalizeStoredPositions(nodes, edges) {
 			}
 		});
 	}
-	if (groups.size === 0) return nodes;
+	if (boxes.size === 0) return nodes;
 	return nodes.map((node) => {
-		const asGroup = groups.get(node.id);
-		if (asGroup) return {
+		const box = boxes.get(node.id);
+		const absolute = box?.position ?? node.position;
+		const parentBox = node.parentNode ? boxes.get(node.parentNode) : void 0;
+		const position = parentBox ? {
+			x: absolute.x - parentBox.position.x,
+			y: absolute.y - parentBox.position.y
+		} : absolute;
+		return {
 			...node,
-			position: asGroup.position,
-			style: {
+			position,
+			...box ? { style: {
 				...node.style,
-				...asGroup.size
-			}
+				...box.size
+			} } : {}
 		};
-		if (node.parentNode) {
-			const parent = groups.get(node.parentNode);
-			if (parent) return {
-				...node,
-				position: {
-					x: node.position.x - parent.position.x,
-					y: node.position.y - parent.position.y
-				}
-			};
-		}
-		return node;
 	});
 }
 //#endregion
@@ -9914,8 +9921,8 @@ function paintEdge(edge, placed) {
 	if (!edge.label) return path;
 	const mid = points[Math.floor((points.length - 1) / 2)];
 	const next = points[Math.floor((points.length - 1) / 2) + 1] ?? mid;
-	const cx = (mid.x + next.x) / 2;
-	const cy = (mid.y + next.y) / 2;
+	const cx = (mid.x + next.x) / 2 + (edge.labelOffset?.[0] ?? 0);
+	const cy = (mid.y + next.y) / 2 + (edge.labelOffset?.[1] ?? 0);
 	const [line] = wrap(edge.label, 220, EDGE_LABEL_SIZE, 1);
 	const width = line.length * EDGE_LABEL_SIZE * CHAR_RATIO + 10;
 	const label = `<rect x="${round(cx - width / 2)}" y="${round(cy - 8)}" width="${round(width)}" height="16" rx="4" ry="4" fill="${EDGE_LABEL_BG}" stroke="${EDGE_LABEL_BORDER}"/>` + textLine(line, cx, cy + 3.5, EDGE_LABEL_SIZE, EDGE_LABEL_COLOUR);
@@ -10043,17 +10050,30 @@ async function renderSvg(payload, options = {}) {
 	}) : await normalizeStoredPositions(nodes, edges));
 	const boxes = [...placed.values()];
 	if (boxes.length === 0) return `<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0"/>`;
-	const minX = Math.min(...boxes.map((b) => b.x));
-	const minY = Math.min(...boxes.map((b) => b.y));
-	const maxX = Math.max(...boxes.map((b) => b.x + b.width));
-	const maxY = Math.max(...boxes.map((b) => b.y + b.height));
-	const diagramWidth = maxX - minX;
-	const diagramHeight = maxY - minY;
 	const title = options.title ?? "";
 	const drawTitle = title !== "" && options.showTitle !== false;
-	const titleHeight = drawTitle ? 38 : 0;
 	const entries = payload.legend ?? [];
-	const legend = entries.length > 0 && options.showLegend !== false ? paintLegend(entries, padding, padding + titleHeight + diagramHeight + LEGEND_GAP) : null;
+	const drawLegend = entries.length > 0 && options.showLegend !== false;
+	const draggedTitle = drawTitle ? payload.chrome?.title : void 0;
+	const draggedLegend = drawLegend ? payload.chrome?.legend : void 0;
+	const legendSize = drawLegend ? paintLegend(entries, 0, 0) : null;
+	const titleWidth = title.length * TITLE_SIZE * CHAR_RATIO;
+	let minX = Math.min(...boxes.map((b) => b.x));
+	let minY = Math.min(...boxes.map((b) => b.y));
+	let maxX = Math.max(...boxes.map((b) => b.x + b.width));
+	let maxY = Math.max(...boxes.map((b) => b.y + b.height));
+	const include = (x, y, w, h) => {
+		minX = Math.min(minX, x);
+		minY = Math.min(minY, y);
+		maxX = Math.max(maxX, x + w);
+		maxY = Math.max(maxY, y + h);
+	};
+	if (draggedTitle) include(draggedTitle[0], draggedTitle[1], titleWidth, TITLE_SIZE);
+	if (draggedLegend && legendSize) include(draggedLegend[0], draggedLegend[1], legendSize.width, legendSize.height);
+	const diagramWidth = maxX - minX;
+	const diagramHeight = maxY - minY;
+	const titleHeight = drawTitle && !draggedTitle ? 38 : 0;
+	const legend = drawLegend && !draggedLegend ? paintLegend(entries, padding, padding + titleHeight + diagramHeight + LEGEND_GAP) : null;
 	const width = round(Math.max(diagramWidth, legend ? legend.width : 0) + 2 * padding);
 	const height = round(titleHeight + diagramHeight + (legend ? LEGEND_GAP + legend.height : 0) + 2 * padding);
 	const shift = `translate(${round(padding - minX)},${round(padding + titleHeight - minY)})`;
@@ -10062,9 +10082,11 @@ async function renderSvg(payload, options = {}) {
 	const body = [
 		...boundaries.map(paintBoundary),
 		...payload.edges.map((edge) => paintEdge(edge, placed)),
-		...leaves.map(paintNode)
+		...leaves.map(paintNode),
+		draggedTitle ? textLine(title, draggedTitle[0], draggedTitle[1] + TITLE_SIZE, TITLE_SIZE, TITLE_COLOUR, 1, 600, "start") : "",
+		draggedLegend && legendSize ? paintLegend(entries, draggedLegend[0], draggedLegend[1]).markup : ""
 	].join("");
-	const heading = drawTitle ? textLine(title, padding, padding + TITLE_SIZE, TITLE_SIZE, TITLE_COLOUR, 1, 600, "start") : "";
+	const heading = drawTitle && !draggedTitle ? textLine(title, padding, padding + TITLE_SIZE, TITLE_SIZE, TITLE_COLOUR, 1, 600, "start") : "";
 	const background = options.background === null ? "" : `<rect width="100%" height="100%" fill="${options.background ?? "#ffffff"}"/>`;
 	const titleTag = title ? `<title>${escapeXml(title)}</title>` : "";
 	return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" font-family="${FONT}">` + titleTag + `<defs>${arrowMarkerDefs(payload.edges)}</defs>` + background + heading + `<g transform="${shift}">${body}</g>` + (legend ? legend.markup : "") + `</svg>\n`;

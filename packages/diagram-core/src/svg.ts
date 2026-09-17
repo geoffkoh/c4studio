@@ -100,6 +100,8 @@ export interface GraphPayloadEdge {
   target: string;
   label?: string;
   waypoints?: [number, number][];
+  /** Dragged offset from the label's computed place, from the sidecar. */
+  labelOffset?: [number, number];
   /** Resolved relationship-style paint; absent fields use the defaults
       (dashed, per upstream Structurizr). */
   color?: string;
@@ -133,6 +135,10 @@ export interface GraphPayload {
   nodeSeparation?: number;
   /** Distinct styles used by this view, derived in the graph layer. */
   legend?: LegendEntry[];
+  /** Dragged title/legend positions from the layout sidecar, in diagram
+      coordinates, keyed "title" / "legend". Absent chrome keeps the
+      placement this renderer computes (PP-180). */
+  chrome?: Record<string, [number, number]>;
 }
 
 export interface RenderOptions {
@@ -602,8 +608,11 @@ function paintEdge(
   // Label sits at the middle of the routed line, in a small plate.
   const mid = points[Math.floor((points.length - 1) / 2)];
   const next = points[Math.floor((points.length - 1) / 2) + 1] ?? mid;
-  const cx = (mid.x + next.x) / 2;
-  const cy = (mid.y + next.y) / 2;
+  // The offset is stored relative to the computed point, not absolutely,
+  // so a label dragged clear of a crossing line stays clear of it after a
+  // re-layout (PP-180).
+  const cx = (mid.x + next.x) / 2 + (edge.labelOffset?.[0] ?? 0);
+  const cy = (mid.y + next.y) / 2 + (edge.labelOffset?.[1] ?? 0);
   const [line] = wrap(edge.label, 220, EDGE_LABEL_SIZE, 1);
   const width = line.length * EDGE_LABEL_SIZE * CHAR_RATIO + 10;
   // The plate fades with its line: a crisp label over a faded
@@ -818,24 +827,56 @@ export async function renderSvg(
     return `<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0"/>`;
   }
 
-  const minX = Math.min(...boxes.map((b) => b.x));
-  const minY = Math.min(...boxes.map((b) => b.y));
-  const maxX = Math.max(...boxes.map((b) => b.x + b.width));
-  const maxY = Math.max(...boxes.map((b) => b.y + b.height));
+  const title = options.title ?? "";
+  const drawTitle = title !== "" && options.showTitle !== false;
+  const entries = payload.legend ?? [];
+  const drawLegend = entries.length > 0 && options.showLegend !== false;
+
+  // Chrome the user dragged in the Studio is in diagram coordinates and
+  // may sit anywhere — including over the diagram, which is a choice
+  // someone made. Undragged chrome keeps this renderer's own placement:
+  // title in a band above, legend below, neither able to overlap an
+  // element however dense the graph is.
+  const draggedTitle = drawTitle ? payload.chrome?.title : undefined;
+  const draggedLegend = drawLegend ? payload.chrome?.legend : undefined;
+  // Measured by painting it once; the result is a string, so this costs
+  // nothing worth avoiding.
+  const legendSize = drawLegend ? paintLegend(entries, 0, 0) : null;
+  const titleWidth = title.length * TITLE_SIZE * CHAR_RATIO;
+
+  let minX = Math.min(...boxes.map((b) => b.x));
+  let minY = Math.min(...boxes.map((b) => b.y));
+  let maxX = Math.max(...boxes.map((b) => b.x + b.width));
+  let maxY = Math.max(...boxes.map((b) => b.y + b.height));
+  const include = (x: number, y: number, w: number, h: number) => {
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x + w);
+    maxY = Math.max(maxY, y + h);
+  };
+  if (draggedTitle) {
+    include(draggedTitle[0], draggedTitle[1], titleWidth, TITLE_SIZE);
+  }
+  if (draggedLegend && legendSize) {
+    include(
+      draggedLegend[0],
+      draggedLegend[1],
+      legendSize.width,
+      legendSize.height,
+    );
+  }
   const diagramWidth = maxX - minX;
   const diagramHeight = maxY - minY;
 
-  // Title and legend sit outside the diagram bounds and extend the canvas,
-  // so neither can overlap an element however dense the graph is.
-  const title = options.title ?? "";
-  const drawTitle = title !== "" && options.showTitle !== false;
-  const titleHeight = drawTitle ? TITLE_SIZE + TITLE_GAP : 0;
-
-  const entries = payload.legend ?? [];
-  const drawLegend = entries.length > 0 && options.showLegend !== false;
-  const legend = drawLegend
-    ? paintLegend(entries, padding, padding + titleHeight + diagramHeight + LEGEND_GAP)
-    : null;
+  const titleHeight = drawTitle && !draggedTitle ? TITLE_SIZE + TITLE_GAP : 0;
+  const legend =
+    drawLegend && !draggedLegend
+      ? paintLegend(
+          entries,
+          padding,
+          padding + titleHeight + diagramHeight + LEGEND_GAP,
+        )
+      : null;
 
   const width = round(
     Math.max(diagramWidth, legend ? legend.width : 0) + 2 * padding,
@@ -857,9 +898,29 @@ export async function renderSvg(
     ...boundaries.map(paintBoundary),
     ...payload.edges.map((edge) => paintEdge(edge, placed)),
     ...leaves.map(paintNode),
+    // Dragged chrome rides inside the diagram's own transform, which is
+    // what makes its stored coordinates mean the same thing here as on
+    // the canvas they were dragged on.
+    draggedTitle
+      ? textLine(
+          title,
+          draggedTitle[0],
+          draggedTitle[1] + TITLE_SIZE,
+          TITLE_SIZE,
+          TITLE_COLOUR,
+          1,
+          600,
+          "start",
+        )
+      : "",
+    draggedLegend && legendSize
+      ? paintLegend(entries, draggedLegend[0], draggedLegend[1]).markup
+      : "",
   ].join("");
 
-  const heading = drawTitle
+  // Only the band; a dragged title is painted with the body, in the
+  // diagram's own coordinates.
+  const heading = drawTitle && !draggedTitle
     ? textLine(
         title,
         padding,

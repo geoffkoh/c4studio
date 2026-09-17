@@ -233,6 +233,42 @@ The tests run a real `http.server` on localhost rather than patching
 `urlopen`: what is worth pinning is that the route *reaches* a URL and
 falls back the way upstream does, and a stub would assert none of it.
 
+### The renderer honours your arrangement (17 September): PP-180, PP-181
+
+`c4 render` called `react_flow_graph(workspace, view)` with no layout at
+all, so a rendered SVG was a fresh auto-layout rather than the diagram
+you arranged. The sidecar reading lived inside `webapp/server.py`, which
+is why: it now lives in `c4studio/layout_sidecar.py` and both surfaces
+read it through one implementation. `svg.ts` gained the two sections it
+had never seen — dragged label offsets and dragged title/legend chrome,
+the latter expanding the canvas so a dragged legend cannot be clipped.
+`--no-layout` renders as if nothing had been arranged, which is what
+keeps a committed diagram the same on any machine.
+
+**PP-181, found on the way, is the bigger one.** Saved layouts were being
+discarded on *any view containing a group* — in the Studio, not just in
+`render`. Two causes, both needed fixing:
+
+1. A synthetic group boundary is created after placement, so it got a
+   stored size and no position; both renderers re-run auto-layout when
+   any node lacks one.
+2. `normalizeStoredPositions` gave up and re-laid-out as soon as one
+   boundary sat inside another — which is every grouped container view.
+   It now adapts absolute positions to nested nodes at any depth,
+   innermost first.
+
+Verified against the running API (positions survive a save/reload) and in
+the browser (the diagram follows the stored layout instead of the
+auto-layout). **Neither cause had a test**, which is how a bug this
+visible survived: both fixes now have one.
+
+**A Playwright trap, twice.** `scrollTo` in `e2e/highlight.spec.ts` only
+scrolls down, and the editor keeps a scroll position across a file
+switch, so a test that passed alone failed in the suite. Assigning
+`scrollTop = 0` does not hold — CodeMirror restores its own scroll a
+frame later. Pressing its `Mod-Home` binding and polling until the
+scroller is actually at the top does.
+
 ---
 
 ## Open now

@@ -27,6 +27,30 @@ from pydantic import BaseModel
 from c4studio import templates
 from c4studio.diagnostics import Diagnostic, Severity
 from c4studio.graph.view_graph import apply_positions, apply_sizes
+from c4studio.layout_sidecar import (
+    attach_labels as _attach_labels,
+)
+from c4studio.layout_sidecar import (
+    attach_waypoints as _attach_waypoints,
+)
+from c4studio.layout_sidecar import (
+    read_chrome as _read_layout_chrome,
+)
+from c4studio.layout_sidecar import (
+    read_ids as _read_layout_ids,
+)
+from c4studio.layout_sidecar import (
+    read_labels as _read_layout_labels,
+)
+from c4studio.layout_sidecar import (
+    read_positions as _read_layout_sidecar,
+)
+from c4studio.layout_sidecar import (
+    read_waypoints as _read_layout_waypoints,
+)
+from c4studio.layout_sidecar import (
+    sidecar_path as _layout_sidecar,
+)
 from c4studio.models import View, Workspace
 from c4studio.parser.dsl import ParseError, parse_dsl
 from c4studio.parser.locations import element_locations
@@ -683,121 +707,6 @@ def _after_tree_change(state: AppState, target: Path) -> None:
         _reload_now(state)
 
 
-def _layout_sidecar(source: Path) -> Path:
-    """Path of the layout sidecar stored next to a workspace source."""
-    return source.with_name(f"{source.stem}.layout.json")
-
-
-def _read_sidecar_data(source: Path) -> dict[str, Any]:
-    """Read and parse the whole sidecar document, or ``{}`` if unusable."""
-    sidecar = _layout_sidecar(source)
-    if not sidecar.is_file():
-        return {}
-    try:
-        data = json.loads(sidecar.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
-    return data if isinstance(data, dict) else {}
-
-
-def _read_layout_sidecar(source: Path) -> dict[str, dict[str, list[int]]]:
-    """Read the sidecar's ``{view_key: {element_id: [x, y]}}`` mapping."""
-    views = _read_sidecar_data(source).get("views")
-    return views if isinstance(views, dict) else {}
-
-
-def _read_layout_waypoints(source: Path) -> dict[str, dict[str, list[list[int]]]]:
-    """Read the sidecar's ``{view_key: {edge_id: [[x, y], ...]}}`` mapping.
-
-    Kept in a separate top-level ``edges`` section rather than folded into
-    ``views``, whose entries are element-id keyed: sidecars written before
-    waypoints existed simply have no ``edges`` key and still load.
-    """
-    edges = _read_sidecar_data(source).get("edges")
-    if not isinstance(edges, dict):
-        return {}
-    cleaned: dict[str, dict[str, list[list[int]]]] = {}
-    for key, by_edge in edges.items():
-        if not isinstance(by_edge, dict):
-            continue
-        points = {
-            edge_id: [[int(p[0]), int(p[1])] for p in pts]
-            for edge_id, pts in by_edge.items()
-            if isinstance(pts, list)
-            and all(isinstance(p, list) and len(p) == 2 for p in pts)
-        }
-        if points:
-            cleaned[key] = points
-    return cleaned
-
-
-def _read_layout_labels(source: Path) -> dict[str, dict[str, list[int]]]:
-    """Read the sidecar's ``{view_key: {edge_id: [dx, dy]}}`` mapping.
-
-    Its own top-level section for the same reason as ``edges``: sidecars
-    written before label dragging existed have no ``labels`` key and load
-    unchanged.
-    """
-    labels = _read_sidecar_data(source).get("labels")
-    if not isinstance(labels, dict):
-        return {}
-    cleaned: dict[str, dict[str, list[int]]] = {}
-    for key, by_edge in labels.items():
-        if not isinstance(by_edge, dict):
-            continue
-        offsets = {
-            edge_id: [int(offset[0]), int(offset[1])]
-            for edge_id, offset in by_edge.items()
-            if isinstance(offset, list) and len(offset) == 2
-        }
-        if offsets:
-            cleaned[key] = offsets
-    return cleaned
-
-
-def _read_layout_chrome(source: Path) -> dict[str, dict[str, list[int]]]:
-    """Read the sidecar's ``{view_key: {chrome_name: [x, y]}}`` mapping.
-
-    Its own additive top-level ``chrome`` section, like ``edges`` and
-    ``labels``: sidecars written before movable chrome existed have no
-    such key and load unchanged.
-    """
-    chrome = _read_sidecar_data(source).get("chrome")
-    if not isinstance(chrome, dict):
-        return {}
-    cleaned: dict[str, dict[str, list[int]]] = {}
-    for key, by_name in chrome.items():
-        if not isinstance(by_name, dict):
-            continue
-        points = {
-            name: [int(point[0]), int(point[1])]
-            for name, point in by_name.items()
-            if isinstance(point, list) and len(point) == 2
-        }
-        if points:
-            cleaned[key] = points
-    return cleaned
-
-
-def _read_layout_ids(source: Path, section: str) -> dict[str, list[str]]:
-    """Read a sidecar section of ``{view_key: [id, ...]}`` string lists.
-
-    Backs the ``expanded`` and ``collapsed`` sections — per-view UI state,
-    each its own additive top-level section so sidecars written before it
-    existed load unchanged.
-    """
-    raw = _read_sidecar_data(source).get(section)
-    if not isinstance(raw, dict):
-        return {}
-    cleaned: dict[str, list[str]] = {}
-    for key, ids in raw.items():
-        if isinstance(ids, list):
-            wanted = [i for i in ids if isinstance(i, str) and i]
-            if wanted:
-                cleaned[key] = wanted
-    return cleaned
-
-
 def _write_layout_sidecar(
     source: Path,
     views: dict[str, dict[str, list[int]]],
@@ -825,38 +734,6 @@ def _write_layout_sidecar(
         return sidecar
     sidecar.write_text(json.dumps(document, indent=2, sort_keys=True), encoding="utf-8")
     return sidecar
-
-
-def _attach_waypoints(
-    data: dict[str, Any], waypoints: dict[str, list[list[int]]]
-) -> None:
-    """Add saved bend points onto matching edges of a graph payload.
-
-    Edges whose id no longer appears in the view are simply skipped: the
-    stale entry stays in the sidecar until that view's layout is saved
-    again, and never reaches the client.
-    """
-    if not waypoints:
-        return
-    for edge in data.get("edges", []):
-        points = waypoints.get(edge.get("id", ""))
-        if points:
-            edge["waypoints"] = [[int(x), int(y)] for x, y in points]
-
-
-def _attach_labels(data: dict[str, Any], labels: dict[str, list[int]]) -> None:
-    """Add saved label offsets onto matching edges of a graph payload.
-
-    Stale ids are skipped exactly as waypoints are: the entry stays in the
-    sidecar until that view's layout is saved again, and never reaches the
-    client.
-    """
-    if not labels:
-        return
-    for edge in data.get("edges", []):
-        offset = labels.get(edge.get("id", ""))
-        if offset:
-            edge["labelOffset"] = [int(offset[0]), int(offset[1])]
 
 
 def _apply_saved_layout(state: AppState) -> None:

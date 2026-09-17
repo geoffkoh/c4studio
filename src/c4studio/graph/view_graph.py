@@ -1618,13 +1618,22 @@ def apply_sizes(view: View, sizes: dict[str, tuple[int, int]]) -> None:
 
 
 def _attach_stored_sizes(view: View, nodes: list[GraphNode]) -> None:
-    """Overlay persisted width/height onto boundary nodes, in place."""
+    """Overlay persisted geometry onto boundary nodes, in place.
+
+    Positions as well as sizes, and the positions are the reason this runs
+    after ``_insert_group_boundaries``: a group boundary is synthesised
+    there, so it never passed through the placement every other node gets.
+    It was left with a size and no position — and since both renderers
+    re-run auto-layout when *any* node lacks one, every view containing a
+    group silently discarded its saved arrangement on reload (PP-181).
+    """
+    positions = _stored_positions(view)
     sizes = {
         ve.id: (ve.width, ve.height)
         for ve in view.element_views
         if ve.width is not None and ve.height is not None
     }
-    if not sizes:
+    if not sizes and not positions:
         return
     for node in nodes:
         if node["data"].get("kind") != "boundary":
@@ -1633,6 +1642,10 @@ def _attach_stored_sizes(view: View, nodes: list[GraphNode]) -> None:
         if size is not None:
             style = node.setdefault("style", {})
             style["width"], style["height"] = size
+        xy = positions.get(node["id"])
+        if xy is not None and "x" not in node.get("style", {}):
+            style = node.setdefault("style", {})
+            style["x"], style["y"] = xy
 
 
 def apply_positions(view: View, positions: dict[str, tuple[int, int]]) -> None:

@@ -60,6 +60,21 @@ const openC4studioSource = (page: Page) => openSource(page);
  * exactly like the bug it was meant to catch. */
 async function scrollTo(page: Page, text: string) {
   const scroller = page.locator(".editor__surface .cm-scroller");
+  // From the top every time: this only scrolls *down*, and the editor
+  // keeps a scroll position across a file switch — so a previous test
+  // leaving it near the end made the search fail in the full run while
+  // passing on its own.
+  //
+  // Through the editor's own Mod-Home binding rather than by assigning
+  // scrollTop: CodeMirror restores its scroll asynchronously, so a raw
+  // assignment gets undone a frame later and the search starts from the
+  // bottom regardless.
+  await page.locator(".editor__surface .cm-content").click();
+  await page.keyboard.press("ControlOrMeta+Home");
+  await expect
+    .poll(() => scroller.evaluate((el) => el.scrollTop))
+    .toBeLessThanOrEqual(1);
+
   for (let i = 0; i < 40; i++) {
     if (await page.locator(".editor__surface .cm-line", { hasText: text }).count()) return;
     await scroller.evaluate((el) => {

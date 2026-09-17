@@ -270,13 +270,20 @@ export async function layoutGraph(
 /**
  * Adapt stored (absolute) positions to React Flow's nested-node model.
  *
- * Stored layouts predate boundaries and are absolute; children of a
- * boundary must be positioned relative to it. Groups are re-derived from
- * their children's bounding boxes. Multi-level nesting (deployment views)
- * has no stored layouts in practice, so only one level is handled; deeper
- * graphs fall back to a fresh auto-layout — which is why this is async
- * too, despite doing no asynchronous work of its own.
+ * Stored layouts are absolute — they predate boundaries — while a child of
+ * a boundary is positioned relative to it. Boundaries without a stored
+ * size are re-derived from their children's bounding box.
+ *
+ * Nesting is handled to any depth, innermost first, because every level
+ * has to be measured before the level above it can be. It used to give up
+ * and re-run auto-layout as soon as one boundary sat inside another, which
+ * is *every grouped container view* — so arranging such a diagram, saving
+ * it and reloading quietly threw the arrangement away (PP-181).
+ *
+ * Async despite doing no asynchronous work: it stands in for
+ * `layoutGraph`, whose engine is swappable and may well be.
  */
+
 /**
  * Where the title and legend go: above and below the laid-out diagram.
  *
@@ -311,40 +318,58 @@ export async function normalizeStoredPositions(
   edges: Edge[],
 ): Promise<Node[]> {
   const { parentOf, childrenOf } = buildHierarchy(nodes);
-  const multiLevel = nodes.some((n) => {
-    const parent = n.parentNode;
-    return parent !== undefined && parentOf.has(parent);
-  });
-  if (multiLevel) return await layoutGraph(nodes, edges);
+  if (childrenOf.size <= 1) return nodes; // nothing nested to adapt
+  void edges; // kept for the signature it shares with layoutGraph
 
   const nodesById = new Map(nodes.map((n) => [n.id, n]));
-  const groups = new Map<string, { position: Point; size: Size }>();
-  for (const [parentId, children] of childrenOf) {
-    if (parentId === undefined) continue;
-    // A user-resized boundary carries its stored geometry; honour it and
-    // only fall back to the children's bounding box otherwise.
-    const group = nodesById.get(parentId);
-    const storedWidth = Number(group?.style?.width);
-    const storedHeight = Number(group?.style?.height);
-    if (group && storedWidth > 0 && storedHeight > 0) {
-      groups.set(parentId, {
-        position: group.position,
+  /** Depth of each node, so boundaries can be measured innermost first. */
+  const depthOf = (id: string): number => {
+    let depth = 0;
+    let parent = parentOf.get(id);
+    while (parent !== undefined) {
+      depth += 1;
+      parent = parentOf.get(parent);
+    }
+    return depth;
+  };
+
+  // Absolute geometry per boundary. Deepest first: a boundary's box may
+  // depend on the boxes of the boundaries inside it.
+  const boxes = new Map<string, { position: Point; size: Size }>();
+  const parents = [...childrenOf.keys()].filter(
+    (id): id is string => id !== undefined,
+  );
+  parents.sort((a, b) => depthOf(b) - depthOf(a));
+
+  const absoluteSize = (node: Node): Size => boxes.get(node.id)?.size ?? nodeSize(node);
+
+  for (const parentId of parents) {
+    const children = childrenOf.get(parentId) ?? [];
+    const boundary = nodesById.get(parentId);
+    const storedWidth = Number(boundary?.style?.width);
+    const storedHeight = Number(boundary?.style?.height);
+    if (boundary && storedWidth > 0 && storedHeight > 0) {
+      // A user-resized boundary carries its own geometry; honour it.
+      boxes.set(parentId, {
+        position: boundary.position,
         size: { width: storedWidth, height: storedHeight },
       });
       continue;
     }
-    let maxX = 0;
-    let maxY = 0;
     let minX = Number.POSITIVE_INFINITY;
     let minY = Number.POSITIVE_INFINITY;
+    let maxX = Number.NEGATIVE_INFINITY;
+    let maxY = Number.NEGATIVE_INFINITY;
     for (const child of children) {
-      const size = nodeSize(child);
-      minX = Math.min(minX, child.position.x);
-      minY = Math.min(minY, child.position.y);
-      maxX = Math.max(maxX, child.position.x + size.width);
-      maxY = Math.max(maxY, child.position.y + size.height);
+      const position = boxes.get(child.id)?.position ?? child.position;
+      const size = absoluteSize(child);
+      minX = Math.min(minX, position.x);
+      minY = Math.min(minY, position.y);
+      maxX = Math.max(maxX, position.x + size.width);
+      maxY = Math.max(maxY, position.y + size.height);
     }
-    groups.set(parentId, {
+    if (!Number.isFinite(minX)) continue;
+    boxes.set(parentId, {
       position: { x: minX - BOUNDARY_PAD_X, y: minY - BOUNDARY_PAD_TOP },
       size: {
         width: maxX - minX + 2 * BOUNDARY_PAD_X,
@@ -352,30 +377,23 @@ export async function normalizeStoredPositions(
       },
     });
   }
-  if (groups.size === 0) return nodes;
+  if (boxes.size === 0) return nodes;
 
   return nodes.map((node) => {
-    const asGroup = groups.get(node.id);
-    if (asGroup) {
-      return {
-        ...node,
-        position: asGroup.position,
-        style: { ...node.style, ...asGroup.size },
-      };
-    }
-    if (node.parentNode) {
-      const parent = groups.get(node.parentNode);
-      if (parent) {
-        return {
-          ...node,
-          position: {
-            x: node.position.x - parent.position.x,
-            y: node.position.y - parent.position.y,
-          },
-        };
-      }
-    }
-    return node;
+    const box = boxes.get(node.id);
+    const absolute = box?.position ?? node.position;
+    const parentBox = node.parentNode ? boxes.get(node.parentNode) : undefined;
+    const position = parentBox
+      ? {
+          x: absolute.x - parentBox.position.x,
+          y: absolute.y - parentBox.position.y,
+        }
+      : absolute;
+    return {
+      ...node,
+      position,
+      ...(box ? { style: { ...node.style, ...box.size } } : {}),
+    };
   });
 }
 
