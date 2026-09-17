@@ -249,6 +249,21 @@ export function getCapabilities(): Promise<Capabilities> {
   return request<Capabilities>("/api/capabilities");
 }
 
+/** GET /api/perspectives/{name}/values -> live values, keyed by the URL
+    they were read from (PP-179).
+
+    Keyed by URL because a relationship declared in DSL has no id of its
+    own, and because two items watching one endpoint should cost one
+    request. Refuses with 403 unless the server was started with
+    `--dynamic-perspectives`. */
+export function getPerspectiveValues(
+  name: string,
+): Promise<{ values: Record<string, string> }> {
+  return request<{ values: Record<string, string> }>(
+    `/api/perspectives/${encodeURIComponent(name)}/values`,
+  );
+}
+
 /** GET /api/views -> the index of views in the loaded workspace. */
 export function listViews(): Promise<ViewInfo[]> {
   return request<ViewInfo[]>("/api/views");

@@ -665,13 +665,17 @@ def _perspective_entries(perspectives: Iterable[Perspective]) -> list[dict[str, 
         if name in seen:
             continue
         seen.add(name)
-        entries.append(
-            {
-                "name": name,
-                "description": perspective.description,
-                "value": perspective.value,
-            }
-        )
+        entry = {
+            "name": name,
+            "description": perspective.description,
+            "value": perspective.value,
+        }
+        # A URL marks the perspective as dynamic: the value on screen is
+        # whatever the server last read from it (PP-179). Carried so the
+        # client knows which items to refresh, never fetched here.
+        if perspective.url:
+            entry["url"] = perspective.url
+        entries.append(entry)
     return entries
 
 
@@ -702,7 +706,7 @@ def perspective_names(workspace: Workspace) -> list[str]:
     """
     names = {
         p.name.strip()
-        for perspectives in _perspectives_by_element(workspace).values()
+        for perspectives in perspectives_by_element(workspace).values()
         for p in perspectives
     }
     names.update(
@@ -711,7 +715,7 @@ def perspective_names(workspace: Workspace) -> list[str]:
     return sorted(names)
 
 
-def _perspectives_by_element(workspace: Workspace) -> dict[str, list[Perspective]]:
+def perspectives_by_element(workspace: Workspace) -> dict[str, list[Perspective]]:
     """Perspectives per element id, instances inheriting their element's.
 
     Upstream ``getPerspectiveForElement`` falls back from a software system
@@ -791,7 +795,7 @@ def _attach_perspectives(workspace: Workspace, data: GraphData) -> None:
         *workspace.views.configuration.styles.element_styles,
     ]
     relationship_styles = _relationship_styles(workspace)
-    by_element = _perspectives_by_element(workspace)
+    by_element = perspectives_by_element(workspace)
 
     for node in data["nodes"]:
         entries = _perspective_entries(by_element.get(node["id"], []))

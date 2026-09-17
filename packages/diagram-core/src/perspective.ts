@@ -23,6 +23,9 @@ export interface Perspective {
   name: string;
   description: string;
   value: string;
+  /** Set when the value is read from here rather than written in the
+      DSL — a dynamic perspective (PP-179). */
+  url?: string;
   /** Element paint. */
   background?: string;
   textColor?: string;
@@ -53,12 +56,33 @@ interface LegendEdge {
     needs no separate notion of "faded". */
 const FADED_OPACITY = 10;
 
+/** Live values read from perspective URLs, keyed by URL (PP-179). */
+export type LiveValues = Record<string, string>;
+
+/**
+ * A perspective with its live value applied, when one has been read.
+ *
+ * A dynamic perspective's `value` in the model is whatever the author
+ * last typed — usually nothing. What belongs on the badge is what the
+ * server read from its `url`, so the two are reconciled in one place
+ * rather than at each of the three that paint a perspective.
+ */
+export function withLiveValue(
+  perspective: Perspective,
+  live: LiveValues | undefined,
+): Perspective {
+  const value = perspective.url ? live?.[perspective.url] : undefined;
+  return value === undefined ? perspective : { ...perspective, value };
+}
+
 /** The named perspective on a node's or edge's data, if it carries one. */
 function find(
   perspectives: Perspective[] | undefined,
   name: string,
+  live?: LiveValues,
 ): Perspective | undefined {
-  return perspectives?.find((p) => p.name === name);
+  const found = perspectives?.find((p) => p.name === name);
+  return found && withLiveValue(found, live);
 }
 
 /**
@@ -86,12 +110,14 @@ function labelFor(perspective: Perspective, name: string): string {
  * @param nodes Graph nodes, carrying their perspectives.
  * @param edges Graph edges, carrying theirs.
  * @param name The perspective being shown.
+ * @param live Values read from perspective URLs, keyed by URL.
  * @returns Rows in the same shape the legend already renders.
  */
 export function perspectiveLegendEntries(
   nodes: LegendNode[],
   edges: LegendEdge[],
   name: string,
+  live?: LiveValues,
 ): LegendEntry[] {
   const entries: LegendEntry[] = [];
   const seen = new Set<string>();
@@ -99,7 +125,7 @@ export function perspectiveLegendEntries(
 
   for (const node of nodes) {
     if (node.type !== "element") continue;
-    const shown = find(node.data.perspectives, name);
+    const shown = find(node.data.perspectives, name, live);
     if (!shown) {
       anyFaded = true;
       continue;
@@ -121,7 +147,7 @@ export function perspectiveLegendEntries(
   }
 
   for (const edge of edges) {
-    const shown = find(edge.data?.perspectives, name);
+    const shown = find(edge.data?.perspectives, name, live);
     if (!shown) {
       anyFaded = true;
       continue;

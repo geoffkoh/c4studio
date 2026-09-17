@@ -7,6 +7,7 @@ import {
   deleteFolder,
   deleteLayout,
   getCapabilities,
+  getPerspectiveValues,
   getStatus,
   getViewGraph,
   getWorkspace,
@@ -98,6 +99,17 @@ export default function App() {
   // accept it.
   const [capabilities, setCapabilities] = useState<Capabilities | null>(null);
   const readOnly = capabilities?.readOnly ?? true;
+  // Passed only when the server says it will answer: the capability is
+  // the server's to grant, so the pane cannot poll a route that refuses
+  // (PP-179).
+  const perspectiveValuesLoader = useMemo(
+    () =>
+      capabilities?.features?.dynamicPerspectives === true
+        ? (name: string) =>
+            getPerspectiveValues(name).then((result) => result.values)
+        : undefined,
+    [capabilities],
+  );
   const generationRef = useRef(0);
   // Read inside handleSelectFile, which is memoised with no dependencies.
   const currentPathRef = useRef<string | null>(null);
@@ -456,6 +468,7 @@ export default function App() {
               workspace={workspace}
               onNavigate={setSelectedView}
               loadGraph={getViewGraph}
+              loadPerspectiveValues={perspectiveValuesLoader}
               saveExpansion={saveExpansion}
               saveLayout={saveLayout}
               resetLayout={deleteLayout}
@@ -492,6 +505,7 @@ export default function App() {
                   workspace={workspace}
                   onNavigate={setSelectedView}
                   loadGraph={getViewGraph}
+                  loadPerspectiveValues={perspectiveValuesLoader}
                   saveExpansion={saveExpansion}
                   saveLayout={saveLayout}
                   resetLayout={deleteLayout}

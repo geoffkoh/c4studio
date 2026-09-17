@@ -90,7 +90,7 @@ prints. A skipped construct never consumes its enclosing scope.
 | `technology "<text>"` | ✅ | |
 | `url "<url>"` | ✅ | |
 | `properties { … }` | ✅ | |
-| `perspectives { … }` | ✅ | Highlighted and completed in the editor since PP-177. Both upstream forms: `<name> <description> [value]` and `perspective <name> { description … value … url … }`. Parsed and round-tripped; rendered in the viewer as a static perspective overlay (PP-173), and the `url` of a dynamic perspective is kept but never fetched. Until PP-172 the block form was misread as perspectives named `description`/`value`/`url` with no warning; a malformed line, an unknown property in a block, a block without the `perspective` keyword, and a duplicate name (which upstream rejects) are now reported as diagnostics and skipped |
+| `perspectives { … }` | ✅ | Highlighted and completed in the editor since PP-177. Both upstream forms: `<name> <description> [value]` and `perspective <name> { description … value … url … }`. Parsed and round-tripped; rendered in the viewer as a static perspective overlay (PP-173), and a dynamic perspective's `url` is read by the server behind `c4 webapp --dynamic-perspectives` (PP-179), off by default. Until PP-172 the block form was misread as perspectives named `description`/`value`/`url` with no warning; a malformed line, an unknown property in a block, a block without the `perspective` keyword, and a duplicate name (which upstream rejects) are now reported as diagnostics and skipped |
 | `instances "<n>"` as a body keyword | ⛔ | Only the positional form on `deploymentNode` is understood |
 | `tag` (archetype-related) | ◐ | Accepted without error; no archetype support behind it |
 

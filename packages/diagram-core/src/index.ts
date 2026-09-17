@@ -65,6 +65,8 @@ export { exportDiagram, type ExportFormat } from "./export";
 export {
   applyPerspective,
   perspectiveLegendEntries,
+  withLiveValue,
+  type LiveValues,
   type Perspective,
 } from "./perspective";
 export {

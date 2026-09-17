@@ -9494,9 +9494,25 @@ var FADED_COLOUR = "#d7dce1";
 The renderers already fade a node or an edge by this, so the overlay
 needs no separate notion of "faded". */
 var FADED_OPACITY = 10;
+/**
+* A perspective with its live value applied, when one has been read.
+*
+* A dynamic perspective's `value` in the model is whatever the author
+* last typed — usually nothing. What belongs on the badge is what the
+* server read from its `url`, so the two are reconciled in one place
+* rather than at each of the three that paint a perspective.
+*/
+function withLiveValue(perspective, live) {
+	const value = perspective.url ? live?.[perspective.url] : void 0;
+	return value === void 0 ? perspective : {
+		...perspective,
+		value
+	};
+}
 /** The named perspective on a node's or edge's data, if it carries one. */
-function find(perspectives, name) {
-	return perspectives?.find((p) => p.name === name);
+function find(perspectives, name, live) {
+	const found = perspectives?.find((p) => p.name === name);
+	return found && withLiveValue(found, live);
 }
 /**
 * A row's wording: the perspective's value, or its name when it has none.
@@ -9522,15 +9538,16 @@ function labelFor(perspective, name) {
 * @param nodes Graph nodes, carrying their perspectives.
 * @param edges Graph edges, carrying theirs.
 * @param name The perspective being shown.
+* @param live Values read from perspective URLs, keyed by URL.
 * @returns Rows in the same shape the legend already renders.
 */
-function perspectiveLegendEntries(nodes, edges, name) {
+function perspectiveLegendEntries(nodes, edges, name, live) {
 	const entries = [];
 	const seen = /* @__PURE__ */ new Set();
 	let anyFaded = false;
 	for (const node of nodes) {
 		if (node.type !== "element") continue;
-		const shown = find(node.data.perspectives, name);
+		const shown = find(node.data.perspectives, name, live);
 		if (!shown) {
 			anyFaded = true;
 			continue;
@@ -9549,7 +9566,7 @@ function perspectiveLegendEntries(nodes, edges, name) {
 		});
 	}
 	for (const edge of edges) {
-		const shown = find(edge.data?.perspectives, name);
+		const shown = find(edge.data?.perspectives, name, live);
 		if (!shown) {
 			anyFaded = true;
 			continue;
