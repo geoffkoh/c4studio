@@ -60,26 +60,29 @@ const openC4studioSource = (page: Page) => openSource(page);
  * exactly like the bug it was meant to catch. */
 async function scrollTo(page: Page, text: string) {
   const scroller = page.locator(".editor__surface .cm-scroller");
-  // From the top every time: this only scrolls *down*, and the editor
-  // keeps a scroll position across a file switch — so a previous test
-  // leaving it near the end made the search fail in the full run while
-  // passing on its own.
-  //
-  // Through the editor's own Mod-Home binding rather than by assigning
-  // scrollTop: CodeMirror restores its scroll asynchronously, so a raw
-  // assignment gets undone a frame later and the search starts from the
-  // bottom regardless.
-  await page.locator(".editor__surface .cm-content").click();
-  await page.keyboard.press("ControlOrMeta+Home");
-  await expect
-    .poll(() => scroller.evaluate((el) => el.scrollTop))
-    .toBeLessThanOrEqual(1);
+  const line = page.locator(".editor__surface .cm-line", { hasText: text });
 
-  for (let i = 0; i < 40; i++) {
-    if (await page.locator(".editor__surface .cm-line", { hasText: text }).count()) return;
-    await scroller.evaluate((el) => {
-      el.scrollTop += el.clientHeight;
-    });
+  // Two passes, because the first can start before the editor has
+  // finished settling on the newly opened file: the buffer swaps under
+  // one CodeMirror instance and its scroll position is restored
+  // asynchronously, so a search that begins mid-swap scrolls the wrong
+  // content and finds nothing. This failed in the full suite and passed
+  // alone more than once before it was pinned down.
+  for (let pass = 0; pass < 2; pass++) {
+    // Back to the top through the editor's own Mod-Home binding, not by
+    // assigning scrollTop: a raw assignment is undone a frame later.
+    await page.locator(".editor__surface .cm-content").click();
+    await page.keyboard.press("ControlOrMeta+Home");
+    await expect
+      .poll(() => scroller.evaluate((el) => el.scrollTop))
+      .toBeLessThanOrEqual(1);
+
+    for (let i = 0; i < 40; i++) {
+      if (await line.count()) return;
+      await scroller.evaluate((el) => {
+        el.scrollTop += el.clientHeight;
+      });
+    }
   }
   throw new Error(`never rendered a line containing ${JSON.stringify(text)}`);
 }
