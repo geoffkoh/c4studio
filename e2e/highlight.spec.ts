@@ -73,9 +73,12 @@ async function scrollTo(page: Page, text: string) {
     // assigning scrollTop: a raw assignment is undone a frame later.
     await page.locator(".editor__surface .cm-content").click();
     await page.keyboard.press("ControlOrMeta+Home");
+    // Near the top, not exactly at it: the binding moves the cursor to
+    // the document start and CodeMirror leaves a few pixels of padding
+    // above the first line. Anything under a line height is "the top".
     await expect
       .poll(() => scroller.evaluate((el) => el.scrollTop))
-      .toBeLessThanOrEqual(1);
+      .toBeLessThan(40);
 
     for (let i = 0; i < 40; i++) {
       if (await line.count()) return;
@@ -85,6 +88,33 @@ async function scrollTo(page: Page, text: string) {
     }
   }
   throw new Error(`never rendered a line containing ${JSON.stringify(text)}`);
+}
+
+/** How many `cls` tokens the line containing `text` is painted with.
+ *
+ * Re-scrolls on every attempt. CodeMirror only renders its viewport and
+ * restores its own scroll position asynchronously, so a line found once
+ * can be gone from the DOM a moment later — which counts as zero tokens
+ * and reads exactly like the missing-keyword bug this asserts against.
+ * Polling with the scroll inside the loop is what makes the answer mean
+ * "not painted" rather than "not on screen". */
+async function paintedTokens(
+  page: Page,
+  text: string,
+  cls: string,
+): Promise<number> {
+  let count = 0;
+  for (let attempt = 0; attempt < 10; attempt++) {
+    await scrollTo(page, text);
+    count = await page
+      .locator(".editor__surface .cm-line", { hasText: text })
+      .first()
+      .locator(cls)
+      .count();
+    if (count > 0) return count;
+    await page.waitForTimeout(200);
+  }
+  return count;
 }
 
 test.describe("DSL highlighting", () => {
@@ -114,32 +144,19 @@ test.describe("DSL highlighting", () => {
       "logistics_network.dsl",
       'workspace "NorthWind Logistics"',
     );
-    // Both assertions are about one screenful: `url` on line 49 and the
-    // `perspectives` block on line 54. Asserting against a line 70 further
-    // down failed on CI and passed locally — a StreamLanguage highlights
-    // as its parser catches up, so a deep line can render as plain text
-    // first, and "no token yet" is indistinguishable from "not a keyword".
-    // The generous timeouts are for the same reason.
-    await scrollTo(page, 'url "https://api.northwind.example');
 
     // `url` went in with the perspective words: it is a model-item body
     // property the vocabulary had never carried, so a `perspective` block
-    // would have been lit half way.
-    const url = page
-      .locator(".editor__surface .cm-line", {
-        hasText: 'url "https://api.northwind.example',
-      })
-      .first();
-    await expect(url.locator(".dsl-property")).toHaveCount(1, {
-      timeout: 20_000,
-    });
+    // would have been lit half way. Line 49, one screenful from the
+    // `perspectives` block below — asserting against a line 70 further
+    // down failed on CI while passing locally.
+    expect(
+      await paintedTokens(page, 'url "https://api.northwind.example', ".dsl-property"),
+    ).toBe(1);
 
-    const block = page
-      .locator(".editor__surface .cm-line", { hasText: "perspectives {" })
-      .first();
-    await expect(block.locator(".dsl-keyword")).toHaveCount(1, {
-      timeout: 20_000,
-    });
+    expect(
+      await paintedTokens(page, "perspectives {", ".dsl-keyword"),
+    ).toBe(1);
   });
 
   test("a mid-line # is still a colour", async ({ page }) => {
