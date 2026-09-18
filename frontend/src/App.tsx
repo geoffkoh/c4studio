@@ -215,6 +215,26 @@ export default function App() {
     };
   }, []);
 
+  /**
+   * Open a view as soon as there is one to open.
+   *
+   * Without this the app sits on "No view selected — Choose a renderable
+   * view from the sidebar", and below 900px the sidebar starts collapsed,
+   * so there is nothing visible to choose from.
+   *
+   * `/api/views` has sorted the DSL's `default` first since PP-119, so
+   * this is mostly "the first one" — but it skips `image` and `custom`
+   * views, which are listed as unsupported precisely so a caller does not
+   * open a pane that can only be empty.
+   */
+  useEffect(() => {
+    if (selectedView || views.length === 0) return;
+    const opening =
+      views.find((view) => view.default && view.supported) ??
+      views.find((view) => view.supported);
+    if (opening) setSelectedView(opening);
+  }, [views, selectedView]);
+
   /** Refetch workspace + views after a server-side live reload. */
   const refresh = useCallback(async () => {
     const [ws, vs] = await Promise.all([getWorkspace(), listViews()]);
@@ -399,6 +419,20 @@ export default function App() {
         sidebarOpen={sidebarOpen}
         onToggleSidebar={() => setSidebarOpen((open) => !open)}
       />
+      {/* The errors used to live inside the sidebar, which auto-collapses
+          below 900px — so a failed reload showed a stale diagram and said
+          nothing about why. A strip, and only when there is something to
+          say. */}
+      {error || reloadError ? (
+        <div className="alerts">
+          {error ? <div className="error">{error}</div> : null}
+          {reloadError ? (
+            <div className="error">
+              <strong>Live reload paused:</strong> {reloadError}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
       <div className="body">
         {sidebarOpen ? null : (
           <button
@@ -415,12 +449,6 @@ export default function App() {
             exactly the state someone collapses it to get out of the way
             of, not to lose. */}
         <aside className="sidebar" hidden={!sidebarOpen}>
-          {error ? <div className="error">{error}</div> : null}
-          {reloadError ? (
-            <div className="error">
-              <strong>Live reload paused:</strong> {reloadError}
-            </div>
-          ) : null}
           {diagnostics.length > 0 ? (
             <details className="diagnostics">
               <summary>
