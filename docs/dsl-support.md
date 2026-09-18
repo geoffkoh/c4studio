@@ -51,7 +51,7 @@ prints. A skipped construct never consumes its enclosing scope.
 | `properties { … }` (workspace level) | ✅ | On `Workspace.properties`, exported at the top level of the JSON as upstream's `AbstractWorkspace.properties` is. Previously written to the *views* configuration instead, which is a different statement's target — see the Views table |
 | `configuration { … }` | ✅ | `scope`, `visibility`, `users` all parse |
 | `!include <file\|directory>` | ✅ | Works from a file (`parse_dsl_file`); a string parsed with no file context cannot resolve relative paths |
-| `!docs <path>` | ◐ | Needs a file context; raises a clear error when parsed from a string. At workspace level it works; **inside an element body it parses silently and attaches to the workspace** rather than that element (PP-185) |
+| `!docs <path>` | ✅ | Needs a file context; raises a clear error when parsed from a string. Scoped to where it is written — workspace level documents the workspace, an element body documents that element (PP-185) |
 | `!adrs <path>` | ✅ | Same |
 | `!decisions <path>` | ⛔ | The upstream alias for `!adrs`; not wired up |
 | `!script` | 🚫 | **Never executed.** Skipped whole, with a diagnostic. Executing arbitrary Groovy/Kotlin/Ruby from a parsed file is not something this tool will do |

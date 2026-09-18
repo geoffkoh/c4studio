@@ -321,10 +321,25 @@ _ELEMENT_KEYWORDS = frozenset(
 
 class _Parser:
     def __init__(
-        self, tokens: list[Token], source_map: SourceMap | None = None
+        self,
+        tokens: list[Token],
+        source_map: SourceMap | None = None,
+        base_dir: Path | None = None,
+        source_lines: list[str] | None = None,
     ) -> None:
         self._tokens = tokens
         self._source_map = source_map or SourceMap()
+        #: The flattened source, by line. `!docs some-dir/sub` cannot be
+        #: read back from tokens — the tokenizer drops `-` and `/` — so
+        #: the path comes from the line itself while the *context* comes
+        #: from where the directive sits in the token stream (PP-185).
+        self._source_lines = source_lines or []
+        #: Directory `!docs` and `!adrs` resolve against; None when
+        #: parsing a bare string, where they cannot be read at all.
+        self._base_dir = base_dir
+        #: The element whose body is being parsed, so a `!docs` inside one
+        #: attaches to it rather than to the workspace (PP-185).
+        self._element_scope: Any | None = None
         self._diagnostics: list[Diagnostic] = []
         self._errors: list[Diagnostic] = []
         self._pos = 0
@@ -661,6 +676,57 @@ class _Parser:
             column=bang_tok.column,
             end_column=name_tok.end_column,
         )
+
+    def _directive_docs(self, scope: str, line: int) -> None:
+        self._read_documentation("docs", scope, line)
+
+    def _directive_adrs(self, scope: str, line: int) -> None:
+        self._read_documentation("adrs", scope, line)
+
+    def _read_documentation(self, kind: str, scope: str, line: int) -> None:
+        """Attach `!docs` / `!adrs` to the thing they were written inside.
+
+        They used to be stripped out before tokenising, which is why they
+        always landed on the workspace: by the time anything knew about
+        them, the context they were written in was gone (PP-185).
+        """
+        # Consume whatever the path tokenised into, so none of it is left
+        # to be parsed as DSL.
+        while not self._match(EOF) and self._peek().line == line:
+            self._advance()
+        raw = (
+            self._source_lines[line - 1] if 0 < line <= len(self._source_lines) else ""
+        )
+        match = _DOCS_RE.match(raw)
+        target = match.group("target").strip('"') if match else ""
+        if not target:
+            self._warn(
+                f"!{kind} needs a path; ignored",
+                line=line,
+                code="unsupported-directive",
+            )
+            return
+        if self._base_dir is None:
+            raise ParseError(
+                f"!{kind} {target!r} requires a file context; "
+                "parse from a file instead of a string",
+                line=line,
+            )
+        holder = (
+            self._element_scope if scope == "element" else getattr(self, "_ws", None)
+        )
+        if holder is None or not hasattr(holder, "documentation"):
+            self._warn(
+                f"!{kind} is not supported in {scope}; ignored",
+                line=line,
+                code="unsupported-directive",
+            )
+            return
+        directory = (self._base_dir / target).resolve()
+        if kind == "docs":
+            holder.documentation.sections.extend(load_sections(directory))
+        else:
+            holder.documentation.decisions.extend(load_decisions(directory))
 
     def _directive_identifiers(self, scope: str, line: int) -> None:
         # hierarchical|flat — identifier scoping is not yet implemented;
@@ -1240,7 +1306,12 @@ class _Parser:
         """Parse one statement of an element body."""
         tok = self._peek()
         if tok.type == BANG:
-            self._parse_directive("element")
+            previous = self._element_scope
+            self._element_scope = element
+            try:
+                self._parse_directive("element")
+            finally:
+                self._element_scope = previous
             return
         if tok.type == ARROW or (tok.type == IDENT and self._lookahead_is_arrow()):
             self._parse_relationship(this_id=element.id)
@@ -2591,22 +2662,17 @@ def parse_dsl(
     flattened = _strip_scripts(flattened, preprocess_warnings)
     flattened = _apply_constants(flattened)
 
-    doc_dirs: list[tuple[str, Path]] = []
-
-    def extract_docs(match: re.Match[str]) -> str:
-        target = match.group("target").strip('"')
-        if resolved is None:
-            raise ParseError(
-                f"!{match.group('kind')} {target!r} requires a file context; "
-                "parse from a file instead of a string"
-            )
-        doc_dirs.append((match.group("kind"), (resolved / target).resolve()))
-        return ""
-
-    flattened = _DOCS_RE.sub(extract_docs, flattened)
     tokens = _tokenize(flattened)
     try:
-        workspace = _Parser(tokens, source_map).parse()
+        # `!docs` and `!adrs` are handled by the parser, which knows what
+        # they were written inside; stripping them here attached every one
+        # of them to the workspace (PP-185).
+        workspace = _Parser(
+            tokens,
+            source_map,
+            base_dir=resolved,
+            source_lines=flattened.split("\n"),
+        ).parse()
     except ParseError as error:
         # Positions from the parser are flattened-source lines; resolve them
         # to the file the user actually has to edit.
@@ -2628,11 +2694,6 @@ def parse_dsl(
         workspace.diagnostics.append(diagnostic)
         workspace.parse_warnings.append(str(diagnostic))
 
-    for kind, directory in doc_dirs:
-        if kind == "docs":
-            workspace.documentation.sections.extend(load_sections(directory))
-        else:
-            workspace.documentation.decisions.extend(load_decisions(directory))
     return workspace
 
 

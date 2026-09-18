@@ -592,9 +592,17 @@ workspace "Docs" {
   `!docs '<path>' requires a file context`.
 - `!decisions` (the upstream alias for `!adrs`) is **not** wired up.
 
-> **Gotcha.** `!docs` inside an element body parses without complaint but
-> attaches the documentation to the **workspace**, not the element. Only
-> workspace-level docs are actually scoped as written.
+Both are scoped to where they are written: at workspace level they
+document the workspace, and inside an element body they document that
+element.
+
+```dsl
+// in: model
+s = softwareSystem "Platform" {
+    !docs api-docs
+    api = container "API"
+}
+```
 
 ---
 
@@ -739,7 +747,6 @@ Nothing below stops a parse. Each is skipped whole, recorded in
 | `!identifiers hierarchical` | Accepted, but identifiers are always resolved flat. |
 | `paperSize <size>` | Stored and exported; nothing here draws to a page size. An unrecognised value warns with `unknown-paper-size`. |
 | `branding`, `terminology` | Parsed and exported, but nothing reads them (§7). |
-| `!docs` in an element body | Attaches to the workspace instead of the element (§8). |
 | Any unrecognised block | Skipped brace-balanced with `unsupported-block`, so its contents cannot leak into the enclosing scope. |
 
 ### Diagnostic codes
