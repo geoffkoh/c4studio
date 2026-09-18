@@ -122,8 +122,8 @@ prints. A skipped construct never consumes its enclosing scope.
 | `autoLayout [rankDirection] [rankSep] [nodeSep]` | ✅ | Direction *and* separations are honoured by the viewer and by `render` |
 | `default` | ✅ | The default view opens first |
 | `animation { … }` | ✅ | |
-| `parallel { … }` (dynamic views) | ⛔ | **Not skipped safely:** the closing brace is read as the end of the view, so steps after the block are dropped from it (PP-186). Write steps sequentially |
-| `paperSize <size>` | ⛔ | Parses and is discarded silently — no diagnostic, and `View.paper_size` stays unset (PP-186) |
+| `parallel { … }` (dynamic views) | ✅ | Steps inside share one step number, as upstream numbers them. Until PP-186 the block's closing brace was read as the end of the view, so steps written after it were dropped |
+| `paperSize <size>` | ◐ | Parsed into `View.paper_size` and exported (PP-186); no renderer draws to a page size. An unknown value warns with `unknown-paper-size` |
 | `title` / `description` / `properties` | ✅ | Per-view. Distinct from `views { properties … }`, the views *configuration*'s own properties, which was skipped as an unsupported block until PP-105 — while workspace-level properties were being written there by mistake. The two were the wrong way round |
 
 ## Styles, themes and terminology
