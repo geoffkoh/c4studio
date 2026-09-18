@@ -51,7 +51,7 @@ prints. A skipped construct never consumes its enclosing scope.
 | `properties { … }` (workspace level) | ✅ | On `Workspace.properties`, exported at the top level of the JSON as upstream's `AbstractWorkspace.properties` is. Previously written to the *views* configuration instead, which is a different statement's target — see the Views table |
 | `configuration { … }` | ✅ | `scope`, `visibility`, `users` all parse |
 | `!include <file\|directory>` | ✅ | Works from a file (`parse_dsl_file`); a string parsed with no file context cannot resolve relative paths |
-| `!docs <path>` | ✅ | Needs a file context; raises a clear error when parsed from a string |
+| `!docs <path>` | ◐ | Needs a file context; raises a clear error when parsed from a string. At workspace level it works; **inside an element body it parses silently and attaches to the workspace** rather than that element (PP-185) |
 | `!adrs <path>` | ✅ | Same |
 | `!decisions <path>` | ⛔ | The upstream alias for `!adrs`; not wired up |
 | `!script` | 🚫 | **Never executed.** Skipped whole, with a diagnostic. Executing arbitrary Groovy/Kotlin/Ruby from a parsed file is not something this tool will do |
@@ -79,7 +79,7 @@ prints. A skipped construct never consumes its enclosing scope.
 | `softwareSystemInstance <identifier> […]` | ✅ | |
 | `containerInstance <identifier> […]` | ✅ | |
 | `instanceOf <identifier> […]` | ⛔ | Skipped with a diagnostic (`'instanceOf' is not valid inside deploymentnode`). Upstream sugar that picks software-system vs container instance from the referenced element; use `softwareSystemInstance` / `containerInstance` explicitly |
-| `healthCheck <name> <url> […]` | ✅ | Parsed and round-tripped; not evaluated — nothing here makes HTTP calls |
+| `healthCheck <name> <url> […]` | ✅ | Valid **inside a container or software system instance only**, as upstream (`StaticStructureElementInstanceDslContext`); on a `deploymentNode` or `infrastructureNode` it is skipped with `unexpected-token`. Parsed and round-tripped; not evaluated — the only feature that makes HTTP calls is a dynamic perspective, and only behind `--dynamic-perspectives` |
 
 ## Element and relationship bodies
 
@@ -122,6 +122,8 @@ prints. A skipped construct never consumes its enclosing scope.
 | `autoLayout [rankDirection] [rankSep] [nodeSep]` | ✅ | Direction *and* separations are honoured by the viewer and by `render` |
 | `default` | ✅ | The default view opens first |
 | `animation { … }` | ✅ | |
+| `parallel { … }` (dynamic views) | ⛔ | **Not skipped safely:** the closing brace is read as the end of the view, so steps after the block are dropped from it (PP-186). Write steps sequentially |
+| `paperSize <size>` | ⛔ | Parses and is discarded silently — no diagnostic, and `View.paper_size` stays unset (PP-186) |
 | `title` / `description` / `properties` | ✅ | Per-view. Distinct from `views { properties … }`, the views *configuration*'s own properties, which was skipped as an unsupported block until PP-105 — while workspace-level properties were being written there by mistake. The two were the wrong way round |
 
 ## Styles, themes and terminology

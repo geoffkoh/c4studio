@@ -301,6 +301,32 @@ Rebased onto 19 commits of `main` with no conflicts, and it inherits
 PP-180 for free: the preview runs plain `c4 render --view`, so the
 picture follows the layout you arranged.
 
+### A DSL reference that cannot drift (17 September): PP-184
+
+`docs/dsl-reference.md` is the authoring reference — enough to write DSL
+for c4studio without reading the code, written as much for an agent as a
+person. `tests/test_docs_examples.py` parses every ```dsl block in it and
+asserts no diagnostics, which caught three wrong examples while it was
+being written. Add examples there rather than prose claims.
+
+Probing for it turned up three things now recorded rather than assumed:
+`healthCheck` is instance-only (as upstream), `!docs` in an element body
+attaches to the workspace (PP-185), and **`parallel` in a dynamic view
+consumes the rest of the view** (PP-186) — which breaks the contract this
+file's own rules state, that a skipped construct never eats its enclosing
+scope. `paperSize` is discarded with no diagnostic at all.
+
+**`e2e/highlight.spec.ts` has now been flaky three separate times**, each
+for a different reason in the same area: the editor keeps a scroll
+position across a file switch; `scrollTop = 0` is undone a frame later by
+CodeMirror's own restore; and a line found by scrolling can be scrolled
+back out of the DOM before the assertion reads it — which counts as zero
+tokens and reads exactly like the bug being tested for. It now presses
+`Mod-Home`, tolerates a few pixels of padding, and **re-scrolls inside
+the polling loop** so a count of zero means "not painted" rather than
+"not on screen". If it goes red again, suspect the harness before the
+vocabulary.
+
 ---
 
 ## Open now

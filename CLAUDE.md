@@ -278,6 +278,12 @@ the finding in the code or docs so the answer survives without it.
   is the record of the decisions, the measurements behind them, and the
   three places the plan itself turned out to be wrong. Read it before
   changing the editor, the file tree, the caches or the assistant.
+- `docs/dsl-reference.md` is the **authoring reference**: enough to write
+  DSL for c4studio without reading the code, including the `c4studio.*`
+  property extensions and the constructs that are accepted and ignored.
+  Every DSL block in it is parsed by `tests/test_docs_examples.py`, so it
+  cannot drift from the parser — add examples there rather than prose
+  claims, and let the test hold them true.
 - `docs/dsl-support.md` maps every keyword in the Structurizr DSL language
   reference to what this parser does with it, established by probing rather
   than by reading. Update it when parser coverage changes — and re-probe
