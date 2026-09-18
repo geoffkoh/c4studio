@@ -3,7 +3,12 @@ import * as vscode from "vscode";
 
 import { renderView } from "./render";
 import { resolveC4Command } from "./resolve";
-import { defaultView, listViews, type ViewEntry } from "./views";
+import {
+  defaultView,
+  listPerspectives,
+  listViews,
+  type ViewEntry,
+} from "./views";
 
 /**
  * The diagram preview: one view, as an SVG, in a webview.
@@ -31,6 +36,8 @@ export class PreviewManager implements vscode.Disposable {
   private readonly output: vscode.OutputChannel;
   private readonly storageDir: string;
   private readonly chosen: Map<string, string> = new Map();
+  /** The perspective shown per file, when one was chosen (PP-183). */
+  private readonly perspective: Map<string, string> = new Map();
 
   constructor(storageDir: string, output: vscode.OutputChannel) {
     this.storageDir = storageDir;
@@ -78,7 +85,14 @@ export class PreviewManager implements vscode.Disposable {
     this.currentFile = file;
     this.currentView = key;
 
-    const outcome = await renderView(command, file, key, cwd, this.output);
+    const outcome = await renderView(
+      command,
+      file,
+      key,
+      cwd,
+      this.output,
+      this.perspective.get(file),
+    );
     const label = this.views.find((view) => view.key === key)?.title || key;
     this.show(
       file,
@@ -126,6 +140,50 @@ export class PreviewManager implements vscode.Disposable {
     );
     if (!picked) return;
     await this.open(document, picked.key);
+  }
+
+  /** Ask which perspective to show, then show it. */
+  async pickPerspective(document: vscode.TextDocument): Promise<void> {
+    const file = document.uri.fsPath;
+    const cwd =
+      vscode.workspace.getWorkspaceFolder(document.uri)?.uri.fsPath ??
+      path.dirname(file);
+    const command = await resolveC4Command(cwd, this.storageDir, this.output);
+    if (!command) return;
+
+    const names = await listPerspectives(command, file, cwd, this.output);
+    if (names.length === 0) {
+      void vscode.window.showInformationMessage(
+        "c4studio: this workspace defines no perspectives.",
+      );
+      return;
+    }
+
+    const current = this.perspective.get(file);
+    const picked = await vscode.window.showQuickPick(
+      [
+        // Clearing it has to be as reachable as setting it, which is why
+        // the Studio's picker carries the same entry.
+        {
+          label: "(none)",
+          description: "Show the diagram unfiltered",
+          name: "",
+        },
+        ...names.map((name) => ({
+          label: name,
+          description: name === current ? "shown" : undefined,
+          name,
+        })),
+      ],
+      { title: "c4studio: show perspective", placeHolder: "Which perspective?" },
+    );
+    if (!picked) return;
+    if (picked.name) {
+      this.perspective.set(file, picked.name);
+    } else {
+      this.perspective.delete(file);
+    }
+    await this.open(document, this.chosen.get(file));
   }
 
   /** Put `body` in the panel, creating it if this is the first time. */

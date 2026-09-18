@@ -74,11 +74,15 @@ export function renderView(
   viewKey: string,
   cwd: string,
   output: vscode.OutputChannel,
+  perspective?: string,
 ): Promise<RenderOutcome> {
   return nodeEnv(output).then(
     (env) =>
       new Promise<RenderOutcome>((resolve) => {
         const args = [...command.slice(1), "render", file, "--view", viewKey];
+        // Shows the perspective the way the Studio's picker does: what
+        // lacks it fades, what carries it is badged with its value.
+        if (perspective) args.push("--perspective", perspective);
         output.appendLine(`[render] ${command[0]} ${args.join(" ")}`);
         execFile(
           command[0],

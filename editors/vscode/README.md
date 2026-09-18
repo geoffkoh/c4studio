@@ -30,9 +30,11 @@ Structurizr DSL support in VS Code, powered by
   server, no port, no iframe. Saving the DSL file (or any `!include`
   fragment) re-renders it. **"C4Studio: Show View…"** switches which view
   is shown, listing every renderable one with the workspace default
-  marked; your choice sticks per file. The picture follows the layout you
-  arranged in the Studio, since `c4 render` reads the layout sidecar
-  beside the file.
+  marked; your choice sticks per file. **"C4Studio: Show Perspective…"**
+  shows one perspective — what lacks it fades, what carries it is badged
+  with its value — with a "(none)" entry to clear it; that choice sticks
+  per file too. The picture follows the layout you arranged in the
+  Studio, since `c4 render` reads the layout sidecar beside the file.
 - **The full Studio, when you want it**: "C4Studio: Open in Studio
   (browser)" spawns the web app and opens it in a browser tab — drag
   layouts, in-place expansion, perspectives, dynamic-view animation,

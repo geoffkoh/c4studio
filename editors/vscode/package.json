@@ -55,6 +55,11 @@
         "category": "C4Studio"
       },
       {
+        "command": "c4studio.showPerspective",
+        "title": "Show Perspective\u2026",
+        "category": "C4Studio"
+      },
+      {
         "command": "c4studio.openInStudio",
         "title": "Open in Studio (browser)",
         "category": "C4Studio"
@@ -93,6 +98,10 @@
         },
         {
           "command": "c4studio.checkFile",
+          "when": "editorLangId == structurizr-dsl"
+        },
+        {
+          "command": "c4studio.showPerspective",
           "when": "editorLangId == structurizr-dsl"
         }
       ]
