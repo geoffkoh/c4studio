@@ -81,6 +81,17 @@ export function activate(context: vscode.ExtensionContext): void {
       if (document.isDirty) await document.save();
       await previews.pickView(document);
     }),
+    vscode.commands.registerCommand("c4studio.showPerspective", async () => {
+      const document = vscode.window.activeTextEditor?.document;
+      if (!document || document.languageId !== "structurizr-dsl") {
+        void vscode.window.showInformationMessage(
+          "c4studio: open a Structurizr DSL file (.dsl) first.",
+        );
+        return;
+      }
+      if (document.isDirty) await document.save();
+      await previews.pickPerspective(document);
+    }),
     vscode.commands.registerCommand("c4studio.openInStudio", async () => {
       const document = vscode.window.activeTextEditor?.document;
       if (!document || document.languageId !== "structurizr-dsl") {

@@ -800,6 +800,7 @@ included it. `samples/c4studio/` is a worked example.
 | `c4 generate <file>` | Mermaid C4 diagrams. |
 | `c4 export <file>` | Structurizr workspace JSON, which round-trips with structurizr.com and Lite. |
 | `c4 list-views <file> --json` | The views, default first — the shape `/api/views` returns. |
+| `c4 list-perspectives <file> --json` | Every perspective name in the model, sorted — what `--perspective` accepts. |
 | `c4 new <file> --template …` | A starter workspace: `minimal`, `system-context`, `full-c4`, `deployment`. |
 
 ---

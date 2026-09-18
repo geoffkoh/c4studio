@@ -373,6 +373,38 @@ def list_views(input_file: Path, as_json: bool) -> None:
         click.echo(f"{view.key:<30} {view.type:<20} {view.element_id}")
 
 
+@cli.command("list-perspectives")
+@click.argument("input_file", type=click.Path(exists=True, path_type=Path))
+@click.option(
+    "--json",
+    "as_json",
+    is_flag=True,
+    help="Emit the names as a JSON array, for tools rather than people.",
+)
+def list_perspectives(input_file: Path, as_json: bool) -> None:
+    """List the perspective names used anywhere in INPUT_FILE.
+
+    The same set the Studio's perspective picker offers and that
+    ``c4 render --perspective`` accepts, from the same function, so a
+    caller cannot be offered a name the renderer would refuse. Its own
+    command rather than a field on ``list-views --json``: perspectives
+    belong to the model, not to a view, and that JSON is an array whose
+    shape other tools already read.
+    """
+    import json as json_module
+
+    workspace = _load_workspace(input_file)
+    names = perspective_names(workspace)
+    if as_json:
+        click.echo(json_module.dumps(names, indent=2))
+        return
+    if not names:
+        click.echo("No perspectives found.")
+        return
+    for name in names:
+        click.echo(name)
+
+
 @cli.command("new")
 @click.argument("output", type=click.Path(path_type=Path), default="workspace.dsl")
 @click.option(

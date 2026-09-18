@@ -341,6 +341,27 @@ Both fixes existed on the abandoned PP-171 branch and were nearly lost
 with it; they had nothing to do with which preview design won. Worth
 remembering when a branch is closed: check what it was carrying.
 
+### Perspectives in the preview, and two parser fixes (18 September)
+
+**PP-186** — `parallel` in a dynamic view consumed the rest of the view,
+because the view body's fallback was a bare `advance()`. It now goes
+through `_skip_unknown`, and `parallel` is implemented rather than
+skipped: its steps share one number, as upstream numbers them. `paperSize`
+is stored instead of silently discarded.
+
+**PP-185** — `!docs` and `!adrs` were stripped before tokenising, so they
+always attached to the workspace. The parser handles them now, which is
+what makes scoping possible. The path still comes from the raw line: the
+tokenizer drops `-` and `/`, so `!docs api-docs/sub` cannot be read back
+from tokens at all — a token-level first attempt silently looked for a
+directory called `api`.
+
+**PP-183** — `c4 list-perspectives [--json]` feeds a `Show Perspective…`
+quick-pick in the VS Code preview, which passes `--perspective` to the
+render. Its own command rather than a field on `list-views --json`:
+perspectives belong to the model, not to a view, and that JSON is an
+array whose shape other tools already read.
+
 ---
 
 ## Open now

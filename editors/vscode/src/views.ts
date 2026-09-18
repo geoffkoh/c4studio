@@ -63,6 +63,49 @@ export function listViews(
 }
 
 /**
+ * The perspective names used anywhere in `file`, sorted.
+ *
+ * `c4 list-perspectives --json` reads the same set `c4 render
+ * --perspective` accepts, so the picker cannot offer a name the render
+ * would refuse. An older c4studio has no such command and fails; an
+ * empty list then simply means "no perspectives to offer", which is also
+ * the honest answer for a model that has none.
+ */
+export function listPerspectives(
+  command: string[],
+  file: string,
+  cwd: string,
+  output: vscode.OutputChannel,
+): Promise<string[]> {
+  return new Promise((resolve) => {
+    const args = [...command.slice(1), "list-perspectives", file, "--json"];
+    execFile(
+      command[0],
+      args,
+      { cwd, timeout: LIST_TIMEOUT_MS, maxBuffer: MAX_JSON_BYTES },
+      (error, stdout, stderr) => {
+        if (error) {
+          output.appendLine(`[perspectives] ${stderr.trim() || error.message}`);
+          resolve([]);
+          return;
+        }
+        try {
+          const parsed: unknown = JSON.parse(stdout);
+          resolve(
+            Array.isArray(parsed)
+              ? parsed.filter((name): name is string => typeof name === "string")
+              : [],
+          );
+        } catch (parseError) {
+          output.appendLine(`[perspectives] unparseable: ${String(parseError)}`);
+          resolve([]);
+        }
+      },
+    );
+  });
+}
+
+/**
  * The view to open when the user has not chosen one.
  *
  * `views_index` already sorts the DSL's `default` view first, so this is
