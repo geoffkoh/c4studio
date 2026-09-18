@@ -2311,6 +2311,18 @@ button {
   color: #c62828;
 }
 
+/* Errors sit above the body rather than inside the sidebar, which is
+   collapsed at narrow widths — an unseen error is the same as none. */
+.alerts {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+
+.alerts:empty {
+  display: none;
+}
+
 /* ---- Diagram title and legend (PP-99) ---- */
 /* These live inside the React Flow viewport, not in a Panel, so PNG/SVG
    export captures them along with the nodes. */

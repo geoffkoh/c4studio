@@ -327,6 +327,20 @@ the polling loop** so a count of zero means "not painted" rather than
 "not on screen". If it goes red again, suspect the harness before the
 vocabulary.
 
+### First contact (18 September): PP-182
+
+Two bugs that only showed before anyone touched the app, which is where
+they cost most. `ViewInfo` never modelled the `default` flag — the server
+has returned it and sorted by it since PP-119 — so the app opened on "No
+view selected", and below 900px the sidebar starts collapsed, leaving
+nothing visible to choose from. And the reload error rendered *inside*
+that sidebar, so a failed reload left a stale diagram explaining nothing.
+Errors now sit in a strip above the body.
+
+Both fixes existed on the abandoned PP-171 branch and were nearly lost
+with it; they had nothing to do with which preview design won. Worth
+remembering when a branch is closed: check what it was carrying.
+
 ---
 
 ## Open now

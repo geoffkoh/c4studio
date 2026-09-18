@@ -10,6 +10,12 @@ export interface ViewInfo {
   element_id: string;
   /** Only systemContext/container/component views are renderable. */
   supported: boolean;
+  /**
+   * The view the DSL marks `default`, which the server also sorts first.
+   * It has been in `/api/views` since PP-119 and was never modelled here,
+   * so nothing read it — and the app opened with no view selected.
+   */
+  default: boolean;
 }
 
 /** Response body from POST /api/load. */
