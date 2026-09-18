@@ -421,11 +421,22 @@ A **dynamic view** lists ordered steps rather than includes. Each step is a
 relationship, numbered in the order written; the viewer animates them and
 `c4 render` draws them numbered.
 
-> **Do not use `parallel { … }`.** It is not implemented, and it does not
-> fail cleanly: the block's closing brace is read as the end of the view,
-> so **every step written after it is silently dropped** from the diagram
-> (two `unexpected-token` diagnostics are the only sign). Write the steps
-> sequentially. Tracked as PP-186.
+`parallel { … }` gives every step inside it the **same** step number, so
+they read as one moment in the sequence:
+
+```dsl
+// in: views
+dynamic * "Signup" {
+    u -> web "Opens the signup page"
+    parallel {
+        web -> api "Creates the account"
+        web -> api "Sends the welcome email"
+    }
+    web -> api "Redirects to the dashboard"
+}
+```
+
+That is steps 1, 2, 2, 3.
 
 An **image view** carries a reference instead of a graph. The content is
 parsed and exported; nothing here renders it.
@@ -726,8 +737,7 @@ Nothing below stops a parse. Each is skipped whole, recorded in
 | `!const`, `!var`, `!decisions`, any unknown `!directive` | Skipped with `unsupported-directive`. |
 | `archetypes { … }` | Skipped with `unsupported-block`. |
 | `!identifiers hierarchical` | Accepted, but identifiers are always resolved flat. |
-| `paperSize <size>` | Parses and is **dropped with no diagnostic**; `View.paper_size` stays unset. |
-| `parallel { … }` in a dynamic view | Not implemented, and it consumes the rest of the view — see the warning in §5. |
+| `paperSize <size>` | Stored and exported; nothing here draws to a page size. An unrecognised value warns with `unknown-paper-size`. |
 | `branding`, `terminology` | Parsed and exported, but nothing reads them (§7). |
 | `!docs` in an element body | Attaches to the workspace instead of the element (§8). |
 | Any unrecognised block | Skipped brace-balanced with `unsupported-block`, so its contents cannot leak into the enclosing scope. |

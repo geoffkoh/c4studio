@@ -36,6 +36,7 @@ from c4studio.models import (
     InfrastructureNode,
     LineStyle,
     Location,
+    PaperSize,
     Person,
     Perspective,
     RankDirection,
@@ -214,6 +215,9 @@ _TERMINOLOGY_FIELDS = {
     "relationship": "relationship",
 }
 
+#: `paperSize <size>` values, matched case-insensitively.
+_PAPER_SIZES = {size.value.lower(): size for size in PaperSize}
+
 _RANK_DIRECTION_MAP = {
     "tb": RankDirection.TOP_BOTTOM,
     "bt": RankDirection.BOTTOM_TOP,
@@ -338,6 +342,13 @@ class _Parser:
         self._deployment_groups: dict[str, str] = {}
         # key of the view marked `default`, applied to the configuration
         self._default_view_key: str = ""
+        #: Step number of the dynamic view being parsed. Explicit rather
+        #: than derived from the number of steps recorded, because a
+        #: `parallel` block gives several steps one number.
+        self._step_order: int = 0
+        #: Set while inside `parallel { … }`: the number every step in the
+        #: block shares.
+        self._parallel_order: int | None = None
         # workspace under construction, for directives that mutate it
         self._ws: Workspace | None = None
         # relationship aliases (`rel = a -> b ...`) for !relationship
@@ -1983,6 +1994,8 @@ class _Parser:
         )
         if self._match(LBRACE):
             self._expect(LBRACE)
+            self._step_order = 0
+            self._parallel_order = None
             while not self._match(RBRACE, EOF):
                 self._parse_view_item(view)
             self._expect(RBRACE)
@@ -2098,11 +2111,16 @@ class _Parser:
                 self._skip_block()  # step metadata block, not stored
             src = self._id_map.get(raw_src, raw_src)
             dst = self._id_map.get(raw_dst, raw_dst)
+            if self._parallel_order is None:
+                self._step_order += 1
+                order = self._step_order
+            else:
+                order = self._parallel_order
             view.relationship_views.append(
                 RelationshipView(
                     id=f"{src}__{dst}",
                     description=description,
-                    order=str(len(view.relationship_views) + 1),
+                    order=str(order),
                 )
             )
             return
@@ -2161,7 +2179,47 @@ class _Parser:
                 if self._match(LBRACE):
                     self._parse_animation(view)
                 return
-        self._advance()
+            if kw == "parallel" and view.type == ViewType.DYNAMIC:
+                self._advance()
+                self._parse_parallel(view)
+                return
+            if kw == "papersize":
+                token = self._advance()
+                raw = self._style_value()
+                size = _PAPER_SIZES.get(raw.lower())
+                if size is None:
+                    self._warn(
+                        f"unknown paperSize {raw!r}; ignored",
+                        line=token.line,
+                        column=token.column,
+                        end_column=token.end_column,
+                        code="unknown-paper-size",
+                    )
+                else:
+                    view.paper_size = size
+                return
+        # Never a bare `advance()`: an unknown *block* dropped token by
+        # token leaves its closing brace to be read as the end of this
+        # view, taking every statement after it with it. That is what
+        # `parallel` used to do (PP-186).
+        self._skip_unknown(f"{view.type.value} view")
+
+    def _parse_parallel(self, view: View) -> None:
+        """Parse ``parallel { … }``: every step inside shares one number.
+
+        Upstream's dynamic views number a parallel block's steps alike, so
+        the viewer shows them as one moment in the sequence rather than
+        several.
+        """
+        if not self._match(LBRACE):
+            return
+        self._expect(LBRACE)
+        self._step_order += 1
+        self._parallel_order = self._step_order
+        while not self._match(RBRACE, EOF):
+            self._parse_view_item(view)
+        self._expect(RBRACE)
+        self._parallel_order = None
 
     def _parse_animation(self, view: View) -> None:
         """Parse ``animation { <ids...> ... }`` — one step per line."""
