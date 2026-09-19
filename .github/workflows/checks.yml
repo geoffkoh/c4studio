@@ -48,6 +48,19 @@ jobs:
       - run: uv run mypy .
       - run: uv run pytest -q
 
+      # The linter on its own samples: a rule that is noisy on a good
+      # model is worse than no rule, and this is where that shows.
+      - name: Lint the samples
+        run: |
+          for f in samples/*.dsl samples/hedge_fund/workspace.dsl; do
+            case "$f" in
+              # Deliberately incomplete: it demonstrates lifecycle tags
+              # rather than a finished model.
+              samples/delta_release.dsl) continue ;;
+            esac
+            uv run c4 lint "$f"
+          done
+
   frontend:
     name: Bundle and layout
     runs-on: ubuntu-latest

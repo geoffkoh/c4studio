@@ -161,6 +161,28 @@ render. Its own command rather than a field on `list-views --json`:
 perspectives belong to the model, not to a view, and that JSON is an
 array whose shape other tools already read.
 
+### `c4 lint` (19 September): PP-187
+
+Model standards as rules over the parsed workspace: orphans, missing
+descriptions and technologies, duplicate relationships, styles that match
+nothing, and an opt-in naming convention. Findings are the parser's own
+`Diagnostic`, so the webapp's problems list and the VS Code Problems
+panel understand them without knowing what linting is. Warnings only —
+the exit code is what makes CI care.
+
+**The first version was noisy in exactly the way that gets a linter
+switched off.** It reported every well-modelled software system as an
+orphan, because relationships are routinely declared at container level
+while the diagram people look at is the context view, which lifts them.
+A parent now counts as related when a child is. Across seven samples the
+rules then found two things, both real: a component in the self-model
+that nothing references, and a system in `delta_release` with no
+description. Neither is fixed here — they are the sample authors' call.
+
+CI lints `samples/` (except `delta_release`, which is deliberately
+incomplete), so a rule that is noisy on a good model fails the build
+rather than being discovered by a user.
+
 ---
 
 ## Open now
