@@ -17,6 +17,38 @@ and the test wraps it before parsing.
 
 ---
 
+## 0. The model, in one picture
+
+Everything below writes into one structure. Knowing its shape explains
+why the keywords nest the way they do:
+
+```
+Workspace
+├── model
+│   ├── people, software systems, custom elements
+│   │   └── containers
+│   │       └── components
+│   ├── relationships (between any two elements)
+│   └── deployment environments
+│       └── deployment nodes (nesting)
+│           ├── infrastructure nodes
+│           └── container / software system instances
+└── views
+    ├── one block per diagram
+    └── configuration: styles, themes, branding, terminology
+```
+
+The **model** is the truth; a **view** is a window onto part of it. An
+element is declared once and appears in as many views as you like, which
+is why views mostly say what to *include* rather than what to draw.
+
+Field-level detail lives in `src/c4studio/models/` — typed, documented and
+checked by mypy. It is deliberately not mirrored here: a hand-copied
+field list goes stale silently, which is what happened to the document
+this section replaces.
+
+---
+
 ## 1. The shape of a file
 
 ```dsl

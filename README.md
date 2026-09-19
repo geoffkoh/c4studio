@@ -334,8 +334,8 @@ code --install-extension c4studio-vscode-*.vsix
 ```
 
 ## Documentation
+- **[DSL Reference](./docs/dsl-reference.md)** - **How to write DSL for c4studio**: every construct, the `c4studio.*` extensions, and what is silently ignored. Examples are parsed by the test suite
 - **[DSL Language Support](./docs/dsl-support.md)** - Every keyword in the Structurizr DSL and whether c4studio supports it
-- **[Data Models Reference](./docs/data-models.md)** - Complete guide to all Structurizr models and their fields
 - **[Getting Started](./docs/README.md)** - Workflow and common patterns
 - **[Studio Editor Plan](./docs/studio-editor-plan.md)** - How the editor was designed and built, and the decisions behind it
 - **[Migration Guide](./docs/MIGRATION.md)** - Breaking changes, including the 0.3.0 Studio-by-default flip

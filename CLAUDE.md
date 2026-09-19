@@ -288,9 +288,13 @@ the finding in the code or docs so the answer survives without it.
   reference to what this parser does with it, established by probing rather
   than by reading. Update it when parser coverage changes — and re-probe
   rather than assuming.
-- `docs/data-models.md` documents the domain model; keep it honest when model
-  fields change.
 - `docs/MIGRATION.md` records breaking changes from the compatibility work.
+- **Field-level model docs are the code.** `src/c4studio/models/` is typed
+  and documented; a prose mirror of it (`data-models.md`) drifted within
+  two days of a model change and was deleted rather than re-synchronised.
+  The same goes for `COMPATIBILITY_ROADMAP.md`, whose work finished: its
+  status lives in `structurizr-parity.md` and its breaking changes in
+  `MIGRATION.md`.
 - Whenever the workflow or stack changes, update this file, the agents in
   `.claude/agents/`, and the skills in `.claude/skills/` in the same change.
 

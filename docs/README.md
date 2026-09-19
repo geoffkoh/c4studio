@@ -4,12 +4,17 @@ Welcome to the c4studio documentation. This directory contains guides and refere
 
 ## Guides
 
-- **[Data Models](./data-models.md)** - Comprehensive reference for all Structurizr data models, including static structure elements, relationships, views, deployment infrastructure, and styling configuration.
+- **[DSL Reference](./dsl-reference.md)** - **Start here to write DSL.** Every construct c4studio accepts, the `c4studio.*` property extensions, what is accepted and ignored, and what is not in the DSL at all. Every example in it is parsed by the test suite, so it cannot drift from the parser.
+- **[DSL Language Support](./dsl-support.md)** - The per-keyword ledger against the upstream language reference: what is supported, partial or refused, and why. For parity work rather than authoring.
 - **[Feature Parity](./structurizr-parity.md)** - Where c4studio stands against the Java Structurizr UI, feature by feature. The closest thing to a status page; kept current as work lands.
 - **[Roadmap](./roadmap.md)** - The staged forward plan (query layer, headless rendering, differentiators) and the delivery conventions.
 - **[Studio editor plan](./studio-editor-plan.md)** - How in-app DSL editing was designed and built: Studio/Viewer modes, the CodeMirror editor, file navigation at scale, and the assistant. **Complete** as of 0.3.0 (PP-119 … PP-142); kept as the record of the decisions and the measurements behind them.
 - **[Migration Guide](./MIGRATION.md)** - Breaking changes and how to adapt. Start here when upgrading: **0.3.0 makes `c4 webapp` writable by default**.
-- **[Compatibility Roadmap](./COMPATIBILITY_ROADMAP.md)** - Historical record of that compatibility work, now complete.
+
+Field-level detail on the domain model is not documented here: read
+`src/c4studio/models/`, which is typed, documented and checked. A prose
+copy of it went stale within two days of the last model change, so it was
+removed rather than re-synchronised.
 
 ## Samples
 
@@ -43,7 +48,8 @@ The main entry point for c4studio is the `Workspace` model, which contains:
 7. Add optional `DeploymentNode` hierarchy for runtime topology
 8. Configure `Styles` and appearance
 
-See [Data Models](./data-models.md) for detailed documentation on each model and its fields.
+See [the DSL reference](./dsl-reference.md) for how to write each of
+these, and `src/c4studio/models/` for the fields themselves.
 
 ## Parsing & Generation
 
