@@ -46,7 +46,8 @@ features that assume a hosted multi-user deployment.
 | `src/c4studio/graph/` | `view_graph.py` — workspace + view → `{nodes, edges}` with C4 visibility, boundary nesting and endpoint lifting applied. The shared contract every renderer consumes; depends only on `models/` and `themes.py`. |
 | `src/c4studio/generators/` | `mermaid.py` (Mermaid C4 syntax) and `flowchart.py` (Mermaid `flowchart`/`subgraph`, covers every view type) — both render from `graph/`, sharing `mermaid_common.py`; `json_export.py` (Structurizr JSON round-trip). |
 | `src/c4studio/webapp/` | `server.py` (FastAPI), `loader.py` (load + live reload), `graph.py` / `model_graph.py` (React Flow reshape and full-model graph, both over `graph/view_graph`), `static/` (built SPA). |
-| `src/c4studio/cli/main.py` | click CLI: `generate`, `render`, `export`, `check`, `list-views`, `list-perspectives`, `webapp`, `new`. |
+| `src/c4studio/cli/main.py` | click CLI: `generate`, `render`, `export`, `check`, `lint`, `list-views`, `list-perspectives`, `webapp`, `new`. |
+| `src/c4studio/lint.py` | Model standards as small rule classes over the parsed workspace, reporting the parser's `Diagnostic` so editors need no new concept. Warnings only; the exit code is what CI reads. |
 | `src/c4studio/templates.py` + `templates/*.dsl` | Starter workspaces, shipped as package data. **Valid DSL exactly as they sit on disk** — naming is a literal replacement of `"My Workspace"`, not a template language, so the suite parses each one directly. |
 | `src/c4studio/webapp/assistant.py` | The assistant. Opt-in, lazily imports the optional `anthropic` extra, reads the key at the moment of use, returns text and executes nothing. |
 | `src/c4studio/render.py` | Headless SVG rendering: builds the same graph payload the web app serves and pipes it to the bundled Node renderer. The **only** thing in the project that needs Node at runtime. |
@@ -79,6 +80,11 @@ features that assume a hosted multi-user deployment.
   `pip install 'c4studio[assistant]'`). Sends the whole workspace source; the
   UI states which files. Never test it against the real API without asking —
   that spends the user's money.
+- **Lint a model** (not the code): `uv run c4 lint <file>` — orphans,
+  missing descriptions/technologies, duplicate relationships, styles that
+  match nothing. Exits 1 on any finding; configured by
+  `c4studio.lint.json` beside the workspace. CI runs it over `samples/`,
+  so a rule that is noisy on a good model fails the build.
 - **Run tests:** `uv run pytest`
 - **Lint/Format:** `uv run ruff check .` and `uv run ruff format .`
 - **Type check:** `uv run mypy .`
