@@ -291,6 +291,26 @@ perspective carrying a `url` instead of a value has that value **read
 live** — off by default, because the addresses come from the workspace
 file; `c4 webapp --dynamic-perspectives` turns it on.
 
+## Impact analysis
+What else is involved when one element changes — asked of the model
+rather than of whoever remembers:
+
+```bash
+uv run c4 impact architecture.dsl paymentsApi
+uv run c4 impact architecture.dsl paymentsApi --json --depth 2
+```
+
+Dependents (what reaches it, and so may break when it changes),
+dependencies (what it reaches, and so may break it), each with how many
+relationships away it is, plus **the views that draw it** — so a change
+advisory board knows which diagrams to open.
+
+Containment counts in both directions: a relationship declared against a
+container is one its software system takes part in, which is the same
+rule the views apply when they lift an edge to the nearest visible
+ancestor. An answer that ignored the hierarchy would disagree with the
+diagrams it is about.
+
 ## Model standards (`c4 lint`)
 Where `c4 check` asks whether a file parses, `c4 lint` asks whether it is
 a good model — the review comments someone would otherwise have to make

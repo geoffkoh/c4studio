@@ -436,6 +436,65 @@ def lint_command(
         raise SystemExit(1)
 
 
+@cli.command("impact")
+@click.argument("input_file", type=click.Path(exists=True, path_type=Path))
+@click.argument("identifier")
+@click.option(
+    "--json",
+    "as_json",
+    is_flag=True,
+    help="Emit the answer as JSON, for scripts and tickets.",
+)
+@click.option(
+    "--depth",
+    type=int,
+    default=None,
+    help="Stop after this many relationships (default: the whole graph).",
+)
+def impact_command(
+    input_file: Path, identifier: str, as_json: bool, depth: int | None
+) -> None:
+    """What else is involved when IDENTIFIER changes.
+
+    Answers the change-advisory question of the model rather than of
+    whoever remembers: what depends on this element, what it depends on,
+    and which diagrams to look at.
+
+    Containment counts in both directions — changing a software system
+    changes what is inside it, and a relationship declared against a
+    container is one its system takes part in, which is the same rule the
+    views apply when they lift an edge to the nearest visible ancestor.
+    """
+    import json as json_module
+
+    from c4studio.impact import analyse, to_dict
+
+    workspace = _load_workspace(input_file)
+    try:
+        result = analyse(workspace, identifier, depth)
+    except KeyError as error:
+        raise click.ClickException(
+            f"No element with identifier {identifier!r}. "
+            "Identifiers are the DSL aliases, which `c4 lint --json` and "
+            "the Studio's element tree both show."
+        ) from error
+
+    if as_json:
+        click.echo(json_module.dumps(to_dict(result), indent=2))
+        return
+
+    element = result.element
+    click.echo(f"{element.kind} {element.name!r} ({element.id})")
+    for title, hops in (
+        ("Depends on it", result.dependents),
+        ("It depends on", result.dependencies),
+    ):
+        click.echo(f"\n{title}: {len(hops)}")
+        for hop in hops:
+            click.echo(f"  {hop.depth}  {hop.kind:<15} {hop.name}  (via {hop.via})")
+    click.echo(f"\nDrawn in {len(result.views)} view(s): {', '.join(result.views)}")
+
+
 @cli.command("list-views")
 @click.argument("input_file", type=click.Path(exists=True, path_type=Path))
 @click.option(
