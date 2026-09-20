@@ -183,6 +183,21 @@ CI lints `samples/` (except `delta_release`, which is deliberately
 incomplete), so a rule that is noisy on a good model fails the build
 rather than being discovered by a user.
 
+### Surfacing what shipped (20 September): PP-191
+
+Eight tickets of perspective work, and `c4 lint` the day before, were
+invisible outside the repo: the README's only mention was "custom
+properties and perspectives on all elements", which describes parsing,
+not the overlay. Both now have a section, and perspectives have the
+README's **first image**.
+
+Two decisions worth keeping: the screenshot is a small purpose-built
+model rather than a sample, because `logistics_network` at README width
+is unreadable; and the image is referenced by **absolute raw URL**, since
+`pyproject.toml` feeds this file to PyPI as the long description and PyPI
+does not rewrite relative links — a relative path renders as a broken
+image there.
+
 ---
 
 ## Open now

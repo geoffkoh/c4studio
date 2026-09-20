@@ -29,7 +29,11 @@ Requires Python 3.13+ (uv/uvx can provision it automatically).
 - ✅ Mermaid diagram generation — C4 syntax or `flowchart`/`subgraph`
 - ✅ Headless SVG rendering for CI and docs-as-code
 - ✅ Comprehensive type hints
-- ✅ Custom properties and perspectives on all elements
+- ✅ **Perspectives** — annotate elements and relationships with security,
+  ownership or anything else, then show one over the diagram
+- ✅ **`c4 lint`** — model standards in CI: orphans, missing descriptions,
+  duplicate relationships, styles that match nothing
+- ✅ Custom properties on all elements
 - ✅ Deployment infrastructure modeling
 - ✅ Style and configuration management
 - ⚙️ Optional AI assistant — off by default, and the only feature that
@@ -246,6 +250,71 @@ uv run c4 generate architecture.dsl                     # C4 (default)
 uv run c4 generate architecture.dsl -f flowchart        # flowchart
 uv run c4 generate architecture.dsl -f flowchart -o out # one .mmd per view
 ```
+
+## Perspectives
+A perspective is a named annotation you hang on elements and
+relationships — security, ownership, cost, anything — and then **show over
+the diagram**. What carries it keeps its place and gets a badge with its
+value; everything else fades. The legend follows, listing the values
+rather than the element styles the diagram is no longer painted with.
+
+```
+api = container "Payments API" "Authorises and captures." "Python, FastAPI" {
+    perspectives {
+        "security" "mTLS to the ledger, PCI DSS scope." "High"
+    }
+}
+```
+
+![The security perspective shown over a container diagram: two containers
+badged "High", a person badged "Medium", the rest faded, and a legend of
+the values](https://raw.githubusercontent.com/geoffkoh/c4studio/main/docs/images/perspective-overlay.png)
+
+Colour comes from ordinary styles, matched on the perspective and
+optionally on its value:
+
+```
+element "Perspective:security[value==High]" {
+    background #2e7d32
+    color #ffffff
+}
+```
+
+The same overlay is available everywhere the diagram is:
+
+```bash
+uv run c4 render architecture.dsl --perspective security -o diagrams/
+```
+
+and in the VS Code preview through **C4Studio: Show Perspective…**. A
+perspective carrying a `url` instead of a value has that value **read
+live** — off by default, because the addresses come from the workspace
+file; `c4 webapp --dynamic-perspectives` turns it on.
+
+## Model standards (`c4 lint`)
+Where `c4 check` asks whether a file parses, `c4 lint` asks whether it is
+a good model — the review comments someone would otherwise have to make
+every time:
+
+```bash
+uv run c4 lint architecture.dsl
+```
+
+Orphaned elements, missing descriptions and technologies, relationships
+declared twice, and styles whose tag nothing carries (invisible
+otherwise, because the legend only lists styles in use). Every finding is
+a warning — a model that breaks a house style still parses and renders —
+so the **exit code** is what gates CI: 1 on any finding, `--exit-zero` to
+report without failing on a model nobody has linted before.
+
+Configure it in `c4studio.lint.json` beside the workspace:
+
+```json
+{"ignore": ["missing-technology"], "naming": {"container": "^[A-Z]"}}
+```
+
+`--json` emits the same shape editors already read, so findings land in
+the Studio's problems list and the VS Code Problems panel.
 
 ## Headless SVG Rendering
 `c4 render` draws diagrams as standalone SVG with no browser
