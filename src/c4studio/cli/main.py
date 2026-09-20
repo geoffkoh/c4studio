@@ -436,6 +436,78 @@ def lint_command(
         raise SystemExit(1)
 
 
+@cli.command("publish")
+@click.argument("input_file", type=click.Path(exists=True, path_type=Path))
+@click.option(
+    "--output",
+    "-o",
+    type=click.Path(path_type=Path),
+    default=Path("site"),
+    show_default=True,
+    help="Directory to write the site into.",
+)
+@click.option(
+    "--perspective",
+    default=None,
+    help="Draw every diagram with this perspective shown.",
+)
+@click.option(
+    "--no-layout",
+    is_flag=True,
+    default=False,
+    help="Ignore the layout sidecar and lay every diagram out afresh.",
+)
+@click.option(
+    "--clean",
+    is_flag=True,
+    default=False,
+    help="Delete the output directory first.",
+)
+def publish_command(
+    input_file: Path,
+    output: Path,
+    perspective: str | None,
+    no_layout: bool,
+    clean: bool,
+) -> None:
+    """Write INPUT_FILE as a self-contained HTML site.
+
+    Every view becomes a page, with the `!docs` prose and the ADRs beside
+    them and navigation between. One page per view rather than one page
+    with a switcher, so a link to a diagram survives being pasted into a
+    ticket.
+
+    The result has no external references — diagrams are inlined SVG and
+    theme icons are embedded as data: URIs — so it works from a file://
+    path, on an air-gapped machine, or on any static host.
+    """
+    from c4studio.graph.view_graph import perspective_names
+    from c4studio.publish import publish
+    from c4studio.render import RenderError
+
+    workspace = _load_workspace(input_file)
+    if perspective is not None:
+        names = perspective_names(workspace)
+        if perspective not in names:
+            raise click.ClickException(
+                f"No perspective named '{perspective}' in this workspace. "
+                f"Available: {', '.join(names) or '(none)'}"
+            )
+    try:
+        written = publish(
+            workspace,
+            output,
+            layout_source=None if no_layout else input_file,
+            perspective=perspective,
+            clean=clean,
+        )
+    except RenderError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    click.echo(f"Written: {len(written)} files to {output}")
+    click.echo(f"Open {output / 'index.html'}")
+
+
 @cli.command("impact")
 @click.argument("input_file", type=click.Path(exists=True, path_type=Path))
 @click.argument("identifier")

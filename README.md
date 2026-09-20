@@ -291,6 +291,39 @@ perspective carrying a `url` instead of a value has that value **read
 live** — off by default, because the addresses come from the workspace
 file; `c4 webapp --dynamic-perspectives` turns it on.
 
+## Publish a site
+Turn the model into something people read without installing anything:
+
+```bash
+uv run c4 publish architecture.dsl -o site/
+```
+
+Every view becomes its own page — not one page with a switcher, so a link
+to a diagram survives being pasted into a ticket — with the `!docs` prose
+and the ADRs beside them and navigation between. The result is
+**self-contained**: diagrams are inlined SVG and theme icons are embedded
+as `data:` URIs, so it works from a `file://` path, on an air-gapped
+machine, or on any static host.
+
+Published diagrams follow the layout you arranged in the Studio
+(`--no-layout` for a fresh one), and `--perspective security` draws the
+whole site through one perspective.
+
+To publish on every merge, add the site to a Pages workflow:
+
+```yaml
+- uses: actions/checkout@v7
+- uses: actions/setup-node@v6      # c4 render needs Node
+  with:
+    node-version: "20"
+- run: pipx install c4studio
+- run: c4 publish architecture.dsl -o site/
+- uses: actions/upload-pages-artifact@v4
+  with:
+    path: site/
+- uses: actions/deploy-pages@v4
+```
+
 ## Impact analysis
 What else is involved when one element changes — asked of the model
 rather than of whoever remembers:
