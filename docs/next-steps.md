@@ -198,6 +198,25 @@ is unreadable; and the image is referenced by **absolute raw URL**, since
 does not rewrite relative links — a relative path renders as a broken
 image there.
 
+### Impact analysis (20 September): PP-189
+
+`c4 impact <file> <identifier>` — dependents, dependencies, and the views
+that draw the element. The walk was easy; the semantics took the
+thinking. **Containment counts as involvement in both directions**,
+because a relationship declared against a container is one its system
+takes part in — the same rule `view_graph` applies when it lifts an edge
+to the nearest visible ancestor. An answer that ignored the hierarchy
+would disagree with the diagrams it is about.
+
+Two things deliberately excluded: an element's own ancestors and
+descendants (a container is not "affected by" the system holding it), and
+implied relationships (they duplicate what the containment rule already
+infers, and counting both reports the same involvement twice).
+
+The UI mode the ticket describes — reusing the perspective overlay's
+fade-and-badge pointed at an impact set — is **not** in this change, to
+keep the PR reviewable. It is the obvious follow-up.
+
 ---
 
 ## Open now

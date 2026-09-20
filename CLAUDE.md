@@ -47,6 +47,7 @@ features that assume a hosted multi-user deployment.
 | `src/c4studio/generators/` | `mermaid.py` (Mermaid C4 syntax) and `flowchart.py` (Mermaid `flowchart`/`subgraph`, covers every view type) — both render from `graph/`, sharing `mermaid_common.py`; `json_export.py` (Structurizr JSON round-trip). |
 | `src/c4studio/webapp/` | `server.py` (FastAPI), `loader.py` (load + live reload), `graph.py` / `model_graph.py` (React Flow reshape and full-model graph, both over `graph/view_graph`), `static/` (built SPA). |
 | `src/c4studio/cli/main.py` | click CLI: `generate`, `render`, `export`, `check`, `lint`, `list-views`, `list-perspectives`, `webapp`, `new`. |
+| `src/c4studio/impact.py` | The change-advisory walk: dependents, dependencies and the views that draw an element. Containment counts in both directions, the same rule the views apply when lifting an edge. |
 | `src/c4studio/lint.py` | Model standards as small rule classes over the parsed workspace, reporting the parser's `Diagnostic` so editors need no new concept. Warnings only; the exit code is what CI reads. |
 | `src/c4studio/templates.py` + `templates/*.dsl` | Starter workspaces, shipped as package data. **Valid DSL exactly as they sit on disk** — naming is a literal replacement of `"My Workspace"`, not a template language, so the suite parses each one directly. |
 | `src/c4studio/webapp/assistant.py` | The assistant. Opt-in, lazily imports the optional `anthropic` extra, reads the key at the moment of use, returns text and executes nothing. |
