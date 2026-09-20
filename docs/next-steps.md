@@ -239,6 +239,28 @@ Pages deployment is documented as a workflow snippet rather than folded
 into `action.yml`: adding a mode to a published action's contract is a
 separate decision from shipping the command.
 
+### `c4 diff` (20 September): PP-190
+
+What changed between two revisions, and which views to look at again.
+Working tree against HEAD by default, which is the question you ask
+before opening a pull request.
+
+**Identity was the decision.** An element's id is its DSL alias, or a
+slug of its name when it has none — so renaming an aliased element is a
+change, and renaming an unaliased one is a delete plus an add with
+nothing to tie them together. A removal and an addition sharing a name
+are flagged as a *possible* rename and never merged into one: a diff that
+invents a rename hides a deletion.
+
+Two smaller judgements: relationships match on the **pair** first, so a
+reworded one reads as a single change rather than a swap; and a revision
+is materialised with `git archive` of the workspace's whole directory,
+because reading the root file alone would parse a different model
+whenever `!include` fragments moved with it.
+
+Still to do on this: the visual overlay and the PR comment mode, both of
+which want the renderer rather than the model.
+
 ---
 
 ## Open now

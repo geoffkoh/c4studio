@@ -827,6 +827,7 @@ included it. `samples/c4studio/` is a worked example.
 | Command | What it does |
 | --- | --- |
 | `c4 check <file>` | Parse and print problems. Exit code is non-zero on errors. |
+| `c4 diff <file> [--from REV] [--to REV]` | What changed between two revisions: elements and relationships added, removed, changed, and the views to look at again. `--json` for a PR comment. |
 | `c4 publish <file> -o site/` | A self-contained HTML site: every view as a page, plus `!docs` prose and ADRs. No network, no server. `--perspective`, `--no-layout`, `--clean`. |
 | `c4 impact <file> <identifier>` | What else is involved when an element changes: what depends on it, what it depends on, and which views draw it. `--json`, `--depth N`. |
 | `c4 lint <file>` | Check the model against standards — orphans, missing descriptions and technologies, duplicate relationships, styles that match nothing. Exits 1 on any finding, so it gates CI; `--exit-zero` reports without failing. |

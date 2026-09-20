@@ -436,6 +436,122 @@ def lint_command(
         raise SystemExit(1)
 
 
+@cli.command("diff")
+@click.argument("input_file", type=click.Path(exists=True, path_type=Path))
+@click.option(
+    "--from",
+    "from_revision",
+    default="HEAD",
+    show_default=True,
+    help="Revision to compare from — a branch, a tag or a SHA.",
+)
+@click.option(
+    "--to",
+    "to_revision",
+    default=None,
+    help="Revision to compare to. Defaults to the working tree.",
+)
+@click.option(
+    "--json",
+    "as_json",
+    is_flag=True,
+    help="Emit the diff as JSON, for a PR comment or a script.",
+)
+def diff_command(
+    input_file: Path,
+    from_revision: str,
+    to_revision: str | None,
+    as_json: bool,
+) -> None:
+    """What changed in INPUT_FILE between two revisions.
+
+    Elements and relationships added, removed and changed, and the views
+    a reviewer has to look at again. Compares the working tree against
+    HEAD by default, which is the question you ask before opening a pull
+    request.
+
+    A renamed element with no alias reads as a removal and an addition —
+    its id comes from its name, and nothing ties the two together. Such a
+    pair is flagged rather than guessed at: a diff that invents a rename
+    hides a deletion.
+    """
+    import json as json_module
+
+    from c4studio.diff import DiffError, diff_workspaces, to_dict, workspace_at
+
+    def load(revision: str | None) -> Workspace:
+        if revision is None:
+            return _load_workspace(input_file)
+        return _load_workspace(workspace_at(revision, input_file))
+
+    try:
+        before = load(from_revision)
+        after = load(to_revision)
+    except DiffError as error:
+        raise click.ClickException(str(error)) from error
+
+    result = diff_workspaces(before, after)
+
+    if as_json:
+        click.echo(json_module.dumps(to_dict(result), indent=2))
+        return
+
+    if result.empty:
+        label = to_revision or "the working tree"
+        click.echo(f"No model changes between {from_revision} and {label}.")
+        return
+
+    def section(title: str, lines: list[str]) -> None:
+        if lines:
+            click.echo(f"\n{title}")
+            for line in lines:
+                click.echo(f"  {line}")
+
+    section(
+        "Elements added",
+        [f"{e.kind} {e.name!r} ({e.id})" for e in result.added_elements],
+    )
+    section(
+        "Elements removed",
+        [f"{e.kind} {e.name!r} ({e.id})" for e in result.removed_elements],
+    )
+    section(
+        "Elements changed",
+        [
+            f"{c.kind} {c.name!r}: "
+            + "; ".join(f"{ch.field} {ch.before!r} -> {ch.after!r}" for ch in c.changes)
+            for c in result.changed_elements
+        ],
+    )
+    section(
+        "Relationships added",
+        [
+            f"{r.source} -> {r.destination} {r.description!r}"
+            for r in result.added_relationships
+        ],
+    )
+    section(
+        "Relationships removed",
+        [
+            f"{r.source} -> {r.destination} {r.description!r}"
+            for r in result.removed_relationships
+        ],
+    )
+    section(
+        "Relationships changed",
+        [
+            f"{c.source} -> {c.destination}: "
+            + "; ".join(f"{ch.field} {ch.before!r} -> {ch.after!r}" for ch in c.changes)
+            for c in result.changed_relationships
+        ],
+    )
+    section(
+        "Possibly renamed (reported, not assumed)",
+        [f"{before} -> {after}" for before, after in result.possible_renames],
+    )
+    section("Views to look at again", list(result.affected_views))
+
+
 @cli.command("publish")
 @click.argument("input_file", type=click.Path(exists=True, path_type=Path))
 @click.option(

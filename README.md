@@ -324,6 +324,24 @@ To publish on every merge, add the site to a Pages workflow:
 - uses: actions/deploy-pages@v4
 ```
 
+## What changed (`c4 diff`)
+A pull request that changes the architecture should say what it changed:
+
+```bash
+uv run c4 diff architecture.dsl                     # working tree vs HEAD
+uv run c4 diff architecture.dsl --from main --to HEAD --json
+```
+
+Elements and relationships added, removed and changed — and **the views a
+reviewer has to look at again**. A comment-only edit produces nothing,
+which is the signal worth having.
+
+Renaming an element that has an alias is reported as a change. Renaming
+one *without* an alias reads as a removal and an addition, because its id
+comes from its name and nothing ties the two together; when a removal and
+an addition share a name, the pair is flagged as a **possible** rename
+rather than assumed. A diff that invents a rename hides a deletion.
+
 ## Impact analysis
 What else is involved when one element changes — asked of the model
 rather than of whoever remembers:

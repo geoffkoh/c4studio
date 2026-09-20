@@ -47,6 +47,7 @@ features that assume a hosted multi-user deployment.
 | `src/c4studio/generators/` | `mermaid.py` (Mermaid C4 syntax) and `flowchart.py` (Mermaid `flowchart`/`subgraph`, covers every view type) — both render from `graph/`, sharing `mermaid_common.py`; `json_export.py` (Structurizr JSON round-trip). |
 | `src/c4studio/webapp/` | `server.py` (FastAPI), `loader.py` (load + live reload), `graph.py` / `model_graph.py` (React Flow reshape and full-model graph, both over `graph/view_graph`), `static/` (built SPA). |
 | `src/c4studio/cli/main.py` | click CLI: `generate`, `render`, `export`, `check`, `lint`, `list-views`, `list-perspectives`, `webapp`, `new`. |
+| `src/c4studio/diff.py` | Model diff between two git revisions, and the `git archive` extraction that makes `!include` fragments resolve at the older revision. Identity comes from the DSL alias, so an unaliased rename reads as delete+add and is flagged, never guessed. |
 | `src/c4studio/publish.py` | The static site: one page per view (linkable, unlike a switcher), docs and ADRs beside them, self-contained by construction. |
 | `src/c4studio/markdown.py` | A deliberately small Markdown subset for that site — `marked` is JavaScript in a browser, and the site is built in Python under a no-new-dependency rule. Escapes first, renders second. |
 | `src/c4studio/impact.py` | The change-advisory walk: dependents, dependencies and the views that draw an element. Containment counts in both directions, the same rule the views apply when lifting an edge. |
