@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+from collections import Counter
 from pathlib import Path
 
 import click
@@ -338,6 +339,100 @@ def check(
 
     errors = [d for d in diagnostics if d.severity is Severity.ERROR]
     if errors or (strict and diagnostics):
+        raise SystemExit(1)
+
+
+@cli.command("lint")
+@click.argument("input_file", type=click.Path(exists=True, path_type=Path))
+@click.option(
+    "--json",
+    "as_json",
+    is_flag=True,
+    help="Emit findings as JSON, for editors and other tools.",
+)
+@click.option(
+    "--config",
+    "config_path",
+    type=click.Path(exists=True, path_type=Path),
+    default=None,
+    help=(
+        "Rule configuration. Defaults to c4studio.lint.json beside "
+        "INPUT_FILE when that exists."
+    ),
+)
+@click.option(
+    "--ignore",
+    "ignored",
+    multiple=True,
+    help="Rule code to skip. Repeatable; adds to any configured ignores.",
+)
+@click.option(
+    "--select",
+    "selected",
+    multiple=True,
+    help="Run only these rule codes. Repeatable.",
+)
+@click.option(
+    "--exit-zero",
+    is_flag=True,
+    help="Report findings but exit 0, for a first run on an existing model.",
+)
+def lint_command(
+    input_file: Path,
+    as_json: bool,
+    config_path: Path | None,
+    ignored: tuple[str, ...],
+    selected: tuple[str, ...],
+    exit_zero: bool,
+) -> None:
+    """Check INPUT_FILE against the model standards.
+
+    Where ``check`` asks whether the file parses, this asks whether it is
+    a good model: elements nothing relates to, missing descriptions and
+    technologies, relationships declared twice, styles that match nothing.
+
+    Every finding is a warning — a model that breaks a house style still
+    parses and still renders — so the exit code is what makes CI care: 1
+    when anything is found, unless ``--exit-zero``.
+
+    Rules are configured in JSON, by default ``c4studio.lint.json`` beside
+    INPUT_FILE::
+
+        {"ignore": ["missing-technology"],
+         "naming": {"container": "^[A-Z]"}}
+    """
+    import json as json_module
+
+    from c4studio.lint import LintConfig, lint, load_config
+    from c4studio.parser.locations import element_locations
+
+    if config_path is None:
+        beside = input_file.parent / "c4studio.lint.json"
+        config_path = beside if beside.is_file() else None
+    try:
+        config = load_config(config_path) if config_path else LintConfig()
+    except ValueError as error:
+        raise click.ClickException(f"{config_path}: {error}") from error
+    config.ignore.update(ignored)
+    config.select.update(selected)
+
+    workspace = _load_workspace(input_file)
+    findings = lint(workspace, config, element_locations(input_file))
+
+    if as_json:
+        click.echo(json_module.dumps([f.to_dict() for f in findings], indent=2))
+    else:
+        for finding in findings:
+            click.echo(str(finding), err=True)
+        if findings:
+            counted = Counter(f.code for f in findings)
+            summary = ", ".join(f"{code} ({n})" for code, n in counted.most_common())
+            noun = "finding" if len(findings) == 1 else "findings"
+            click.echo(f"{len(findings)} {noun}: {summary}", err=True)
+        else:
+            click.echo(f"{input_file}: no findings")
+
+    if findings and not exit_zero:
         raise SystemExit(1)
 
 
