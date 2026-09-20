@@ -217,6 +217,28 @@ The UI mode the ticket describes — reusing the perspective overlay's
 fade-and-badge pointed at an impact set — is **not** in this change, to
 keep the PR reviewable. It is the obvious follow-up.
 
+### `c4 publish` (20 September): PP-188
+
+The consumption loop. Every view becomes its own page — **not** one page
+with a switcher: the test is whether a link survives being pasted into a
+ticket, and a switcher makes every diagram the same URL. Docs and ADRs
+sit beside the views, navigation is relative, and the folder has no
+external references at all, because the renderer already inlines theme
+icons as `data:` URIs.
+
+**Markdown had to be rendered in Python.** `marked` is a browser
+dependency of the SPA and the site is built server-side under the
+no-new-dependency rule, so `markdown.py` renders the subset architecture
+prose actually uses and escapes everything else. Two bugs the hedge_fund
+docs found immediately: a wrapped list item cut its own list in half
+(Markdown's lazy continuation), and inline rules kept matching *inside*
+code spans, so `` `**not bold**` `` came back bold. Code spans are now
+lifted out before the other rules run.
+
+Pages deployment is documented as a workflow snippet rather than folded
+into `action.yml`: adding a mode to a published action's contract is a
+separate decision from shipping the command.
+
 ---
 
 ## Open now
