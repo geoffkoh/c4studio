@@ -2432,6 +2432,27 @@ button {
   opacity: 1;
 }
 
+/* A route's two ends (PP-201): drag onto a side of the element to pin it.
+   A pinned end is filled, so what is fixed reads at a glance. */
+.edge-end-handle {
+  fill: #ffffff;
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  opacity: 0;
+  cursor: grab;
+  transition: opacity 120ms ease;
+}
+
+.edge-end-handle--pinned {
+  fill: var(--accent);
+}
+
+.react-flow__edge:hover .edge-end-handle,
+.react-flow__edge.selected .edge-end-handle,
+.edge-end-handle:active {
+  opacity: 1;
+}
+
 /* ---- Relationship context menu ---- */
 .edge-menu {
   position: fixed;

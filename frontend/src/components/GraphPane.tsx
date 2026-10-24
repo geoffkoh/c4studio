@@ -41,12 +41,20 @@ import {
   ExportButtons,
   FloatingEdge,
   insertionIndex,
+  insertStep,
   layoutGraph,
+  nearestRun,
+  orthogonalRoute,
+  segmentRuns,
   perspectiveLegendEntries,
   withLiveValue,
   normalizeStoredPositions,
   type ElementNodeData,
   type FloatingEdgeData,
+  type Pins,
+  type Pt,
+  type Rect,
+  type Side,
 } from "@c4studio/diagram-core";
 import { marchingEdgeIds, marchingStyle } from "../marching";
 import { buildTrail, crumbLabel, drillTarget } from "../navigation";
@@ -184,6 +192,7 @@ interface GraphPaneProps {
     labels: Record<string, [number, number]>,
     chrome: Record<string, [number, number]>,
     routing: Record<string, "orthogonal">,
+    sides: Record<string, Pins>,
   ) => Promise<unknown>;
   resetLayout: (key: string) => Promise<unknown>;
   /** Named layouts (PP-197); the Layouts menu is shown only when given. */
@@ -278,6 +287,7 @@ async function toFlow(
         curveOffset,
         waypoints: e.waypoints,
         routing: e.routing,
+        sides: e.sides,
         labelOffset: e.labelOffset,
         perspectives: e.perspectives,
       },
@@ -694,6 +704,16 @@ export function GraphPane({
     [],
   );
 
+  /** Pinned sides of re-routed edges, for the sidecar (PP-201). */
+  const collectSides = useCallback((source: Edge[]): Record<string, Pins> => {
+    const out: Record<string, Pins> = {};
+    for (const edge of source) {
+      const sides = (edge.data as FloatingEdgeData | undefined)?.sides;
+      if (sides && (sides.source || sides.target)) out[edge.id] = sides;
+    }
+    return out;
+  }, []);
+
   /** Dragged label offsets, keyed by edge id, for the layout sidecar. */
   const collectLabelOffsets = useCallback(
     (edges: Edge[]): Record<string, [number, number]> => {
@@ -742,6 +762,7 @@ export function GraphPane({
       collectLabelOffsets(edgeOverride ?? edgesRef.current),
       chrome,
       collectRouting(edgeOverride ?? edgesRef.current),
+      collectSides(edgeOverride ?? edgesRef.current),
     )
       .then(() => {
         setLayoutState("saved");
@@ -753,7 +774,14 @@ export function GraphPane({
         return false;
       });
     },
-    [view, collectWaypoints, collectLabelOffsets, collectRouting, saveLayout],
+    [
+      view,
+      collectWaypoints,
+      collectLabelOffsets,
+      collectRouting,
+      collectSides,
+      saveLayout,
+    ],
   );
 
   /**
@@ -891,7 +919,9 @@ export function GraphPane({
               data: {
                 ...edge.data,
                 waypoints: next,
-                ...(next.length === 0 ? { routing: undefined } : {}),
+                ...(next.length === 0
+                  ? { routing: undefined, sides: undefined }
+                  : {}),
               },
             }
           : edge,
@@ -947,6 +977,118 @@ export function GraphPane({
     [setEdges],
   );
 
+  /**
+   * An end of an orthogonal route was dragged onto a side of its node:
+   * pin it there (PP-201). Like a segment drag, this re-routes the edge,
+   * and it is saved when the drag ends.
+   */
+  const handleSideDrag = useCallback(
+    (edgeId: string, end: keyof Pins, side: Side) => {
+      setEdges((current) =>
+        current.map((edge) => {
+          if (edge.id !== edgeId) return edge;
+          const data = edge.data as FloatingEdgeData;
+          return {
+            ...edge,
+            data: {
+              ...data,
+              sides: { ...data.sides, [end]: side },
+              routing: "orthogonal" as const,
+            },
+          };
+        }),
+      );
+    },
+    [setEdges],
+  );
+
+  /** Whether an edge is drawn orthogonally, so its route can be edited. */
+  const isOrthogonal = useCallback(
+    (edge: Edge | undefined) =>
+      (edge?.data as FloatingEdgeData | undefined)?.routing === "orthogonal" ||
+      edgeStyle === "step" ||
+      edgeStyle === "smoothstep",
+    [edgeStyle],
+  );
+
+  /**
+   * The route an orthogonal edge is drawn along — the same call the edge
+   * component makes, from the same data, so a step added here lands on
+   * the line the person clicked.
+   */
+  const routeOf = useCallback((edge: Edge): Pt[] | null => {
+    const rf = rfRef.current;
+    const source = rf?.getNode(edge.source);
+    const target = rf?.getNode(edge.target);
+    if (!source?.width || !target?.width) return null;
+    const rect = (node: Node): Rect => ({
+      x: node.positionAbsolute?.x ?? 0,
+      y: node.positionAbsolute?.y ?? 0,
+      width: node.width ?? 0,
+      height: node.height ?? 0,
+    });
+    const data = edge.data as FloatingEdgeData | undefined;
+    return orthogonalRoute(
+      rect(source),
+      rect(target),
+      data?.waypoints ?? [],
+      data?.curveOffset ?? 0,
+      data?.sides ?? {},
+    );
+  }, []);
+
+  /**
+   * Split the run of an orthogonal route nearest `at` into a step
+   * (PP-201), and save. Returns false where no step can go — a run that
+   * is only a pinned side's stub.
+   */
+  const addStep = useCallback(
+    (edgeId: string, at: Pt): boolean => {
+      const edge = edgesRef.current.find((e) => e.id === edgeId);
+      const route = edge && routeOf(edge);
+      if (!edge || !route) return false;
+      const index = nearestRun(route, at);
+      const run = segmentRuns(route)[index];
+      if (!run) return false;
+      const bends = insertStep(
+        route,
+        run,
+        run.axis === "h" ? at.x : at.y,
+        (edge.data as FloatingEdgeData | undefined)?.sides ?? {},
+      );
+      if (!bends) return false;
+      const updated = edgesRef.current.map((e) =>
+        e.id === edgeId
+          ? {
+              ...e,
+              data: { ...e.data, waypoints: bends, routing: "orthogonal" as const },
+            }
+          : e,
+      );
+      edgesRef.current = updated;
+      setEdges(updated);
+      saveCurrentLayout(updated);
+      return true;
+    },
+    [routeOf, setEdges, saveCurrentLayout],
+  );
+
+  /**
+   * Double-click on an orthogonal line adds a step there (PP-201). React
+   * Flow does not zoom on a double-click that lands on an edge, so there
+   * is nothing to stop; `route-steps.spec.ts` checks the viewport stays.
+   */
+  const handleEdgeDoubleClick = useCallback(
+    (event: ReactMouseEvent, edge: Edge) => {
+      if (!isOrthogonal(edge) || !rfRef.current) return;
+      addStep(
+        edge.id,
+        rfRef.current.screenToFlowPosition({ x: event.clientX, y: event.clientY }),
+      );
+    },
+    [isOrthogonal, addStep],
+  );
+
   /** Right-click on a relationship, or on one of its bend points. */
   const handleEdgeContextMenu = useCallback(
     (event: ReactMouseEvent, edge: Edge) => {
@@ -983,14 +1125,17 @@ export function GraphPane({
       []) as [number, number][];
     const actions: MenuAction[] = [];
 
-    // An orthogonal route is shaped by dragging its segments, not by
-    // placing bend points, so all the menu offers is the way back.
-    const orthogonal =
-      (edge?.data as FloatingEdgeData | undefined)?.routing === "orthogonal" ||
-      edgeStyle === "step" ||
-      edgeStyle === "smoothstep";
-    if (orthogonal) {
-      if (points.length > 0) {
+    // An orthogonal route is shaped by dragging its segments and ends, not
+    // by placing bend points: the menu offers a new step, and the way back.
+    if (isOrthogonal(edge)) {
+      actions.push({
+        label: "Add step here",
+        onSelect: () => {
+          addStep(edgeMenu.edgeId, { x: edgeMenu.flowX, y: edgeMenu.flowY });
+        },
+      });
+      const sides = (edge?.data as FloatingEdgeData | undefined)?.sides;
+      if (points.length > 0 || sides?.source || sides?.target) {
         actions.push({
           label: "Reset route",
           destructive: true,
@@ -1050,7 +1195,7 @@ export function GraphPane({
       });
     }
     return actions;
-  }, [edgeMenu, updateWaypoints, edgeStyle]);
+  }, [edgeMenu, updateWaypoints, isOrthogonal, addStep]);
 
   const handleWaypointMenu = useCallback(
     (edgeId: string, index: number, clientX: number, clientY: number) => {
@@ -1174,6 +1319,7 @@ export function GraphPane({
           onWaypointMenu: handleWaypointMenu,
           onSegmentDrag: handleSegmentDrag,
           onSegmentDragEnd: handleWaypointDragEnd,
+          onSideDrag: handleSideDrag,
           snapGrid: snapToGrid ? SNAP_GRID[0] : undefined,
         },
       };
@@ -1192,6 +1338,7 @@ export function GraphPane({
     handleWaypointDragEnd,
     handleWaypointMenu,
     handleSegmentDrag,
+    handleSideDrag,
     snapToGrid,
   ]);
 
@@ -1529,6 +1676,7 @@ export function GraphPane({
           rfRef.current = instance;
         }}
         onEdgeContextMenu={handleEdgeContextMenu}
+        onEdgeDoubleClick={handleEdgeDoubleClick}
         onNodeMouseEnter={(_, node) =>
           setHoveredNodeId(isChromeNode(node.id) ? null : node.id)
         }

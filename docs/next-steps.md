@@ -9,8 +9,8 @@ open right now, and what to do next.
 when you finish a run of work, not when you remember.
 
 Last updated: **24 October 2026**, after the interface run
-(PP-195 … PP-200): animated relationships, segment re-routing, named
-layouts, and file-based themes.
+(PP-195 … PP-201): animated relationships, segment re-routing with steps
+and pinned sides, named layouts, and file-based themes.
 
 ---
 
@@ -55,6 +55,19 @@ slides the attachment along its side. `packages/diagram-core/src/orthogonal.ts`
 is the one implementation, used by both the canvas and `svg.ts`, so
 `c4 render` draws the same route. A re-routed edge keeps its route in
 every line style until **Reset route** is chosen.
+
+### Steps and pinned sides on re-routed lines (PP-201)
+
+The follow-up asked for after PP-196. Double-clicking a run of a step
+line, or **Add step here** on right-click, splits it into a 24px jog
+whose two new runs have handles. Removing a step needs no action of its
+own: drag it flat, and the corner that no longer turns is not stored.
+Each end of the line has a round handle. Dragging it onto the element
+pins that end to the nearest side, stored in a new `sides` section. The
+route leaves a pinned side square-on along a 20px stub, and goes round
+the node rather than through it when it has to double back. The stub is
+recomputed and never stored, which is why `routeBends` drops it by index
+and `insertStep` keeps a new step off it.
 
 ### Named layouts (PP-197)
 

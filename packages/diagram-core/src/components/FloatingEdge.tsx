@@ -20,13 +20,17 @@ import { EDGE_HOVER_COLOUR, EDGE_HOVER_WIDTH } from "../edgePaint";
 import {
   dragRun,
   handlePoint,
+  nearestSide,
   orthogonalPath,
   orthogonalRoute,
   routeLabelPoint,
+  runIsDraggable,
   segmentRuns,
+  type Pins,
   type Pt,
   type Rect,
   type Run,
+  type Side,
 } from "../orthogonal";
 import { perspectiveHint, type PerspectiveBadge } from "./ElementNode";
 
@@ -83,6 +87,17 @@ export interface FloatingEdgeData {
   onSegmentDrag?: (edgeId: string, bends: [number, number][]) => void;
   /** Fired once a segment drag finishes, so the layout can be saved. */
   onSegmentDragEnd?: () => void;
+  /**
+   * Sides the route's ends are pinned to (PP-201). Only an orthogonal
+   * route honours them; an absent end attaches wherever the route meets
+   * its node.
+   */
+  sides?: Pins;
+  /**
+   * Live end-handle drag: the end now snaps to `side`. Absent where
+   * routes are not editable. Saved through `onSegmentDragEnd`.
+   */
+  onSideDrag?: (edgeId: string, end: keyof Pins, side: Side) => void;
   /** Grid step a dragged segment snaps to, when snapping is on. */
   snapGrid?: number;
   /**
@@ -107,6 +122,9 @@ function rectOf(node: Node): Rect {
     height: node.height ?? 0,
   };
 }
+
+/** How far along the line, from the node, an end handle sits. */
+const END_HANDLE_INSET = 14;
 
 /** Runs shorter than this get no handle: there is nothing to grab. */
 const MIN_HANDLE_RUN = 16;
@@ -451,6 +469,7 @@ export function FloatingEdge({
     data?.routing === "orthogonal" ||
     pathStyle === "step" ||
     pathStyle === "smoothstep";
+  const pins: Pins = data?.sides ?? {};
   let route: Pt[] = [];
   let path: string;
   let labelX: number;
@@ -461,6 +480,7 @@ export function FloatingEdge({
       rectOf(targetNode),
       bends,
       data?.curveOffset ?? 0,
+      pins,
     );
     path = orthogonalPath(route, pathStyle === "smoothstep" ? 8 : 0);
     ({ x: labelX, y: labelY } = routeLabelPoint(route));
@@ -554,7 +574,50 @@ export function FloatingEdge({
       const now = horizontal ? e.clientY : e.clientX;
       let value = origin + (now - from) / scale;
       if (snap) value = Math.round(value / snap) * snap;
-      onDrag(id, dragRun(snapshot, run, value));
+      onDrag(id, dragRun(snapshot, run, value, pins));
+    };
+    const stop = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+      endDrag.current = null;
+    };
+    const up = () => {
+      stop();
+      onEnd?.();
+    };
+    endDrag.current?.();
+    endDrag.current = stop;
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+  };
+
+  /**
+   * Start dragging one end of the route onto a side of its node. The
+   * pointer is tracked in flow units from the end's own position, and the
+   * end snaps to whichever side of the node the pointer is nearest, so
+   * the gesture reads as "drag the end where it should attach".
+   */
+  const startEndDrag = (event: ReactPointerEvent, end: keyof Pins, at: Pt) => {
+    const onSide = data?.onSideDrag;
+    const node = end === "source" ? sourceNode : targetNode;
+    if (!onSide || !node || event.button !== 0) return;
+    event.stopPropagation();
+    event.preventDefault();
+    const rect = rectOf(node);
+    const from = { x: event.clientX, y: event.clientY };
+    const scale = zoom || 1;
+    const onEnd = data?.onSegmentDragEnd;
+    let current = pins[end];
+    const move = (e: PointerEvent) => {
+      const side = nearestSide(rect, {
+        x: at.x + (e.clientX - from.x) / scale,
+        y: at.y + (e.clientY - from.y) / scale,
+      });
+      if (side === current) return;
+      current = side;
+      onSide(id, end, side);
     };
     const stop = () => {
       window.removeEventListener("pointermove", move);
@@ -581,6 +644,7 @@ export function FloatingEdge({
             const a = route[run.start];
             const b = route[run.end];
             if (Math.hypot(b.x - a.x, b.y - a.y) < MIN_HANDLE_RUN) return null;
+            if (!runIsDraggable(route, run, pins)) return null;
             const horizontal = run.axis === "h";
             const { x: cx, y: cy } = handlePoint(
               a,
@@ -611,6 +675,41 @@ export function FloatingEdge({
                 pointerEvents="all"
                 onPointerDown={(event) => startSegmentDrag(event, run, route)}
               />
+            );
+          })
+        : null}
+      {orthogonal && data?.onSideDrag && route.length > 1
+        ? (["source", "target"] as const).map((end) => {
+            const at = end === "source" ? route[0] : route[route.length - 1];
+            const next = end === "source" ? route[1] : route[route.length - 2];
+            // A little way along the line rather than on the border: the
+            // nodes layer is above the edges, so a handle centred on the
+            // border would be half under its own node — and the target
+            // end has the arrowhead there too.
+            const length = Math.hypot(next.x - at.x, next.y - at.y) || 1;
+            const inset = Math.min(END_HANDLE_INSET, length / 2);
+            const cx = at.x + ((next.x - at.x) / length) * inset;
+            const cy = at.y + ((next.y - at.y) / length) * inset;
+            return (
+              <circle
+                key={end}
+                className={
+                  "edge-end-handle nodrag nopan" +
+                  (pins[end] ? " edge-end-handle--pinned" : "")
+                }
+                data-end={end}
+                cx={cx}
+                cy={cy}
+                r={5}
+                pointerEvents="all"
+                onPointerDown={(event) => startEndDrag(event, end, { x: cx, y: cy })}
+              >
+                <title>
+                  {pins[end]
+                    ? `Attached to the ${pins[end]} side — drag to another side`
+                    : "Drag onto a side of the element to attach there"}
+                </title>
+              </circle>
             );
           })
         : null}

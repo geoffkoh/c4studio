@@ -34,6 +34,7 @@ import {
   orthogonalPath,
   orthogonalRoute,
   routeLabelPoint,
+  type Pins,
 } from "./orthogonal";
 import { applyPerspective, type Perspective } from "./perspective";
 import {
@@ -108,6 +109,9 @@ export interface GraphPayloadEdge {
   /** Set when the edge was re-routed orthogonally, from the sidecar's
       `routing` section (PP-196): `waypoints` are then the route's corners. */
   routing?: "orthogonal";
+  /** Sides a re-routed edge's ends are pinned to, from the sidecar's
+      `sides` section (PP-201). */
+  sides?: Pins;
   /** Dragged offset from the label's computed place, from the sidecar. */
   labelOffset?: [number, number];
   /** Resolved relationship-style paint; absent fields use the defaults
@@ -577,7 +581,13 @@ function paintEdge(
   if (orthogonal) {
     // The same route the canvas draws for a re-routed edge, sharp-cornered
     // as upstream draws orthogonal routing.
-    points = orthogonalRoute(source, target, edge.waypoints ?? []).map(
+    points = orthogonalRoute(
+      source,
+      target,
+      edge.waypoints ?? [],
+      0,
+      edge.sides ?? {},
+    ).map(
       (p) => ({ x: round(p.x), y: round(p.y) }),
     );
   } else {

@@ -382,6 +382,7 @@ export function saveLayout(
   labels: Record<string, [number, number]> = {},
   chrome: Record<string, [number, number]> = {},
   routing: Record<string, "orthogonal"> = {},
+  sides: Record<string, { source?: string; target?: string }> = {},
 ): Promise<LayoutResult> {
   return request<LayoutResult>(
     `/api/views/${encodeURIComponent(key)}/layout`,
@@ -395,6 +396,7 @@ export function saveLayout(
         labels,
         chrome,
         routing,
+        sides,
       }),
     },
   );

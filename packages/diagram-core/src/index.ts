@@ -55,14 +55,21 @@ export { insertionIndex } from "./waypoints";
 export {
   dragRun,
   handlePoint,
+  insertStep,
+  nearestRun,
+  nearestSide,
   orthogonalPath,
   orthogonalRoute,
+  routeBends,
   routeLabelPoint,
+  runIsDraggable,
   segmentRuns,
   type LabelBox,
+  type Pins,
   type Pt,
   type Rect,
   type Run,
+  type Side,
 } from "./orthogonal";
 export {
   align,
