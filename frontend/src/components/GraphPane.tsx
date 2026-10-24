@@ -58,6 +58,7 @@ import {
   type MenuAction,
 } from "./EdgeContextMenu";
 import { KeyboardShortcuts } from "./KeyboardShortcuts";
+import { LayoutsMenu, type LayoutsApi } from "./LayoutsMenu";
 import { SelectionTools } from "./SelectionTools";
 
 const NODE_TYPES: NodeTypes = {
@@ -185,6 +186,8 @@ interface GraphPaneProps {
     routing: Record<string, "orthogonal">,
   ) => Promise<unknown>;
   resetLayout: (key: string) => Promise<unknown>;
+  /** Named layouts (PP-197); the Layouts menu is shown only when given. */
+  layouts?: LayoutsApi;
 }
 
 /** Convert the API graph payload into React Flow nodes/edges. */
@@ -391,6 +394,7 @@ export function GraphPane({
   saveExpansion,
   saveLayout,
   resetLayout,
+  layouts,
 }: GraphPaneProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
@@ -706,8 +710,8 @@ export function GraphPane({
   );
 
   const saveCurrentLayout = useCallback(
-    (edgeOverride?: Edge[]) => {
-    if (!view) return;
+    (edgeOverride?: Edge[]): Promise<boolean> => {
+    if (!view) return Promise.resolve(false);
     const current = nodesRef.current;
     const sizes: Record<string, [number, number]> = {};
     for (const node of current) {
@@ -730,7 +734,7 @@ export function GraphPane({
         Math.round(node.position.y),
       ];
     }
-    saveLayout(
+    return saveLayout(
       view.key,
       absolutePositions(current),
       sizes,
@@ -742,8 +746,12 @@ export function GraphPane({
       .then(() => {
         setLayoutState("saved");
         window.setTimeout(() => setLayoutState("idle"), 1500);
+        return true;
       })
-      .catch(() => setLayoutState("failed"));
+      .catch(() => {
+        setLayoutState("failed");
+        return false;
+      });
     },
     [view, collectWaypoints, collectLabelOffsets, collectRouting, saveLayout],
   );
@@ -1071,6 +1079,19 @@ export function GraphPane({
       })
       .catch(() => setLayoutState("failed"));
   }, [view, resetLayout]);
+
+  const flushLayout = useCallback(
+    () => saveCurrentLayout(edgesRef.current),
+    [saveCurrentLayout],
+  );
+
+  // A named layout is now the working one on disk. Forgetting the
+  // expansion state makes the refetch omit it, so the server serves the
+  // snapshot's — the same path a view takes the first time it opens.
+  const handleLayoutApplied = useCallback(() => {
+    setExpansion({ key: "", ids: [], collapsed: [] });
+    setLayoutEpoch((epoch) => epoch + 1);
+  }, []);
 
   /** The shown perspective on some data, with any live value applied. */
   const shownPerspective = useCallback(
@@ -1603,6 +1624,14 @@ export function GraphPane({
           >
             Reset layout
           </button>
+          {layouts ? (
+            <LayoutsMenu
+              viewKey={view.key}
+              api={layouts}
+              flush={flushLayout}
+              onApplied={handleLayoutApplied}
+            />
+          ) : null}
           <span className="edge-style__divider" />
           <button
             className={

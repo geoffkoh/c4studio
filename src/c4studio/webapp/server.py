@@ -17,6 +17,7 @@ import json
 import os
 import re
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -31,6 +32,9 @@ from c4studio.layout_sidecar import (
     ROUTING_MODES as _ROUTING_MODES,
 )
 from c4studio.layout_sidecar import (
+    SNAPSHOT_SECTIONS as _SNAPSHOT_SECTIONS,
+)
+from c4studio.layout_sidecar import (
     attach_labels as _attach_labels,
 )
 from c4studio.layout_sidecar import (
@@ -43,6 +47,9 @@ from c4studio.layout_sidecar import (
     read_chrome as _read_layout_chrome,
 )
 from c4studio.layout_sidecar import (
+    read_document as _read_layout_document,
+)
+from c4studio.layout_sidecar import (
     read_ids as _read_layout_ids,
 )
 from c4studio.layout_sidecar import (
@@ -53,6 +60,9 @@ from c4studio.layout_sidecar import (
 )
 from c4studio.layout_sidecar import (
     read_routing as _read_layout_routing,
+)
+from c4studio.layout_sidecar import (
+    read_snapshots as _read_layout_snapshots,
 )
 from c4studio.layout_sidecar import (
     read_waypoints as _read_layout_waypoints,
@@ -252,6 +262,27 @@ class AssistantRequest(BaseModel):
     # The editor's current buffer for that file, saved or not, so the
     # assistant sees what the person is looking at.
     content: str
+
+
+class SnapshotRequest(BaseModel):
+    """Body for ``POST /api/views/{key}/layouts``."""
+
+    # What the person called it. Leading/trailing space is not part of a
+    # name, so "Review " and "Review" are the same layout.
+    name: str
+    # Replace a layout of the same name. Without it that is a 409, so a
+    # typo cannot silently overwrite an arrangement someone kept.
+    overwrite: bool = False
+
+
+class SnapshotNameRequest(BaseModel):
+    """Body naming one saved layout of a view.
+
+    The name travels in the body rather than the path: a person may call a
+    layout "Ops / on-call", and an encoded slash does not survive routing.
+    """
+
+    name: str
 
 
 class ExpansionRequest(BaseModel):
@@ -733,9 +764,17 @@ def _write_layout_sidecar(
     collapsed: dict[str, list[str]] | None = None,
     chrome: dict[str, dict[str, list[int]]] | None = None,
     routing: dict[str, dict[str, str]] | None = None,
+    snapshots: dict[str, dict[str, dict[str, Any]]] | None = None,
 ) -> Path:
-    """Write every sidecar section, removing the file when nothing is left."""
+    """Write every sidecar section, removing the file when nothing is left.
+
+    ``snapshots`` (named layouts, PP-197) is kept as it is on disk unless
+    given: only the layout routes change it, and threading it through every
+    other writer is how a section gets dropped by the one that forgot.
+    """
     sidecar = _layout_sidecar(source)
+    if snapshots is None:
+        snapshots = _read_layout_snapshots(source)
     document: dict[str, Any] = {"version": 1, "views": views}
     if waypoints:
         document["edges"] = waypoints
@@ -749,11 +788,36 @@ def _write_layout_sidecar(
         document["chrome"] = chrome
     if routing:
         document["routing"] = routing
-    if not any((views, waypoints, labels, expanded, collapsed, chrome, routing)):
+    if snapshots:
+        document["snapshots"] = snapshots
+    if not any(
+        (views, waypoints, labels, expanded, collapsed, chrome, routing, snapshots)
+    ):
         sidecar.unlink(missing_ok=True)
         return sidecar
     sidecar.write_text(json.dumps(document, indent=2, sort_keys=True), encoding="utf-8")
     return sidecar
+
+
+#: Longest name a saved layout may have; it is shown in a menu.
+_SNAPSHOT_NAME_LIMIT = 80
+
+
+def _write_snapshots(
+    source: Path, snapshots: dict[str, dict[str, dict[str, Any]]]
+) -> None:
+    """Rewrite the sidecar with new named layouts and every other section."""
+    _write_layout_sidecar(
+        source,
+        _read_layout_sidecar(source),
+        _read_layout_waypoints(source),
+        _read_layout_labels(source),
+        _read_layout_ids(source, "expanded"),
+        _read_layout_ids(source, "collapsed"),
+        _read_layout_chrome(source),
+        _read_layout_routing(source),
+        snapshots,
+    )
 
 
 def _apply_saved_layout(state: AppState) -> None:
@@ -1660,6 +1724,135 @@ def create_app(
             _read_layout_routing(state.current_path),
         )
         return {"saved": str(sidecar)}
+
+    def _snapshot_name(name: str) -> str:
+        """A layout name with its surrounding space removed, or 422."""
+        cleaned = name.strip()
+        if not cleaned or len(cleaned) > _SNAPSHOT_NAME_LIMIT:
+            raise HTTPException(
+                status_code=422,
+                detail=f"A layout name needs 1-{_SNAPSHOT_NAME_LIMIT} characters",
+            )
+        return cleaned
+
+    def _layout_source(state: AppState, key: str) -> Path:
+        """The loaded source, after checking the view exists."""
+        _find_view(_require_workspace(state), key)
+        if state.current_path is None:
+            raise HTTPException(status_code=409, detail="No source file loaded")
+        return state.current_path
+
+    def _snapshot_list(source: Path, key: str) -> dict[str, list[dict[str, str]]]:
+        named = _read_layout_snapshots(source).get(key, {})
+        return {
+            "layouts": [
+                {"name": name, "savedAt": str(named[name].get("savedAt", ""))}
+                for name in sorted(named, key=str.casefold)
+            ]
+        }
+
+    @app.get("/api/views/{key}/layouts")
+    def list_snapshots(
+        key: str, state: AppState = Depends(_get_state)
+    ) -> dict[str, list[dict[str, str]]]:
+        """List a view's named layouts, by name."""
+        return _snapshot_list(_layout_source(state, key), key)
+
+    @app.post("/api/views/{key}/layouts")
+    def save_snapshot(
+        key: str, body: SnapshotRequest, state: AppState = Depends(_get_state)
+    ) -> dict[str, list[dict[str, str]]]:
+        """Keep the view's working layout under a name (PP-197).
+
+        Copies what the sidecar holds for the view now — the client saves
+        the working layout first, so that is what is on screen. Allowed in
+        Viewer mode, like every other layout write: it arranges the
+        diagram, never the model.
+        """
+        source = _layout_source(state, key)
+        name = _snapshot_name(body.name)
+        document = _read_layout_document(source)
+        snapshots = _read_layout_snapshots(source)
+        named = snapshots.setdefault(key, {})
+        if name in named and not body.overwrite:
+            raise HTTPException(
+                status_code=409, detail=f"A layout named {name!r} already exists"
+            )
+        snapshot: dict[str, Any] = {
+            section: document[section][key]
+            for section in _SNAPSHOT_SECTIONS
+            if isinstance(document.get(section), dict) and key in document[section]
+        }
+        snapshot["savedAt"] = datetime.now(UTC).isoformat(timespec="seconds")
+        named[name] = snapshot
+        _write_snapshots(source, snapshots)
+        return _snapshot_list(source, key)
+
+    @app.post("/api/views/{key}/layouts/apply")
+    def apply_snapshot(
+        key: str, body: SnapshotNameRequest, state: AppState = Depends(_get_state)
+    ) -> dict[str, str]:
+        """Make a named layout the view's working layout.
+
+        Every per-view section is replaced, not merged: a section the
+        snapshot does not hold was empty when it was taken, so it is empty
+        again. The snapshot itself is left as it was — loading a layout and
+        rearranging it changes the working copy only, until saved again.
+        """
+        source = _layout_source(state, key)
+        name = _snapshot_name(body.name)
+        snapshot = _read_layout_snapshots(source).get(key, {}).get(name)
+        if snapshot is None:
+            raise HTTPException(status_code=404, detail=f"No layout named {name!r}")
+        document = _read_layout_document(source)
+        sections: dict[str, dict[str, Any]] = {}
+        for section in _SNAPSHOT_SECTIONS:
+            current = document.get(section)
+            values = dict(current) if isinstance(current, dict) else {}
+            if section in snapshot:
+                values[key] = snapshot[section]
+            else:
+                values.pop(key, None)
+            sections[section] = values
+        _write_layout_sidecar(
+            source,
+            sections["views"],
+            sections["edges"],
+            sections["labels"],
+            sections["expanded"],
+            sections["collapsed"],
+            sections["chrome"],
+            sections["routing"],
+        )
+        # Positions are applied to the view in place, so clear the old
+        # ones first, exactly as a reset does, then reload every section
+        # through the validating readers: the snapshot came from a file.
+        view = _find_view(_require_workspace(state), key)
+        view.element_views = [
+            ve
+            for ve in view.element_views
+            if ve.x is None and ve.y is None and ve.width is None and ve.height is None
+        ]
+        _apply_saved_layout(state)
+        _invalidate_view_cache(state, key)
+        return {"applied": name}
+
+    @app.post("/api/views/{key}/layouts/delete")
+    def delete_snapshot(
+        key: str, body: SnapshotNameRequest, state: AppState = Depends(_get_state)
+    ) -> dict[str, list[dict[str, str]]]:
+        """Forget a named layout. The working layout is untouched."""
+        source = _layout_source(state, key)
+        name = _snapshot_name(body.name)
+        snapshots = _read_layout_snapshots(source)
+        named = snapshots.get(key, {})
+        if name not in named:
+            raise HTTPException(status_code=404, detail=f"No layout named {name!r}")
+        del named[name]
+        if not named:
+            snapshots.pop(key, None)
+        _write_snapshots(source, snapshots)
+        return _snapshot_list(source, key)
 
     _mount_static(app, static_dir)
     return app

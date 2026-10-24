@@ -317,6 +317,62 @@ export function deleteLayout(key: string): Promise<{ reset: string }> {
   );
 }
 
+/** A named layout of one view (PP-197), as the server lists it. */
+export interface SavedLayout {
+  name: string;
+  /** ISO timestamp of when it was last saved. */
+  savedAt: string;
+}
+
+function layoutsRequest<T>(key: string, path: string, body?: object): Promise<T> {
+  return request<T>(`/api/views/${encodeURIComponent(key)}/layouts${path}`, {
+    method: body ? "POST" : "GET",
+    ...(body
+      ? {
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        }
+      : {}),
+  });
+}
+
+/** GET /api/views/{key}/layouts -> the view's named layouts, by name. */
+export async function listLayouts(key: string): Promise<SavedLayout[]> {
+  return (await layoutsRequest<{ layouts: SavedLayout[] }>(key, "")).layouts;
+}
+
+/** POST /api/views/{key}/layouts -> keep the working layout under a name.
+
+    An existing name throws ApiError 409 unless `overwrite` is set. The
+    server copies what the sidecar holds, so save the working layout first. */
+export async function saveNamedLayout(
+  key: string,
+  name: string,
+  overwrite = false,
+): Promise<SavedLayout[]> {
+  return (
+    await layoutsRequest<{ layouts: SavedLayout[] }>(key, "", { name, overwrite })
+  ).layouts;
+}
+
+/** POST /api/views/{key}/layouts/apply -> make a named layout the working one. */
+export function applyNamedLayout(
+  key: string,
+  name: string,
+): Promise<{ applied: string }> {
+  return layoutsRequest<{ applied: string }>(key, "/apply", { name });
+}
+
+/** POST /api/views/{key}/layouts/delete -> forget a named layout. */
+export async function deleteNamedLayout(
+  key: string,
+  name: string,
+): Promise<SavedLayout[]> {
+  return (
+    await layoutsRequest<{ layouts: SavedLayout[] }>(key, "/delete", { name })
+  ).layouts;
+}
+
 /** POST /api/views/{key}/layout -> persist node positions and boundary sizes. */
 export function saveLayout(
   key: string,

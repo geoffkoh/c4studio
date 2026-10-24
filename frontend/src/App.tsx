@@ -2,21 +2,25 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   ApiError,
+  applyNamedLayout,
   createFolder,
   deleteFile,
   deleteFolder,
   deleteLayout,
+  deleteNamedLayout,
   getCapabilities,
   getPerspectiveValues,
   getStatus,
   getViewGraph,
   getWorkspace,
   listFiles,
+  listLayouts,
   listViews,
   loadFile,
   renameSource,
   saveExpansion,
   saveLayout,
+  saveNamedLayout,
   saveSource,
 } from "./api";
 import type {
@@ -36,12 +40,21 @@ import { ExplorerPane } from "./components/ExplorerPane";
 import { FileTree, type FileOperations } from "./components/FileTree";
 import { NewWorkspaceDialog } from "./components/NewWorkspaceDialog";
 import { GraphPane } from "./components/GraphPane";
+import type { LayoutsApi } from "./components/LayoutsMenu";
 import { ShortcutHelp } from "./components/ShortcutHelp";
 import { SourcePane, type CodeFocus } from "./components/SourcePane";
 import { useSourceBuffers, type OpenRequest } from "./useSourceBuffers";
 import { SplitPane } from "./components/SplitPane";
 import { TopBar, type AppPage } from "./components/TopBar";
 import { ViewList } from "./components/ViewList";
+
+/** Named layouts (PP-197), straight through to the server. */
+const NAMED_LAYOUTS: LayoutsApi = {
+  list: listLayouts,
+  save: saveNamedLayout,
+  apply: applyNamedLayout,
+  remove: deleteNamedLayout,
+};
 
 /** Sidebar visibility, remembered like the split's ratio and collapsed
     state — the same per-user UI state, so the same storage. */
@@ -500,6 +513,7 @@ export default function App() {
               saveExpansion={saveExpansion}
               saveLayout={saveLayout}
               resetLayout={deleteLayout}
+              layouts={NAMED_LAYOUTS}
             />
           ) : page === "explorer" ? (
             <ExplorerPane
@@ -537,6 +551,7 @@ export default function App() {
                   saveExpansion={saveExpansion}
                   saveLayout={saveLayout}
                   resetLayout={deleteLayout}
+                  layouts={NAMED_LAYOUTS}
                 />
               }
             />
