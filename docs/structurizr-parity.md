@@ -69,7 +69,8 @@ inferring behaviour from this document when the two might disagree.
 | Element tree | ✅ (`tree.jsp`) | ✅ sidebar |
 | Full-model graph exploration | ✅ (`explore.jsp`, d3) | ✅ Explorer tab: whole static model at a selectable level (systems / containers / components), nested boundaries, declared relationships |
 | Search | ✅ | ✅ Explorer search over every element (name/technology/tags/description/ancestry) with jump-to-element, details panel, "appears in" view links and show-definition |
-| Keyboard shortcuts | ✅ | ✅ j/k views, u up, f fit, p/s export, h hover, ? help overlay |
+| Keyboard shortcuts | ✅ | ✅ j/k views, u up, f fit, p/s export, h hover, a animate, ? help overlay |
+| Animated relationships on hover | — | ✅ ours: the toolbar's Animate toggle marches the dashes of the hovered element's relationships, source to target, including a boundary's children; off under reduced motion (PP-195) |
 
 ## Authoring & workspace management
 

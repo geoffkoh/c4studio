@@ -32,6 +32,7 @@ export const SHORTCUTS: readonly { keys: string; action: string }[] = [
   { keys: "p", action: "Export diagram as PNG" },
   { keys: "s", action: "Export diagram as SVG" },
   { keys: "h", action: "Toggle hover emphasis" },
+  { keys: "a", action: "Toggle animated relationships on hover" },
   { keys: "g", action: "Toggle snap to grid" },
   { keys: "v", action: "Switch pan / select mode" },
   { keys: "?", action: "Show / hide this help" },

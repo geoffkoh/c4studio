@@ -48,6 +48,7 @@ import {
   type ElementNodeData,
   type FloatingEdgeData,
 } from "@c4studio/diagram-core";
+import { marchingEdgeIds, marchingStyle } from "../marching";
 import { buildTrail, crumbLabel, drillTarget } from "../navigation";
 import { isTypingTarget } from "../shortcuts";
 import type { GPerspective, GraphData, ViewInfo, Workspace } from "../types";
@@ -82,6 +83,7 @@ const GROUP_NODE_PREFIX = "__group__";
 
 const EDGE_STYLE_STORAGE_KEY = "c4studio.edgeStyle";
 const HOVER_EMPHASIS_STORAGE_KEY = "c4studio.hoverEmphasis";
+const ANIMATE_EDGES_STORAGE_KEY = "c4studio.animateEdges";
 const SNAP_TO_GRID_STORAGE_KEY = "c4studio.snapToGrid";
 const INTERACTION_STORAGE_KEY = "c4studio.interaction";
 
@@ -127,6 +129,11 @@ function storedEdgeStyle(): EdgeStyle {
 
 function storedHoverEmphasis(): boolean {
   return window.localStorage.getItem(HOVER_EMPHASIS_STORAGE_KEY) !== "off";
+}
+
+/** Off unless explicitly enabled: motion is opt-in. */
+function storedAnimateEdges(): boolean {
+  return window.localStorage.getItem(ANIMATE_EDGES_STORAGE_KEY) === "on";
 }
 
 /** Off unless explicitly enabled: free positioning stays the default. */
@@ -406,6 +413,9 @@ export function GraphPane({
   // Hover emphasis: highlight the hovered relationship, dim the rest.
   const [hoverEmphasis, setHoverEmphasis] = useState<boolean>(storedHoverEmphasis);
   const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
+  // Marching ants (PP-195): the hovered node's relationships animate.
+  const [animateEdges, setAnimateEdges] = useState<boolean>(storedAnimateEdges);
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [snapToGrid, setSnapToGrid] = useState<boolean>(storedSnapToGrid);
   const [interaction, setInteraction] =
     useState<Interaction>(storedInteraction);
@@ -479,6 +489,17 @@ export function GraphPane({
         next ? "on" : "off",
       );
       if (!next) setHoveredEdgeId(null);
+      return next;
+    });
+  }, []);
+
+  const handleAnimateToggle = useCallback(() => {
+    setAnimateEdges((enabled) => {
+      const next = !enabled;
+      window.localStorage.setItem(
+        ANIMATE_EDGES_STORAGE_KEY,
+        next ? "on" : "off",
+      );
       return next;
     });
   }, []);
@@ -992,10 +1013,22 @@ export function GraphPane({
     [liveValues],
   );
 
+  // Which relationships march, as a string so the edge memo below only
+  // reruns when the set changes — node positions change on every drag
+  // frame, and rebuilding every edge then would be wasted work.
+  const marchingKey = useMemo(
+    () =>
+      animateEdges
+        ? [...marchingEdgeIds(nodes, edges, hoveredNodeId)].sort().join("\n")
+        : "",
+    [animateEdges, nodes, edges, hoveredNodeId],
+  );
+
   // Routing is presentation-only, so it is applied on the way into React
   // Flow rather than baked into the edge state.
   const styledEdges = useMemo(() => {
     const activeHover = hoverEmphasis ? hoveredEdgeId : null;
+    const marching = new Set(marchingKey ? marchingKey.split("\n") : []);
     return edges.map((edge) => {
       const order = (edge.data as { order?: number } | undefined)?.order;
       const animState =
@@ -1023,9 +1056,16 @@ export function GraphPane({
               } as Edge["markerEnd"],
             }
           : {};
+      const marches = marching.has(edge.id);
+      const painted = { ...edge, ...recolour };
       return {
-        ...edge,
-        ...recolour,
+        ...painted,
+        ...(marches
+          ? {
+              className: "edge--marching",
+              style: marchingStyle(painted.style as Record<string, unknown>),
+            }
+          : {}),
         // The marker swap is what lights the arrowhead up with the path:
         // markers keep their colour from edge definition, not from hover
         // styling, so the hovered edge gets the highlighted marker def.
@@ -1053,6 +1093,7 @@ export function GraphPane({
     animStep,
     hoverEmphasis,
     hoveredEdgeId,
+    marchingKey,
     activePerspective,
     shownPerspective,
     handleWaypointDrag,
@@ -1394,6 +1435,10 @@ export function GraphPane({
           rfRef.current = instance;
         }}
         onEdgeContextMenu={handleEdgeContextMenu}
+        onNodeMouseEnter={(_, node) =>
+          setHoveredNodeId(isChromeNode(node.id) ? null : node.id)
+        }
+        onNodeMouseLeave={() => setHoveredNodeId(null)}
         onEdgeMouseEnter={(_, edge) => setHoveredEdgeId(edge.id)}
         onEdgeMouseLeave={() => setHoveredEdgeId(null)}
         snapToGrid={snapToGrid}
@@ -1495,6 +1540,17 @@ export function GraphPane({
             onClick={handleHoverToggle}
           >
             Hover
+          </button>
+          <button
+            className={
+              "edge-style__option" +
+              (animateEdges ? " edge-style__option--active" : "")
+            }
+            title="Animate the relationships of the hovered element"
+            aria-pressed={animateEdges}
+            onClick={handleAnimateToggle}
+          >
+            Animate
           </button>
           <button
             className={
@@ -1604,6 +1660,7 @@ export function GraphPane({
         <KeyboardShortcuts
           viewKey={view.key}
           onHoverToggle={handleHoverToggle}
+          onAnimateToggle={handleAnimateToggle}
           onSnapToggle={handleSnapToggle}
           onInteractionToggle={handleInteractionToggle}
         />
