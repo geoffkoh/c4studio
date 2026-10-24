@@ -213,3 +213,52 @@ def attach_labels(data: dict[str, Any], labels: dict[str, list[int]]) -> None:
         offset = labels.get(edge.get("id", ""))
         if offset:
             edge["labelOffset"] = [int(offset[0]), int(offset[1])]
+
+
+#: The per-view sections a named layout (PP-197) captures. A snapshot holds
+#: each one's value *for its view* under the same name, so applying it is a
+#: copy back into the working sections and nothing needs translating.
+SNAPSHOT_SECTIONS = (
+    "views",
+    "edges",
+    "labels",
+    "expanded",
+    "collapsed",
+    "chrome",
+    "routing",
+)
+
+
+def read_snapshots(source: Path) -> dict[str, dict[str, dict[str, Any]]]:
+    """Read ``{view_key: {name: snapshot}}`` named layouts.
+
+    A snapshot is ``{section: value, "savedAt": iso}`` for the sections in
+    :data:`SNAPSHOT_SECTIONS`. Only the outer shape is checked here: what a
+    snapshot holds is checked by the section readers once it is applied,
+    because applying writes it into the working sections they read.
+
+    Args:
+        source: The workspace's root source file.
+
+    Returns:
+        Per-view named snapshots, unusable entries dropped.
+    """
+    raw = read_document(source).get("snapshots")
+    if not isinstance(raw, dict):
+        return {}
+    cleaned: dict[str, dict[str, dict[str, Any]]] = {}
+    for key, by_name in raw.items():
+        if not isinstance(by_name, dict):
+            continue
+        named = {
+            name: {
+                field: value
+                for field, value in snapshot.items()
+                if field in SNAPSHOT_SECTIONS or field == "savedAt"
+            }
+            for name, snapshot in by_name.items()
+            if isinstance(name, str) and name and isinstance(snapshot, dict)
+        }
+        if named:
+            cleaned[key] = named
+    return cleaned

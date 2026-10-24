@@ -8,8 +8,9 @@ open right now, and what to do next.
 **Keep it current.** It is only worth reading if it is true, so update it
 when you finish a run of work, not when you remember.
 
-Last updated: **18 September 2026**, after the perspectives run
-(PP-172 … PP-186) and the documentation prune.
+Last updated: **24 October 2026**, after the interface run
+(PP-195 … PP-200): animated relationships, segment re-routing, named
+layouts, and file-based themes.
 
 ---
 
@@ -21,7 +22,7 @@ Last updated: **18 September 2026**, after the perspectives run
 | VS Code extension | **0.3.1**, packaged as `.vsix` only. Not on the Marketplace, and versioned independently of the Python package |
 | `main` | Green. Four CI jobs: Python gate, bundle + layout, VS Code extension packaging, and the `render` dogfood |
 | Open PRs | **None** |
-| Open `PP` tickets | **None** — PP-170 … PP-186 all closed |
+| Open `PP` tickets | PP-192 (drive the `.vsix` for a day — needs a human), PP-193, PP-194, PP-198 — see *Open now* |
 | Frontend runtime | React **19**, TypeScript **7**, Vite **8**, marked **18**. `reactflow` stays on **11** — see below |
 
 ---
@@ -32,240 +33,62 @@ The last run only. Older entries are in the tickets and in git;
 keeping them here turned this file into a changelog, which is not what
 it is for — it is the thing you read *first*, so it has to stay short.
 
-### The renderer honours your arrangement (17 September): PP-180, PP-181
+### Marching ants on hover (PP-195), and a view-switch race (PP-200)
 
-`c4 render` called `react_flow_graph(workspace, view)` with no layout at
-all, so a rendered SVG was a fresh auto-layout rather than the diagram
-you arranged. The sidecar reading lived inside `webapp/server.py`, which
-is why: it now lives in `c4studio/layout_sidecar.py` and both surfaces
-read it through one implementation. `svg.ts` gained the two sections it
-had never seen — dragged label offsets and dragged title/legend chrome,
-the latter expanding the canvas so a dragged legend cannot be clipped.
-`--no-layout` renders as if nothing had been arranged, which is what
-keeps a committed diagram the same on any machine.
+The toolbar's **Animate** toggle (`a`) makes the hovered element's
+relationships, and its descendants', march. It is CSS only: a dash
+offset animation, with the period derived from the dash so a solid line
+gets the default dash while it moves. `prefers-reduced-motion` turns it
+off. PP-200 was found while testing it. A position tween still running
+from the previous view kept painting its frames after a switch, so the
+canvas showed the old view under the new breadcrumb. The fix is
+`cancelAnimationFrame` before the new nodes go in.
 
-**PP-181, found on the way, is the bigger one.** Saved layouts were being
-discarded on *any view containing a group* — in the Studio, not just in
-`render`. Two causes, both needed fixing:
+### Re-routing Step / Smooth step lines (PP-196)
 
-1. A synthetic group boundary is created after placement, so it got a
-   stored size and no position; both renderers re-run auto-layout when
-   any node lacks one.
-2. `normalizeStoredPositions` gave up and re-laid-out as soon as one
-   boundary sat inside another — which is every grouped container view.
-   It now adapts absolute positions to nested nodes at any depth,
-   innermost first.
+This works like a whiteboard elbow connector. A hovered step line shows a
+handle on each straight run, and dragging one slides the run sideways
+while its neighbours stretch. Only interior corners are stored, as
+`edges` waypoints with the edge flagged in the sidecar's new `routing`
+section. The two ends are recomputed against the nodes, so moving a node
+slides the attachment along its side. `packages/diagram-core/src/orthogonal.ts`
+is the one implementation, used by both the canvas and `svg.ts`, so
+`c4 render` draws the same route. A re-routed edge keeps its route in
+every line style until **Reset route** is chosen.
 
-Verified against the running API (positions survive a save/reload) and in
-the browser (the diagram follows the stored layout instead of the
-auto-layout). **Neither cause had a test**, which is how a bug this
-visible survived: both fixes now have one.
+### Named layouts (PP-197)
 
-**A Playwright trap, twice.** `scrollTo` in `e2e/highlight.spec.ts` only
-scrolls down, and the editor keeps a scroll position across a file
-switch, so a test that passed alone failed in the suite. Assigning
-`scrollTop = 0` does not hold — CodeMirror restores its own scroll a
-frame later. Pressing its `Mod-Home` binding and polling until the
-scroller is actually at the top does.
+The toolbar's **Layouts** menu keeps a view's current arrangement under a
+name, loads one back after asking, and deletes one. A named layout is a
+snapshot of every per-view sidecar section, stored in a new `snapshots`
+section. Loading copies it into the working layout, which is still what
+autosave writes and `c4 render` reads. The client flushes the working
+layout before saving a snapshot, because the server copies what is on
+disk. `_write_layout_sidecar` now keeps `snapshots` from disk unless it
+is given, rather than every writer threading it through. That is the
+better pattern for the next section too (CLAUDE.md says so).
 
-### The VS Code preview became a picture (17 September): PP-170
+### No more static.structurizr.com in tests (PP-199)
 
-Chosen over PP-171, which kept the SPA in the webview and taught it to
-show less. Both were built to be compared; this one wins because it
-removes the machinery rather than accommodating it — no server, no port,
-no iframe for the common case — and because it carries its own escape
-hatch: `Open in Studio (browser)` spawns `c4 webapp` and opens a tab,
-which is a better home for a canvas with toolbars than a 400px panel.
-`Show View…` switches views through a quick-pick fed by
-`c4 list-views --json`, the same function behind `/api/views`, so the
-picker cannot disagree with Studio about the default.
-
-What it gives up: pan, zoom and drill-down in the panel, and a re-render
-per change rather than a live canvas. PP-171 is closed as the road not
-taken; its measurements are in the ticket.
-
-Two things the branch found that are worth keeping in mind:
-
-- **The CSP would have shipped broken.** `default-src 'none'` covers
-  `img-src`, and the renderer inlines theme icons as `data:` URIs — so
-  without `img-src data:` they vanish with no error, and only 2 of
-  hedge_fund's 13 views have any. `e2e/svg-preview.spec.ts` renders a
-  deployment view, asserts each image decodes, and asserts the failure
-  case too.
-- **Node is there even when it is not.** With neither `C4STUDIO_NODE` nor
-  `node` on PATH, the extension host is itself Node — measured,
-  `process.execPath` under `ELECTRON_RUN_AS_NODE` reports 24.18.1.
-
-Rebased onto 19 commits of `main` with no conflicts, and it inherits
-PP-180 for free: the preview runs plain `c4 render --view`, so the
-picture follows the layout you arranged.
-
-### A DSL reference that cannot drift (17 September): PP-184
-
-`docs/dsl-reference.md` is the authoring reference — enough to write DSL
-for c4studio without reading the code, written as much for an agent as a
-person. `tests/test_docs_examples.py` parses every ```dsl block in it and
-asserts no diagnostics, which caught three wrong examples while it was
-being written. Add examples there rather than prose claims.
-
-Probing for it turned up three things now recorded rather than assumed:
-`healthCheck` is instance-only (as upstream), `!docs` in an element body
-attaches to the workspace (PP-185), and **`parallel` in a dynamic view
-consumes the rest of the view** (PP-186) — which breaks the contract this
-file's own rules state, that a skipped construct never eats its enclosing
-scope. `paperSize` is discarded with no diagnostic at all.
-
-**`e2e/highlight.spec.ts` has now been flaky three separate times**, each
-for a different reason in the same area: the editor keeps a scroll
-position across a file switch; `scrollTop = 0` is undone a frame later by
-CodeMirror's own restore; and a line found by scrolling can be scrolled
-back out of the DOM before the assertion reads it — which counts as zero
-tokens and reads exactly like the bug being tested for. It now presses
-`Mod-Home`, tolerates a few pixels of padding, and **re-scrolls inside
-the polling loop** so a count of zero means "not painted" rather than
-"not on screen". If it goes red again, suspect the harness before the
-vocabulary.
-
-### First contact (18 September): PP-182
-
-Two bugs that only showed before anyone touched the app, which is where
-they cost most. `ViewInfo` never modelled the `default` flag — the server
-has returned it and sorted by it since PP-119 — so the app opened on "No
-view selected", and below 900px the sidebar starts collapsed, leaving
-nothing visible to choose from. And the reload error rendered *inside*
-that sidebar, so a failed reload left a stale diagram explaining nothing.
-Errors now sit in a strip above the body.
-
-Both fixes existed on the abandoned PP-171 branch and were nearly lost
-with it; they had nothing to do with which preview design won. Worth
-remembering when a branch is closed: check what it was carrying.
-
-### Perspectives in the preview, and two parser fixes (18 September)
-
-**PP-186** — `parallel` in a dynamic view consumed the rest of the view,
-because the view body's fallback was a bare `advance()`. It now goes
-through `_skip_unknown`, and `parallel` is implemented rather than
-skipped: its steps share one number, as upstream numbers them. `paperSize`
-is stored instead of silently discarded.
-
-**PP-185** — `!docs` and `!adrs` were stripped before tokenising, so they
-always attached to the workspace. The parser handles them now, which is
-what makes scoping possible. The path still comes from the raw line: the
-tokenizer drops `-` and `/`, so `!docs api-docs/sub` cannot be read back
-from tokens at all — a token-level first attempt silently looked for a
-directory called `api`.
-
-**PP-183** — `c4 list-perspectives [--json]` feeds a `Show Perspective…`
-quick-pick in the VS Code preview, which passes `--perspective` to the
-render. Its own command rather than a field on `list-views --json`:
-perspectives belong to the model, not to a view, and that JSON is an
-array whose shape other tools already read.
-
-### `c4 lint` (19 September): PP-187
-
-Model standards as rules over the parsed workspace: orphans, missing
-descriptions and technologies, duplicate relationships, styles that match
-nothing, and an opt-in naming convention. Findings are the parser's own
-`Diagnostic`, so the webapp's problems list and the VS Code Problems
-panel understand them without knowing what linting is. Warnings only —
-the exit code is what makes CI care.
-
-**The first version was noisy in exactly the way that gets a linter
-switched off.** It reported every well-modelled software system as an
-orphan, because relationships are routinely declared at container level
-while the diagram people look at is the context view, which lifts them.
-A parent now counts as related when a child is. Across seven samples the
-rules then found two things, both real: a component in the self-model
-that nothing references, and a system in `delta_release` with no
-description. Neither is fixed here — they are the sample authors' call.
-
-CI lints `samples/` (except `delta_release`, which is deliberately
-incomplete), so a rule that is noisy on a good model fails the build
-rather than being discovered by a user.
-
-### Surfacing what shipped (20 September): PP-191
-
-Eight tickets of perspective work, and `c4 lint` the day before, were
-invisible outside the repo: the README's only mention was "custom
-properties and perspectives on all elements", which describes parsing,
-not the overlay. Both now have a section, and perspectives have the
-README's **first image**.
-
-Two decisions worth keeping: the screenshot is a small purpose-built
-model rather than a sample, because `logistics_network` at README width
-is unreadable; and the image is referenced by **absolute raw URL**, since
-`pyproject.toml` feeds this file to PyPI as the long description and PyPI
-does not rewrite relative links — a relative path renders as a broken
-image there.
-
-### Impact analysis (20 September): PP-189
-
-`c4 impact <file> <identifier>` — dependents, dependencies, and the views
-that draw the element. The walk was easy; the semantics took the
-thinking. **Containment counts as involvement in both directions**,
-because a relationship declared against a container is one its system
-takes part in — the same rule `view_graph` applies when it lifts an edge
-to the nearest visible ancestor. An answer that ignored the hierarchy
-would disagree with the diagrams it is about.
-
-Two things deliberately excluded: an element's own ancestors and
-descendants (a container is not "affected by" the system holding it), and
-implied relationships (they duplicate what the containment rule already
-infers, and counting both reports the same involvement twice).
-
-The UI mode the ticket describes — reusing the perspective overlay's
-fade-and-badge pointed at an impact set — is **not** in this change, to
-keep the PR reviewable. It is the obvious follow-up.
-
-### `c4 publish` (20 September): PP-188
-
-The consumption loop. Every view becomes its own page — **not** one page
-with a switcher: the test is whether a link survives being pasted into a
-ticket, and a switcher makes every diagram the same URL. Docs and ADRs
-sit beside the views, navigation is relative, and the folder has no
-external references at all, because the renderer already inlines theme
-icons as `data:` URIs.
-
-**Markdown had to be rendered in Python.** `marked` is a browser
-dependency of the SPA and the site is built server-side under the
-no-new-dependency rule, so `markdown.py` renders the subset architecture
-prose actually uses and escapes everything else. Two bugs the hedge_fund
-docs found immediately: a wrapped list item cut its own list in half
-(Markdown's lazy continuation), and inline rules kept matching *inside*
-code spans, so `` `**not bold**` `` came back bold. Code spans are now
-lifted out before the other rules run.
-
-Pages deployment is documented as a workflow snippet rather than folded
-into `action.yml`: adding a mode to a published action's contract is a
-separate decision from shipping the command.
-
-### `c4 diff` (20 September): PP-190
-
-What changed between two revisions, and which views to look at again.
-Working tree against HEAD by default, which is the question you ask
-before opening a pull request.
-
-**Identity was the decision.** An element's id is its DSL alias, or a
-slug of its name when it has none — so renaming an aliased element is a
-change, and renaming an unaliased one is a delete plus an add with
-nothing to tie them together. A removal and an addition sharing a name
-are flagged as a *possible* rename and never merged into one: a diff that
-invents a rename hides a deletion.
-
-Two smaller judgements: relationships match on the **pair** first, so a
-reworded one reads as a single change rather than a swap; and a revision
-is materialised with `git archive` of the workspace's whole directory,
-because reading the root file alone would parse a different model
-whenever `!include` fragments moved with it.
-
-Still to do on this: the visual overlay and the PR comment mode, both of
-which want the renderer rather than the model.
+`themes` now accepts a file path as well as a URL. The theme is inlined
+at parse time and relative icons become `data:` URIs. The SVG preview
+e2e test uses an offline fixture, because CI cannot resolve
+`static.structurizr.com`. Samples that name upstream themes by URL still
+try to fetch them, and print `Skipping theme …` when offline. That is
+expected, not a failure.
 
 ---
 
 ## Open now
 
-**Nothing.** No open PRs, no open `PP` tickets.
+- **PP-198:** dynamic-view step ids embed the step order, so waypoints,
+  routes and label offsets on a dynamic view are lost when steps are
+  renumbered. Logged, not scheduled.
+- **PP-193 / PP-194:** impact analysis in the Studio, and the diagram
+  diff as a PR comment with a visual overlay. Both are carried over from
+  the September run.
+- **Not ticketed yet:** paint the DSL's `routing Orthogonal` relationship
+  style with the PP-196 router. The style is parsed and ignored today.
 
 ---
 
@@ -288,9 +111,9 @@ into "done" if nobody writes them down.
 
 ## Traps worth not rediscovering
 
-Each of these cost time. The first few are from 13 September; the last
-four are from the perspectives run, and their fuller context is in the
-tickets they name.
+Each of these cost time. The first few are from 13 September, the next
+from the perspectives run, and the e2e ones near the end from the October
+interface run; fuller context is in the tickets they name.
 
 - **A check that cannot fail looks exactly like a check that passed.**
   Three happened in one day: a mutation test whose mutation did not compile
@@ -339,5 +162,30 @@ tickets they name.
   base branch is gone. Push the base branch back to reopen, repoint at
   `main`, *then* delete. Retarget the next PR in a stack **before**
   merging the one below it.
+- **e2e tests write to the developer's `samples/`.** The Playwright
+  server serves `samples/`, so any test that drags, expands or saves
+  rewrites a real sidecar. Answer layout, expansion and named-layout
+  writes with `page.route` (see `rerouting.spec.ts` and
+  `named-layouts.spec.ts`), and check `shasum samples/*.layout.json`
+  before and after a run. A full-suite run used to rewrite
+  `logistics_network.layout.json` with identical content. No single spec
+  does it, and it is harmless, but it makes `git status` lie about who
+  touched it.
+- **Wait for the view, not for *a* legend.** The default landscape view
+  also has a legend, so an opener that waits for any legend races the
+  view switch. Wait for the view's own title node:
+  `.react-flow__node` with `hasText: /^Delivery Platform – Containers$/`.
+- **Hover emphasis remounts the hovered edge.** It raises the edge into
+  another layer, and React Flow remounts it. A drag whose window
+  listeners were removed on unmount died after a few pixels. Listeners
+  that must outlive a hover must not be torn down by the edge's unmount
+  (PP-196).
+- **The edge label layer sits above the edges**, so a label over a drag
+  handle makes it ungrabbable. `handlePoint` moves the handle clear of
+  the measured label. Tests pick a handle that `elementFromPoint`
+  confirms is on top.
+- **`highlight.spec.ts` "perspective vocabulary" fails locally**, on
+  `main` too, and passes in CI. It is not caused by your change.
+  Investigating it is still open.
 - **The `jira` skill is workspace-level**, so `/jira` fails from inside
   this repo. Call `jira_helper.py` directly — CLAUDE.md has the commands.
