@@ -134,8 +134,8 @@ prints. A skipped construct never consumes its enclosing scope.
 | `styles { relationship … }` | ◐ | Every property parses and exports. Painted: `color`, `style` / `dashed` (solid/dashed/dotted; `style` wins when both are set), `thickness`, `opacity`, `metadata`, `description`. Parsed and exported but **not** painted: `routing`, `jump`, `position`, `width`, `fontSize`. Unstyled relationships render dashed, 2px, `#707070` (a deliberate divergence from upstream's `#444444` — see `docs/structurizr-parity.md`), so mark special edges with `style dotted`/`style solid` or a colour, not `dashed true`. Every styled tag in use becomes a legend row named after it, so the tag is the wording the reader sees (PP-174) — or the `c4studio.legend` property when the tag is not enough (PP-175) |
 | `styles { … properties { … } }` | ✅ | A style is a `PropertyHolder` upstream (`AbstractStyle`), and the block is valid in both element and relationship styles; it was silently dropped here until PP-175. Round-tripped through JSON. `c4studio.legend` names that style's legend row when the tag is not wording enough — a namespaced key upstream ignores, the same escape hatch as `structurizr.perspective.interval` |
 | `light { … }` / `dark { … }` | ◐ | Colour-scheme variants parse; the viewer renders one scheme |
-| `theme <url\|default>` | ✅ | Fetched, cached and merged; workspace styles win |
-| `themes <url> <url…>` | ✅ | |
+| `theme <url\|default\|file>` | ✅ | A URL is fetched, cached and merged; workspace styles win. A file (PP-199) is read relative to the workspace and inlined at parse time, icons as `data:` URIs, so it needs no network. Upstream lets declaration order decide between a file theme and the workspace's styles; here the workspace always wins, the same rule as a URL theme |
+| `themes <url\|file> <url\|file…>` | ✅ | URLs and files mix freely |
 | `branding { … }` | ✅ | Logo and font, including the font URL |
 | `terminology { … }` | ✅ | |
 

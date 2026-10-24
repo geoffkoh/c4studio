@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from c4studio.diagnostics import Diagnostic, Severity
+from c4studio.icons import file_data_uri
 from c4studio.models import (
     Animation,
     AutomaticLayout,
@@ -62,6 +63,7 @@ from c4studio.parser.expressions import (
 )
 from c4studio.parser.implied import apply_implied_relationships
 from c4studio.parser.sourcemap import SourceMap
+from c4studio.themes import ThemeLoadError, parse_theme
 
 # ---------------------------------------------------------------------------
 # Tokeniser
@@ -1789,11 +1791,12 @@ class _Parser:
     _DEFAULT_THEME_URL = "https://static.structurizr.com/themes/default/theme.json"
 
     def _parse_themes(self, ws: Workspace) -> None:
-        """Parse ``theme <name|url>`` / ``themes <name|url> ...``.
+        """Parse ``theme <name|url|file>`` / ``themes <name|url|file> ...``.
 
         URLs must be quoted — the tokeniser has no token for an unquoted
         ``://...`` run — but a bare name is a valid alias, and ``default``
-        is the one structurizr-java defines.
+        is the one structurizr-java defines. A quoted value that is not a
+        URL is a theme file, inlined where it is declared (PP-199).
         """
         keyword = self._advance()
         themes = ws.views.configuration.themes
@@ -1817,7 +1820,72 @@ class _Parser:
                         code="unknown-theme",
                     )
                 continue
-            themes.append(value)
+            if "://" in value:
+                themes.append(value)
+            else:
+                self._inline_file_theme(ws, value, token)
+
+    def _inline_file_theme(self, ws: Workspace, target: str, token: Token) -> None:
+        """Copy a theme file's styles into the workspace, as upstream does.
+
+        structurizr-java inlines a file theme rather than referencing it
+        (``ThemeUtils.inlineAllStylesFromTheme``): its styles join the
+        workspace's own, and every relative icon becomes a ``data:`` URI.
+        The result needs no network and no file server, and a JSON export
+        carries the styles rather than a path nothing else can resolve.
+
+        One deliberate difference: upstream merges at the point the
+        ``theme`` line appears, so order decides who wins. Here a file
+        theme is held apart (``Configuration.theme_file_styles``) and
+        applied like a fetched one — before the workspace's own styles,
+        which always win — so URL and file themes follow one rule, and
+        lint does not report a theme's unused tags as the author's.
+
+        Upstream throws on a missing or broken file. Here it fails soft,
+        like every other construct this parser cannot use: a diagnostic,
+        and the diagram renders without the theme.
+        """
+        where = {
+            "line": token.line,
+            "column": token.column,
+            "end_column": token.end_column,
+        }
+        if self._base_dir is None:
+            self._warn(
+                f"theme file {target!r} needs a file context; parse from a "
+                "file instead of a string",
+                code="theme-not-found",
+                **where,
+            )
+            return
+        path = (self._base_dir / target).resolve()
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            self._warn(
+                f"theme file not found: {target!r} ({path})",
+                code="theme-not-found",
+                **where,
+            )
+            return
+        try:
+            styles = parse_theme(text)
+        except ThemeLoadError as exc:
+            self._warn(
+                f"theme file {target!r} is not a valid theme: {exc}",
+                code="invalid-theme",
+                **where,
+            )
+            return
+        for style in styles.element_styles:
+            icon = style.icon
+            if icon and not icon.startswith(("http://", "https://", "data:")):
+                # Relative to the theme file, not the workspace — which is
+                # what lets a theme folder be copied around as a unit.
+                style.icon = file_data_uri(path.parent / icon) or ""
+        inlined = ws.views.configuration.theme_file_styles
+        inlined.element_styles.extend(styles.element_styles)
+        inlined.relationship_styles.extend(styles.relationship_styles)
 
     def _parse_branding(self, ws: Workspace) -> None:
         """Parse ``branding { logo <url> font <name> [url] }``."""

@@ -1,0 +1,14 @@
+{
+  "name": "Offline test theme",
+  "description": "Used by e2e/svg-preview.spec.ts. Icons resolve relative to this file.",
+  "elements": [
+    {
+      "tag": "Database",
+      "background": "#2e7d32",
+      "color": "#ffffff",
+      "shape": "Cylinder",
+      "icon": "icons/database.svg"
+    }
+  ],
+  "relationships": []
+}
