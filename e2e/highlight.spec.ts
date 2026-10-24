@@ -170,4 +170,41 @@ test.describe("DSL highlighting", () => {
     await expect(line.locator(".dsl-color")).toHaveCount(1);
     await expect(line.locator(".dsl-comment")).toHaveCount(0);
   });
+
+  test("a text block is a string to its closing quotes (PP-202)", async ({ page }) => {
+    // Served with a block in front: no sample needs one, and the server
+    // never writes what the editor is shown.
+    const BLOCK = [
+      '!const RUNBOOK """',
+      "    ## Restart the model service",
+      "    1. Drain the `orders` queue",
+      '    """',
+      "",
+    ].join("\n");
+    const withBlock = (file: { path: string; content: string }) => {
+      if (file.path.endsWith("c4studio/workspace.dsl")) file.content = BLOCK + file.content;
+    };
+    await page.route(/\/api\/(source|file)(\?.*)?$/, async (route) => {
+      if (route.request().method() !== "GET") return route.fallback();
+      const response = await route.fetch();
+      const data = await response.json();
+      if (Array.isArray(data.files)) data.files.forEach(withBlock);
+      else if (typeof data.content === "string") withBlock(data);
+      return route.fulfill({ response, json: data });
+    });
+    await openC4studioSource(page);
+
+    // Markdown inside: a `##` heading is not a comment, `model` is not a
+    // keyword, and backticks are not anything.
+    const heading = page.locator(".editor__surface .cm-line", { hasText: "## Restart" });
+    await expect(heading.locator(".dsl-string")).toHaveCount(1);
+    await expect(heading.locator(".dsl-comment, .dsl-keyword")).toHaveCount(0);
+
+    // And it ends: the line after the closing quotes is DSL again.
+    const after = page.locator(".editor__surface .cm-line", {
+      hasText: 'workspace "c4studio"',
+    });
+    await expect(after.locator(".dsl-keyword").first()).toBeVisible();
+    await expect(after.locator(".dsl-string")).toHaveCount(2);
+  });
 });

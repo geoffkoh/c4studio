@@ -35,6 +35,11 @@ only starts a comment when nothing but whitespace precedes it on the line
 — mid-line it is a hex colour (`background #1a2b3c`), the same rule as
 structurizr-java (`^\s*?(//|#)`).
 
+**Multi-line strings:** `"""` text blocks and a trailing `\` for line
+continuation are both supported, read as structurizr-java's
+`preProcessLines` reads them (PP-202). Before that a text block parsed
+silently to an empty string — a ⚠️ in all but name.
+
 Anything marked ⛔ follows the parser's fail-soft contract: the construct
 and any `{ … }` body are skipped whole, never half-applied, and recorded in
 `Workspace.diagnostics` (and `parse_warnings`), which `c4 check`

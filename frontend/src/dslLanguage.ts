@@ -22,6 +22,8 @@ interface DslState {
   inComment: boolean;
   /** After a `!directive` on this line: the rest of it is a path, not DSL. */
   inDirective: boolean;
+  /** Inside a `"""` text block that opened on an earlier line. */
+  inTextBlock: boolean;
 }
 
 /** Consume up to the end of a block comment, or to the end of the line. */
@@ -39,6 +41,12 @@ function blockComment(stream: StringStream, state: DslState): DslTokenClass {
 function token(stream: StringStream, state: DslState): DslTokenClass | null {
   if (stream.sol()) state.inDirective = false;
   if (state.inComment) return blockComment(stream, state);
+  if (state.inTextBlock) {
+    // Its Markdown is text, not DSL: a `## heading` is not a comment.
+    if (DSL_PATTERNS.textBlockClose.test(stream.string)) state.inTextBlock = false;
+    stream.skipToEnd();
+    return "string";
+  }
   if (stream.eatSpace()) return null;
 
   if (stream.match(DSL_PATTERNS.lineComment)) return "comment";
@@ -56,6 +64,10 @@ function token(stream: StringStream, state: DslState): DslTokenClass | null {
   if (stream.match(DSL_PATTERNS.blockCommentOpen)) {
     state.inComment = true;
     return blockComment(stream, state);
+  }
+  if (stream.match(DSL_PATTERNS.textBlockOpen)) {
+    state.inTextBlock = true;
+    return "string";
   }
   if (stream.match(DSL_PATTERNS.string)) return "string";
   if (stream.peek() === '"') {
@@ -87,7 +99,7 @@ function token(stream: StringStream, state: DslState): DslTokenClass | null {
 /** The DSL as a CodeMirror language. */
 export const dslLanguage = StreamLanguage.define<DslState>({
   name: "structurizr-dsl",
-  startState: () => ({ inComment: false, inDirective: false }),
+  startState: () => ({ inComment: false, inDirective: false, inTextBlock: false }),
   token,
   copyState: (state) => ({ ...state }),
   blankLine: (state) => {

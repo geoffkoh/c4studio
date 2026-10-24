@@ -10,7 +10,8 @@ when you finish a run of work, not when you remember.
 
 Last updated: **24 October 2026**, after the interface run
 (PP-195 … PP-201): animated relationships, segment re-routing with steps
-and pinned sides, named layouts, and file-based themes.
+and pinned sides, named layouts, and file-based themes; then multi-line
+strings in the parser (PP-202).
 
 ---
 
@@ -22,7 +23,7 @@ and pinned sides, named layouts, and file-based themes.
 | VS Code extension | **0.3.1**, packaged as `.vsix` only. Not on the Marketplace, and versioned independently of the Python package |
 | `main` | Green. Four CI jobs: Python gate, bundle + layout, VS Code extension packaging, and the `render` dogfood |
 | Open PRs | **None** |
-| Open `PP` tickets | PP-192 (drive the `.vsix` for a day — needs a human), PP-193, PP-194, PP-198 — see *Open now* |
+| Open `PP` tickets | PP-192 (drive the `.vsix` for a day — needs a human), PP-193, PP-194, PP-198, PP-203 — see *Open now* |
 | Frontend runtime | React **19**, TypeScript **7**, Vite **8**, marked **18**. `reactflow` stays on **11** — see below |
 
 ---
@@ -69,6 +70,17 @@ the node rather than through it when it has to double back. The stub is
 recomputed and never stored, which is why `routeBends` drops it by index
 and `insertStep` keeps a new step off it.
 
+### Multi-line strings: text blocks and continuation (PP-202)
+
+`"""` text blocks and a trailing `\` now parse as structurizr-java's
+`preProcessLines` reads them, in the tokenizer: a text block becomes an
+ordinary `STRING`, and a joined statement's tokens keep the line it
+started on, because the parser pairs arguments by `token.line`. Before
+this a text block silently read as `""`, with its content as stray
+tokens — found while answering how a property could hold Markdown.
+`!const`/`!var` accept one as their value, and the editor paints a
+block as a string to its closing quotes.
+
 ### Named layouts (PP-197)
 
 The toolbar's **Layouts** menu keeps a view's current arrangement under a
@@ -94,6 +106,10 @@ expected, not a failure.
 
 ## Open now
 
+- **PP-203:** show element and relationship `properties` in the details
+  panel and the published site, rendering multi-line values with the
+  site's Markdown subset. Properties are parsed and exported today but
+  nothing displays them. The natural next step after PP-202.
 - **PP-198:** dynamic-view step ids embed the step order, so waypoints,
   routes and label offsets on a dynamic view are lost when steps are
   renumbered. Logged, not scheduled.
