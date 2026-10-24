@@ -75,12 +75,49 @@ workspace "Name" "Description" {
 | Rule | Detail |
 | --- | --- |
 | Strings | Double quotes. A value containing a space **must** be quoted. |
+| Multi-line strings | A `"""` text block — see below. Its line breaks are kept; nothing in it is DSL. |
 | Bare words | Unquoted words work where a value has no spaces: `tags Database`, `shape Cylinder`, `autoLayout lr`. |
 | Comments | `//` to end of line, `#` to end of line **only when nothing but whitespace precedes it** (mid-line, `#` starts a colour), and `/* … */` blocks. |
 | Colours | `#rrggbb` or `#rgb`. |
-| Statements | One per line. A newline ends a statement; there are no semicolons. |
+| Statements | One per line. A newline ends a statement; there are no semicolons. A `\` ending a line joins the next one on, without that line's indentation. |
 | Keywords | Case-insensitive (`softwareSystem` = `softwaresystem`), and conventionally camelCase. |
 | Identifiers | `alias = element …`, then referenced by that alias. Case-sensitive. Optional: an element with no alias simply cannot be referenced. |
+
+### Multi-line values
+
+A text block opens with `"""` at the end of a line and closes at the next
+line that ends with `"""`. Each line loses as much leading whitespace as
+the first line inside the block has, so it can be indented with the code
+around it. Use one for a long `description` or a property holding
+Markdown; the value is the text, line breaks and all — Markdown in it is
+not rendered by the parser.
+
+```dsl
+// in: model
+api = softwareSystem "Orders" {
+    description """
+        Takes orders from every channel.
+        Owns the order lifecycle up to dispatch.
+        """
+    properties {
+        "owner" "team-payments"
+        "runbook" """
+            ## Restart
+
+            1. Drain traffic: `kubectl scale deploy/api --replicas=0`
+            2. Check the **dead-letter** queue first
+            """
+        "notes" "One long line, wrapped in the source \
+                 with a trailing backslash"
+    }
+}
+```
+
+- Text before the closing `"""` on its own line is dropped, as
+  structurizr-java drops it — put the marker on a line by itself.
+- `!const` and `!var` accept a text block as their value too. A
+  multi-line constant substituted into the middle of a file shifts the
+  line numbers of diagnostics after that point by its extra lines.
 
 ### A minimal, complete file
 
@@ -786,7 +823,7 @@ Nothing below stops a parse. Each is skipped whole, recorded in
 | Construct | What happens |
 | --- | --- |
 | `!script`, `!plugin`, `!components` | Skipped with `unsupported-directive` — never executed. |
-| `!const`, `!var`, `!decisions`, any unknown `!directive` | Skipped with `unsupported-directive`. |
+| `!decisions`, any unknown `!directive` | Skipped with `unsupported-directive`. |
 | `archetypes { … }` | Skipped with `unsupported-block`. |
 | `!identifiers hierarchical` | Accepted, but identifiers are always resolved flat. |
 | `paperSize <size>` | Stored and exported; nothing here draws to a page size. An unrecognised value warns with `unknown-paper-size`. |

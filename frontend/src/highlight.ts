@@ -101,6 +101,13 @@ export const DSL_PATTERNS = {
   blockCommentOpen: /^\/\*/,
   blockCommentClose: /^\*\//,
   string: /^"(?:[^"\\]|\\.)*"/,
+  /**
+   * A `"""` ending its line opens a text block, which runs to the next
+   * line ending in `"""` — the parser's `TEXT_BLOCK`, and structurizr-java's.
+   * Before `string`, which would read the first two quotes as `""`.
+   */
+  textBlockOpen: /^"""\s*$/,
+  textBlockClose: /"""\s*$/,
   color: /^#[0-9A-Fa-f]{3,8}/,
   arrow: /^->/,
   directive: /^![A-Za-z]+/,

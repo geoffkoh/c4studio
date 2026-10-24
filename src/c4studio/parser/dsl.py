@@ -116,7 +116,13 @@ _TOKEN_RE = re.compile(
     # "#" must stay a token because hex colours use it. Anchored, and placed
     # before SKIP so the line's leading whitespace cannot consume the anchor.
     r"(?P<HASH_COMMENT>(?m:^[ \t]*#[^\n]*))|"
+    # A text block, as structurizr-java's preProcessLines reads one: it
+    # opens with `"""` ending a line and closes at the next line that ends
+    # with `"""`. Before STRING, which would read `""` as an empty string.
+    r'(?P<TEXT_BLOCK>"""[ \t]*\r?\n(?:[^\n]*\n)*?[^\n]*"""(?=[ \t]*\r?(?:\n|$)))|'
     r'(?P<STRING>"(?:[^"\\]|\\.)*")|'
+    # A backslash ending a line joins the next one onto it.
+    r"(?P<CONTINUATION>\\\r?\n[ \t]*)|"
     r"(?P<ARROW>->)|"
     r"(?P<EQEQ>==)|"
     r"(?P<NEQ>!=)|"
@@ -136,9 +142,33 @@ _TOKEN_RE = re.compile(
 )
 
 
+_CONTINUED_RE = re.compile(r"\\\r?\n[ \t]*")
+
+
+def _text_block(raw: str) -> str:
+    """The value of a triple-quoted text block, as structurizr-java reads it.
+
+    The lines between the markers, each losing as much leading whitespace
+    as the first of them has; text before the closing marker on its own
+    line is dropped, as upstream drops it.
+    """
+    lines = [line.rstrip("\r") for line in raw.split("\n")[1:-1]]
+    first = lines[0] if lines else ""
+    indent = len(first) - len(first.lstrip(" \t"))
+    body = []
+    for line in lines:
+        cut = len(line) - len(line.lstrip(" \t"))
+        body.append(line[min(indent, cut) :])
+    return "\n".join(body)
+
+
 def _tokenize(text: str) -> list[Token]:
     tokens: list[Token] = []
     line = 1
+    # The line a token reports. The parser groups a statement's arguments
+    # by line, so a statement joined across lines — by a trailing
+    # backslash, or a text block — keeps the line it started on.
+    logical = 1
     # Offset of the first character of `line`, so columns are a subtraction.
     line_start = 0
     for m in _TOKEN_RE.finditer(text):
@@ -147,18 +177,36 @@ def _tokenize(text: str) -> list[Token]:
         kind = m.lastgroup
         if kind is None:  # pragma: no cover - unreachable with this pattern
             continue
-        value = m.group()
-        if kind not in ("COMMENT", "BLOCK_COMMENT", "HASH_COMMENT", "NEWLINE", "SKIP"):
+        raw = m.group()
+        value = raw
+        if kind == "TEXT_BLOCK":
+            kind = STRING
+            value = '"' + _text_block(raw) + '"'
+        elif kind == STRING and "\\" in raw:
+            value = _CONTINUED_RE.sub("", raw)
+        if kind not in (
+            "COMMENT",
+            "BLOCK_COMMENT",
+            "HASH_COMMENT",
+            "NEWLINE",
+            "SKIP",
+            "CONTINUATION",
+        ):
             column = m.start() - line_start + 1
-            tokens.append(Token(kind, value, line, column, column + len(value)))
-        # Any token may span lines — a block comment, or a string with an
-        # escaped newline — so the position is advanced for all of them, not
-        # just the ones that are skipped.
-        if "\n" in value:
-            line += value.count("\n")
-            line_start = m.start() + value.rindex("\n") + 1
+            tokens.append(Token(kind, value, logical, column, column + len(raw)))
+        # Any token may span lines — a block comment, a text block, or a
+        # string with an escaped newline — so the position is advanced for
+        # all of them, not just the ones that are skipped.
+        if "\n" in raw:
+            line += raw.count("\n")
+            line_start = m.start() + raw.rindex("\n") + 1
+            joined = m.lastgroup in ("TEXT_BLOCK", "CONTINUATION") or (
+                kind == STRING and raw.count("\n") == len(_CONTINUED_RE.findall(raw))
+            )
+            if not joined:
+                logical = line
     column = len(text) - line_start + 1
-    tokens.append(Token(EOF, "", line, column, column))
+    tokens.append(Token(EOF, "", logical, column, column))
     return tokens
 
 
@@ -2614,7 +2662,7 @@ _SCRIPT_RE = re.compile(r"^[ \t]*!script\b[^\n{]*\{", re.MULTILINE)
 _CONST_RE = re.compile(
     r"^[ \t]*!(?P<kind>const|constant|var)[ \t]+"
     r'(?P<name>"[^"]+"|\S+)[ \t]+'
-    r'(?P<value>"(?:[^"\\]|\\.)*"|\S+)[ \t]*$',
+    r'(?P<value>"""[ \t]*\n(?:[^\n]*\n)*?[^\n]*"""|"(?:[^"\\]|\\.)*"|\S+)[ \t]*$',
     re.MULTILINE,
 )
 
@@ -2674,7 +2722,9 @@ def _apply_constants(source: str) -> str:
     def collect(match: re.Match[str]) -> str:
         kind = match.group("kind")
         name = match.group("name").strip('"')
-        value = match.group("value").strip('"')
+        raw = match.group("value")
+        block = raw.startswith('"""')
+        value = _text_block(raw) if block else raw.strip('"')
         is_const = kind in ("const", "constant")
         if name in constants:
             raise ParseError(f"Cannot redefine constant {name!r} (!{kind})")
@@ -2685,7 +2735,9 @@ def _apply_constants(source: str) -> str:
         values[name] = value
         if is_const:
             constants.add(name)
-        return ""
+        # A text block spans lines; keep them, or every diagnostic below
+        # the definition would point a few lines too high.
+        return "\n" * raw.count("\n")
 
     stripped = _CONST_RE.sub(collect, source)
     if not values:
