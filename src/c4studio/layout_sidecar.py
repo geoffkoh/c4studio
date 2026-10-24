@@ -117,6 +117,52 @@ def read_routing(source: Path) -> dict[str, dict[str, str]]:
     return cleaned
 
 
+#: The node sides a re-routed edge's ends may be pinned to (PP-201).
+SIDES = frozenset({"top", "right", "bottom", "left"})
+
+#: The ends of an edge a side may be pinned for.
+EDGE_ENDS = ("source", "target")
+
+
+def clean_sides(raw: Any) -> dict[str, dict[str, str]]:
+    """Keep the usable part of one view's ``{edge_id: {end: side}}`` map.
+
+    Shared by the reader and the server's save route, so a pin the
+    renderer would ignore is never stored either.
+    """
+    if not isinstance(raw, dict):
+        return {}
+    cleaned: dict[str, dict[str, str]] = {}
+    for edge_id, ends in raw.items():
+        if not isinstance(edge_id, str) or not isinstance(ends, dict):
+            continue
+        pinned = {
+            end: side
+            for end, side in ends.items()
+            if end in EDGE_ENDS and side in SIDES
+        }
+        if pinned:
+            cleaned[edge_id] = pinned
+    return cleaned
+
+
+def read_sides(source: Path) -> dict[str, dict[str, dict[str, str]]]:
+    """Read ``{view_key: {edge_id: {"source"|"target": side}}}`` pins.
+
+    A pinned end of a re-routed edge leaves (or enters) its node through
+    that side (PP-201). Only an orthogonally routed edge honours it.
+    """
+    raw = read_document(source).get("sides")
+    if not isinstance(raw, dict):
+        return {}
+    cleaned: dict[str, dict[str, dict[str, str]]] = {}
+    for key, by_edge in raw.items():
+        pins = clean_sides(by_edge)
+        if pins:
+            cleaned[key] = pins
+    return cleaned
+
+
 def read_labels(source: Path) -> dict[str, dict[str, list[int]]]:
     """Read ``{view_key: {edge_id: [dx, dy]}}`` label offsets."""
     return _read_points(source, "labels")
@@ -200,6 +246,19 @@ def attach_routing(data: dict[str, Any], routing: dict[str, str]) -> None:
             edge["routing"] = mode
 
 
+def attach_sides(data: dict[str, Any], sides: dict[str, dict[str, str]]) -> None:
+    """Add pinned sides onto matching edges of a graph payload.
+
+    Stale ids are skipped, as for waypoints.
+    """
+    if not sides:
+        return
+    for edge in data.get("edges", []):
+        pins = sides.get(edge.get("id", ""))
+        if pins:
+            edge["sides"] = dict(pins)
+
+
 def attach_labels(data: dict[str, Any], labels: dict[str, list[int]]) -> None:
     """Add saved label offsets onto matching edges of a graph payload.
 
@@ -226,6 +285,7 @@ SNAPSHOT_SECTIONS = (
     "collapsed",
     "chrome",
     "routing",
+    "sides",
 )
 
 

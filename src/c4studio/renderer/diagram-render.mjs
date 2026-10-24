@@ -9574,6 +9574,119 @@ function autoCorners(s, t, offset) {
 		y
 	}];
 }
+var vertical = (side) => side === "top" || side === "bottom";
+/** Whether `p` lies further out from the node than `from`, past `side`. */
+function ahead(side, from, p) {
+	switch (side) {
+		case "top": return p.y < from.y;
+		case "bottom": return p.y > from.y;
+		case "left": return p.x < from.x;
+		case "right": return p.x > from.x;
+	}
+}
+/**
+* Where a route pinned to `side` of `r` meets it, and the end of its stub.
+* Along the side the attachment follows the route — it sits level with
+* `toward`, the next point the route visits — clamped clear of the
+* corners, so pinning a side never fixes the point on it.
+*/
+function pin(r, side, toward) {
+	const clamp = (v, from, length) => {
+		const margin = Math.min(12, length / 4);
+		return Math.min(Math.max(v, from + margin), from + length - margin);
+	};
+	switch (side) {
+		case "top": {
+			const x = clamp(toward.x, r.x, r.width);
+			return [{
+				x,
+				y: r.y
+			}, {
+				x,
+				y: r.y - 20
+			}];
+		}
+		case "bottom": {
+			const x = clamp(toward.x, r.x, r.width);
+			return [{
+				x,
+				y: r.y + r.height
+			}, {
+				x,
+				y: r.y + r.height + 20
+			}];
+		}
+		case "left": {
+			const y = clamp(toward.y, r.y, r.height);
+			return [{
+				x: r.x,
+				y
+			}, {
+				x: r.x - 20,
+				y
+			}];
+		}
+		case "right": {
+			const y = clamp(toward.y, r.y, r.height);
+			return [{
+				x: r.x + r.width,
+				y
+			}, {
+				x: r.x + r.width + 20,
+				y
+			}];
+		}
+	}
+}
+/**
+* The points between a pinned side's stub and `next`, every segment
+* axis-aligned. Ahead of the side, the route carries straight on and
+* turns once. Behind it, it goes round the node rather than through it:
+* sideways past the nearer corner, then on. Only a detour the node is
+* actually in the way of is taken.
+*/
+function leave(r, side, stub, next) {
+	if (ahead(side, stub, next)) {
+		if (vertical(side) ? stub.x === next.x : stub.y === next.y) return [];
+		return vertical(side) ? [{
+			x: stub.x,
+			y: next.y
+		}] : [{
+			x: next.x,
+			y: stub.y
+		}];
+	}
+	if (vertical(side)) {
+		const left = r.x - 20;
+		const right = r.x + r.width + 20;
+		if (next.x <= left || next.x >= right) return [{
+			x: next.x,
+			y: stub.y
+		}];
+		const x = next.x < r.x + r.width / 2 ? left : right;
+		return [{
+			x,
+			y: stub.y
+		}, {
+			x,
+			y: next.y
+		}];
+	}
+	const top = r.y - 20;
+	const bottom = r.y + r.height + 20;
+	if (next.y <= top || next.y >= bottom) return [{
+		x: stub.x,
+		y: next.y
+	}];
+	const y = next.y < r.y + r.height / 2 ? top : bottom;
+	return [{
+		x: stub.x,
+		y
+	}, {
+		x: next.x,
+		y
+	}];
+}
 function dedupe(points) {
 	return points.filter((p, i) => i === 0 || p.x !== points[i - 1].x || p.y !== points[i - 1].y);
 }
@@ -9583,11 +9696,13 @@ function dedupe(points) {
 * an axis — free bend points placed in a curved style — get an elbow
 * between them, horizontal first, so the result is always orthogonal.
 */
-function orthogonalRoute(source, target, bends = [], offset = 0) {
+function orthogonalRoute(source, target, bends = [], offset = 0, pins = {}) {
+	const pinned = Boolean(pins.source || pins.target);
 	const corners = bends.length > 0 ? bends.map(([x, y]) => ({
 		x,
 		y
-	})) : autoCorners(source, target, offset);
+	})) : pinned ? [] : autoCorners(source, target, offset);
+	if (pinned) return pinnedRoute(source, target, corners, pins);
 	if (corners.length === 0) return [centre(source), centre(target)];
 	const interior = [corners[0]];
 	for (const c of corners.slice(1)) {
@@ -9603,6 +9718,43 @@ function orthogonalRoute(source, target, bends = [], offset = 0) {
 	return dedupe([
 		...head,
 		...interior,
+		...tail
+	]);
+}
+/**
+* A route with one or both ends pinned to a side (PP-201): out of each
+* pinned side along its stub, through the corners, into the other end.
+* An unpinned end attaches as it always has, so pinning one end leaves
+* the other free.
+*/
+function pinnedRoute(source, target, corners, pins) {
+	const chain = [];
+	const push = (p) => {
+		const prev = chain[chain.length - 1];
+		if (prev && prev.x !== p.x && prev.y !== p.y) chain.push({
+			x: p.x,
+			y: prev.y
+		});
+		chain.push(p);
+	};
+	const last = corners[corners.length - 1];
+	const sourcePin = pins.source ? pin(source, pins.source, corners[0] ?? centre(target)) : null;
+	const targetPin = pins.target ? pin(target, pins.target, last ?? centre(source)) : null;
+	if (sourcePin && pins.source) {
+		const toward = corners[0] ?? targetPin?.[1] ?? centre(target);
+		chain.push(sourcePin[1], ...leave(source, pins.source, sourcePin[1], toward));
+	}
+	corners.forEach(push);
+	if (targetPin && pins.target) {
+		const from = chain[chain.length - 1] ?? centre(source);
+		leave(target, pins.target, targetPin[1], from).reverse().forEach(push);
+		push(targetPin[1]);
+	}
+	const head = sourcePin ? [sourcePin[0]] : connect(source, chain[0]);
+	const tail = targetPin ? [targetPin[0]] : connect(target, chain[chain.length - 1]).reverse();
+	return dedupe([
+		...head,
+		...chain,
 		...tail
 	]);
 }
@@ -10089,7 +10241,7 @@ function paintEdge(edge, placed) {
 	if (!source || !target) return "";
 	const orthogonal = edge.routing === "orthogonal";
 	let points;
-	if (orthogonal) points = orthogonalRoute(source, target, edge.waypoints ?? []).map((p) => ({
+	if (orthogonal) points = orthogonalRoute(source, target, edge.waypoints ?? [], 0, edge.sides ?? {}).map((p) => ({
 		x: round(p.x),
 		y: round(p.y)
 	}));

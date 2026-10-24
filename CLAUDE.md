@@ -184,13 +184,14 @@ workspace (`packages/*`, `frontend/`) and `editors/vscode/` alike.
   `labels` (dragged label offsets), `expanded` (elements expanded in place),
   `collapsed` (collapsed group nodes), `chrome` (dragged title/legend
   positions), `routing` (edges re-routed orthogonally, whose `edges`
-  waypoints are then route corners) and `snapshots` (named layouts: per
-  view, per name, a copy of every per-view section above) — so a sidecar
-  written by an older version still loads. Every sidecar write rewrites
-  the whole file, so a new section must be threaded through each writer
-  in `server.py` — except `snapshots`, which `_write_layout_sidecar`
-  keeps from disk unless given; a further section is better done that way
-  than threaded. A new per-view section also belongs in
+  waypoints are then route corners), `sides` (the node side a re-routed
+  edge's end is pinned to) and `snapshots` (named layouts: per view, per
+  name, a copy of every per-view section above) — so a sidecar written by
+  an older version still loads. Every sidecar write rewrites the whole
+  file, so a new section must be threaded through each writer in
+  `server.py` — except `snapshots` and `sides`, which
+  `_write_layout_sidecar` keeps from disk unless given; a further section
+  is better done that way than threaded. A new per-view section also belongs in
   `SNAPSHOT_SECTIONS`, or named layouts silently leave it out. Add new
   state as a new section, never by changing an existing one's shape.
 

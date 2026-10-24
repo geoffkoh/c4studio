@@ -121,6 +121,9 @@ def _payload_with_layout(
     layout_sidecar.attach_routing(
         payload, layout_sidecar.read_routing(layout_source).get(view.key, {})
     )
+    layout_sidecar.attach_sides(
+        payload, layout_sidecar.read_sides(layout_source).get(view.key, {})
+    )
     layout_sidecar.attach_labels(
         payload, layout_sidecar.read_labels(layout_source).get(view.key, {})
     )

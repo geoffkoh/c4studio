@@ -123,6 +123,11 @@ export interface GEdge {
   /** Set once re-routed by dragging a segment (PP-196): `waypoints` are
       then the corners of an orthogonal route. */
   routing?: "orthogonal";
+  /** Sides a re-routed edge's ends are pinned to (PP-201). */
+  sides?: {
+    source?: "top" | "right" | "bottom" | "left";
+    target?: "top" | "right" | "bottom" | "left";
+  };
   /** Dragged label offset from its default place, from the sidecar. */
   labelOffset?: [number, number];
   /** Resolved relationship-style paint; absent fields use the defaults

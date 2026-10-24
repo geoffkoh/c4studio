@@ -22,6 +22,14 @@ export const GESTURES: readonly { keys: string; action: string }[] = [
     keys: "Drag a line's handle",
     action: "Re-route a relationship (Step / Smooth step)",
   },
+  {
+    keys: "Double-click a step line",
+    action: "Add a step there; drag it flat to remove it",
+  },
+  {
+    keys: "Drag a line's end",
+    action: "Attach it to another side of the element",
+  },
   { keys: "Scroll", action: "Zoom in pan mode, pan in select mode" },
   { keys: "Pinch", action: "Zoom" },
 ];

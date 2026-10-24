@@ -308,3 +308,110 @@ class TestServer:
         )
         client.post("/api/views/cont/expansion", json={"expanded": [], "collapsed": []})
         assert _sidecar(root)["routing"] == {"cont": {ids["Calls"]: "orthogonal"}}
+
+
+class TestPinnedSides:
+    """Ends pinned to a side of their node (PP-201)."""
+
+    def _pinned(self, client: TestClient, edge: str, **sides: str) -> Any:
+        return client.post(
+            "/api/views/cont/layout",
+            json={
+                "positions": {"u": [0, 0]},
+                "routing": {edge: "orthogonal"},
+                "sides": {edge: sides},
+            },
+        )
+
+    def test_sides_are_saved_served_and_reloaded(
+        self, client: TestClient, root: Path
+    ) -> None:
+        ids = TestServer()._ids(client)
+        assert self._pinned(client, ids["Calls"], source="top").status_code == 200
+        assert _sidecar(root)["sides"] == {"cont": {ids["Calls"]: {"source": "top"}}}
+        by_id = {
+            e["id"]: e for e in client.get("/api/views/cont/graph").json()["edges"]
+        }
+        assert by_id[ids["Calls"]]["sides"] == {"source": "top"}
+        assert "sides" not in by_id[ids["Uses"]]
+
+        fresh = TestClient(create_app(root=root))
+        fresh.post("/api/load", json={"path": DSL_FILE})
+        edges = fresh.get("/api/views/cont/graph").json()["edges"]
+        assert {e["id"]: e.get("sides") for e in edges}[ids["Calls"]] == {
+            "source": "top"
+        }
+
+    def test_a_pin_needs_a_rerouted_edge_and_a_real_side(
+        self, client: TestClient, root: Path
+    ) -> None:
+        ids = TestServer()._ids(client)
+        client.post(
+            "/api/views/cont/layout",
+            json={
+                "positions": {},
+                "routing": {ids["Calls"]: "orthogonal"},
+                "sides": {
+                    ids["Calls"]: {"source": "diagonal", "target": "left"},
+                    ids["Uses"]: {"source": "top"},
+                    "nope": {"middle": "top"},
+                },
+            },
+        )
+        assert _sidecar(root)["sides"] == {"cont": {ids["Calls"]: {"target": "left"}}}
+
+    def test_reset_clears_sides(self, client: TestClient, root: Path) -> None:
+        ids = TestServer()._ids(client)
+        self._pinned(client, ids["Calls"], source="top")
+        client.delete("/api/views/cont/layout")
+        assert "sides" not in _sidecar(root)
+        edges = client.get("/api/views/cont/graph").json()["edges"]
+        assert all("sides" not in e for e in edges)
+
+    def test_other_writes_keep_sides(self, client: TestClient, root: Path) -> None:
+        ids = TestServer()._ids(client)
+        self._pinned(client, ids["Calls"], source="top")
+        client.post("/api/views/cont/expansion", json={"expanded": [], "collapsed": []})
+        client.post("/api/views/cont/layouts", json={"name": "A"})
+        assert _sidecar(root)["sides"] == {"cont": {ids["Calls"]: {"source": "top"}}}
+
+    def test_named_layouts_capture_and_restore_sides(
+        self, client: TestClient, root: Path
+    ) -> None:
+        ids = TestServer()._ids(client)
+        self._pinned(client, ids["Calls"], source="top")
+        client.post("/api/views/cont/layouts", json={"name": "Pinned"})
+        self._pinned(client, ids["Calls"], source="bottom")
+        client.post("/api/views/cont/layouts/apply", json={"name": "Pinned"})
+        edges = client.get("/api/views/cont/graph").json()["edges"]
+        assert {e["id"]: e.get("sides") for e in edges}[ids["Calls"]] == {
+            "source": "top"
+        }
+
+    @needs_node
+    def test_render_leaves_through_the_pinned_side(
+        self, workspace: Workspace, source: Path
+    ) -> None:
+        """Unpinned, web -> api leaves sideways; pinned top, it goes up."""
+        from c4studio.render import render_view
+
+        ids = _edge_ids(workspace)
+
+        def first_run(sides: dict[str, Any]) -> tuple[Any, Any]:
+            _write_sidecar(
+                source,
+                {
+                    "views": {"cont": POSITIONS},
+                    "routing": {"cont": {ids["Calls"]: "orthogonal"}},
+                    "sides": sides,
+                },
+            )
+            svg = render_view(workspace, _view(workspace), layout_source=source)
+            routed = [p for p in _edge_paths(svg) if _orthogonal(p) and len(p) >= 3]
+            assert len(routed) == 1
+            return routed[0][0], routed[0][1]
+
+        a, b = first_run({})
+        assert a[1] == b[1], "the control should leave horizontally"
+        a, b = first_run({"cont": {ids["Calls"]: {"source": "top"}}})
+        assert a[0] == b[0] and b[1] < a[1]
