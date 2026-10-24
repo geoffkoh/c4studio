@@ -594,6 +594,18 @@ Themes are fetched, cached, and merged — workspace styles win over theme
 styles. Theme icons are inlined as `data:` URIs when rendering, so an
 exported diagram has no external references.
 
+**A theme can also be a file** (PP-199): `theme "themes/corporate.json"`,
+resolved against the workspace file, as upstream resolves it. Its styles
+are inlined at parse time and every relative `icon` — relative to the
+*theme* file, so a theme folder can be copied around whole — becomes a
+`data:` URI. Nothing is fetched, so a file theme works offline in the
+Studio, `c4 render`, `c4 publish` and the VS Code preview alike. It is
+applied exactly like a fetched theme: before the workspace's own styles,
+which always win, whatever order the lines are in. `c4 lint` does not
+report a theme's tags that match nothing — a theme is a library.
+A file that is missing or is not theme JSON is a warning
+(`theme-not-found`, `invalid-theme`), and the diagram renders without it.
+
 > **Not yet applied:** `branding` and `terminology` are parsed and exported
 > faithfully, but nothing in the viewer or the renderer reads them. Element
 > metadata lines still say `[Container]`, and no logo is drawn.
@@ -798,7 +810,8 @@ file, line and column.
 | `unknown-relationship-property` | Something other than tags/url/properties/perspectives in a relationship body. |
 | `unknown-relationship-alias` / `no-relationships-matched` | A `!relationship(s)` target that resolved to nothing. |
 | `invalid-perspective` / `duplicate-perspective` | A malformed or repeated perspective. |
-| `unknown-theme` | A theme that could not be fetched. |
+| `unknown-theme` | A bare theme name other than `default`. |
+| `theme-not-found` / `invalid-theme` | A theme file that is missing, or is not theme JSON. |
 
 ---
 

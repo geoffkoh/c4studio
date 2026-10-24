@@ -135,12 +135,18 @@ def theme_styles(workspace: Workspace) -> Styles:
         workspace: The workspace whose ``configuration.themes`` to load.
 
     Returns:
-        All referenced themes' styles in declaration order; empty when the
-        workspace references no (reachable) themes.
+        Every fetched theme's styles in declaration order, then the styles
+        inlined from theme files at parse time; empty when the workspace
+        references no (reachable) themes.
     """
+    configuration = workspace.views.configuration
     merged = Styles()
-    for url in workspace.views.configuration.themes:
+    for url in configuration.themes:
         styles = _fetch(url)
         merged.element_styles.extend(styles.element_styles)
         merged.relationship_styles.extend(styles.relationship_styles)
+    merged.element_styles.extend(configuration.theme_file_styles.element_styles)
+    merged.relationship_styles.extend(
+        configuration.theme_file_styles.relationship_styles
+    )
     return merged

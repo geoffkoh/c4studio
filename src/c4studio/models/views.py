@@ -251,6 +251,12 @@ class Configuration:
 
     styles: Styles = field(default_factory=Styles)
     themes: list[str] = field(default_factory=list)
+    #: Styles inlined from ``theme <file>`` (PP-199). Kept apart from
+    #: ``styles`` because a theme is a library — most of its tags match
+    #: nothing in any one model — so lint must not judge them as if the
+    #: author had written them. Applied like a fetched theme: before
+    #: ``styles``, which therefore always win.
+    theme_file_styles: Styles = field(default_factory=Styles)
     terminology: Terminology = field(default_factory=Terminology)
     default_view: str = ""
     last_saved_view: str = ""

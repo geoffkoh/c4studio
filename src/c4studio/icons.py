@@ -17,6 +17,7 @@ import base64
 import logging
 import mimetypes
 from functools import lru_cache
+from pathlib import Path
 from typing import Any
 from urllib.request import urlopen
 
@@ -69,8 +70,42 @@ def data_uri(url: str) -> str | None:
         logger.warning("Skipping icon %s: %s", url, exc)
         return None
 
+    return _encode(payload, media_type, url)
+
+
+def file_data_uri(path: Path) -> str | None:
+    """Read a local image and return it as a ``data:`` URI, or None.
+
+    The counterpart of :func:`data_uri` for icons shipped beside a
+    file-based theme (PP-199), with the same type and size rules. Upstream
+    does the same conversion when it inlines a file theme
+    (``ThemeUtils.inlineAllStylesFromTheme``), which is what lets every
+    surface — the browser included — show the icon with no file server.
+
+    Args:
+        path: The image file.
+
+    Returns:
+        The encoded image, or None when it is missing, unreadable, not a
+        supported image type, or too large.
+    """
+    media_type = _content_type(None, path.name)
+    if media_type is None:
+        logger.warning("Skipping icon %s: not a supported image", path)
+        return None
+    try:
+        with path.open("rb") as handle:
+            payload = handle.read(MAX_ICON_BYTES + 1)
+    except OSError as exc:
+        logger.warning("Skipping icon %s: %s", path, exc)
+        return None
+    return _encode(payload, media_type, str(path))
+
+
+def _encode(payload: bytes, media_type: str, source: str) -> str | None:
+    """Base64 an image payload, refusing anything over the size cap."""
     if len(payload) > MAX_ICON_BYTES:
-        logger.warning("Skipping icon %s: larger than %d bytes", url, MAX_ICON_BYTES)
+        logger.warning("Skipping icon %s: larger than %d bytes", source, MAX_ICON_BYTES)
         return None
     encoded = base64.b64encode(payload).decode("ascii")
     return f"data:{media_type};base64,{encoded}"

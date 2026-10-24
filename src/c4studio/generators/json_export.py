@@ -552,16 +552,27 @@ def _workspace_configuration(configuration: WorkspaceConfiguration) -> JsonDict:
 
 
 def _configuration(configuration: Configuration) -> JsonDict:
+    # A file theme is exported inlined, as upstream exports it: a theme path
+    # means nothing to whoever reads the JSON. Theme styles go first so a
+    # reader that applies styles in order lets the workspace's own win.
+    inlined = configuration.theme_file_styles
     return _clean(
         {
             "styles": _clean(
                 {
                     "elements": [
-                        _element_style(s) for s in configuration.styles.element_styles
+                        _element_style(s)
+                        for s in (
+                            *inlined.element_styles,
+                            *configuration.styles.element_styles,
+                        )
                     ],
                     "relationships": [
                         _relationship_style(s)
-                        for s in configuration.styles.relationship_styles
+                        for s in (
+                            *inlined.relationship_styles,
+                            *configuration.styles.relationship_styles,
+                        )
                     ],
                 }
             ),
