@@ -24,7 +24,15 @@ async function openContainers(page: Page) {
   await page
     .getByRole("button", { name: /Delivery Platform – Containers/ })
     .click();
-  await expect(page.locator(".legend")).toBeVisible({ timeout: 20_000 });
+  // Wait for *this* view's title on the canvas, not just a legend: the
+  // default view (the landscape) loads first and has a legend too, so
+  // waiting on the legend alone passed before this view arrived, and the
+  // hover then hunted for a node that was not on screen (seen in CI).
+  await expect(
+    page.locator(".react-flow__node", {
+      hasText: /^Delivery Platform – Containers$/,
+    }),
+  ).toBeVisible({ timeout: 20_000 });
   await page.getByRole("searchbox", { name: "Search files" }).fill("");
 }
 
