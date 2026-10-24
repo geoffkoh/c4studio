@@ -1240,6 +1240,11 @@ export function GraphPane({
         if (sameView) {
           animateToNodes(flow.nodes);
         } else {
+          // A tween still running from the previous view paints one frame
+          // of *its* nodes per animation frame; left alone it lands on top
+          // of these, and the canvas shows the view just left under the
+          // breadcrumb of the one chosen (PP-200).
+          cancelAnimationFrame(animationRef.current);
           setNodes(flow.nodes);
         }
         setEdges(flow.edges);
