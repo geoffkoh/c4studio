@@ -2263,6 +2263,29 @@ button {
   border: 1px dotted rgba(25, 118, 210, 0.8);
 }
 
+/* ---- Marching ants (PP-195) ---- */
+/* The hovered element's relationships march source to target. The dash
+   and its period are set inline per edge (marching.ts), so one keyframe
+   serves every line weight and style. */
+.react-flow__edge.edge--marching .react-flow__edge-path {
+  animation: edge-march var(--march-duration, 0.25s) linear infinite;
+}
+
+@keyframes edge-march {
+  from {
+    stroke-dashoffset: var(--march-period, 16px);
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .react-flow__edge.edge--marching .react-flow__edge-path {
+    animation: none;
+  }
+}
+
 /* ---- Relationship bend points ---- */
 .edge-waypoint {
   fill: #ffffff;

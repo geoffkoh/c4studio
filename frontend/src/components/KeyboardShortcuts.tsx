@@ -8,6 +8,8 @@ interface KeyboardShortcutsProps {
   viewKey: string;
   /** Toggles the hover-emphasis feature (the toolbar's Hover button). */
   onHoverToggle: () => void;
+  /** Toggles marching-ants edges (the toolbar's Animate button). */
+  onAnimateToggle: () => void;
   /** Toggles snap-to-grid dragging (the toolbar's Snap button). */
   onSnapToggle: () => void;
   /** Flips between pan and select mode (the toolbar's Mouse buttons). */
@@ -16,14 +18,16 @@ interface KeyboardShortcutsProps {
 
 /**
  * Graph-scoped keyboard shortcuts: `f` fits the diagram to the window,
- * `p`/`s` export PNG/SVG, `h` toggles hover emphasis, `g` toggles snap
- * to grid, `v` flips between pan and select mode. Renders nothing;
+ * `p`/`s` export PNG/SVG, `h` toggles hover emphasis, `a` toggles
+ * marching-ants edges, `g` toggles snap to grid, `v` flips between pan
+ * and select mode. Renders nothing;
  * must sit inside the ReactFlow component for `useReactFlow`. App-level
  * shortcuts (view navigation, help overlay) live in App.tsx.
  */
 export function KeyboardShortcuts({
   viewKey,
   onHoverToggle,
+  onAnimateToggle,
   onSnapToggle,
   onInteractionToggle,
 }: KeyboardShortcutsProps) {
@@ -46,6 +50,9 @@ export function KeyboardShortcuts({
         case "h":
           onHoverToggle();
           break;
+        case "a":
+          onAnimateToggle();
+          break;
         case "g":
           onSnapToggle();
           break;
@@ -64,6 +71,7 @@ export function KeyboardShortcuts({
     getNodes,
     viewKey,
     onHoverToggle,
+    onAnimateToggle,
     onSnapToggle,
     onInteractionToggle,
   ]);
