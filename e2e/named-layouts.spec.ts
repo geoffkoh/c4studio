@@ -96,18 +96,20 @@ test.describe("named layouts", () => {
     await menuButton(page).click();
     await saveAs(page, "Review");
 
-    // What the server serves after the load: the same graph with one
-    // element moved well away, so the redraw shows on the canvas.
+    // What the server serves after the load, marked so the redraw shows.
+    // The mark is a label, not a moved position: CI has no sidecar for
+    // this view, so its nodes have no positions to move — it auto-lays
+    // out, and a moved node would land exactly where it was. That the
+    // payload holds the snapshot's positions is the server's half, and
+    // `test_named_layouts.py` pins it.
     const node = page.locator(".react-flow__node-element").first();
-    const movedId = (await node.getAttribute("data-id")) ?? "";
-    const before = (await node.boundingBox())!;
+    const markedId = (await node.getAttribute("data-id")) ?? "";
+    const MARK = "Loaded from the server";
     await page.route(/\/api\/views\/[^/]+\/graph(\?.*)?$/, async (route) => {
       const response = await route.fetch();
       const data = await response.json();
       for (const n of data.nodes) {
-        if (n.id === movedId && n.position) {
-          n.position = { x: n.position.x + 600, y: n.position.y + 400 };
-        }
+        if (n.id === markedId) n.data.label = MARK;
       }
       return route.fulfill({ response, json: data });
     });
@@ -124,10 +126,9 @@ test.describe("named layouts", () => {
     expect(calls).toContain("apply:Review");
     await expect(dialog(page)).toBeHidden();
 
-    const moved = page.locator(`.react-flow__node[data-id="${movedId}"]`);
-    await expect
-      .poll(async () => (await moved.boundingBox())?.x ?? before.x)
-      .toBeGreaterThan(before.x + 100);
+    await expect(
+      page.locator(`.react-flow__node[data-id="${markedId}"]`),
+    ).toContainText(MARK);
   });
 
   test("delete asks, then removes the name only", async ({ page }) => {

@@ -170,7 +170,11 @@ interface run; fuller context is in the tickets they name.
   before and after a run. A full-suite run used to rewrite
   `logistics_network.layout.json` with identical content. No single spec
   does it, and it is harmless, but it makes `git status` lie about who
-  touched it.
+  touched it. The reverse also bites: those sidecars are gitignored, so
+  CI has none. A test that passes locally because a view has saved
+  positions fails in CI, where the view auto-lays out (PP-197's load
+  test did exactly that). To reproduce CI, move the sidecar aside for
+  the run.
 - **Wait for the view, not for *a* legend.** The default landscape view
   also has a legend, so an opener that waits for any legend races the
   view switch. Wait for the view's own title node:
