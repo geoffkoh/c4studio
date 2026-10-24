@@ -87,6 +87,36 @@ def read_waypoints(source: Path) -> dict[str, dict[str, list[list[int]]]]:
     return cleaned
 
 
+#: The routing modes the ``routing`` section may record. Only orthogonal
+#: exists: an edge without an entry follows the viewer's own line style.
+ROUTING_MODES = frozenset({"orthogonal"})
+
+
+def read_routing(source: Path) -> dict[str, dict[str, str]]:
+    """Read ``{view_key: {edge_id: "orthogonal"}}`` re-routed edges.
+
+    An edge listed here was re-routed by dragging its segments (PP-196):
+    its ``edges`` waypoints are the corners of an orthogonal route, and
+    every renderer draws it that way whatever line style is selected.
+    Unknown modes are dropped, like anything else a reader cannot use.
+    """
+    raw = read_document(source).get("routing")
+    if not isinstance(raw, dict):
+        return {}
+    cleaned: dict[str, dict[str, str]] = {}
+    for key, by_edge in raw.items():
+        if not isinstance(by_edge, dict):
+            continue
+        modes = {
+            edge_id: mode
+            for edge_id, mode in by_edge.items()
+            if isinstance(edge_id, str) and mode in ROUTING_MODES
+        }
+        if modes:
+            cleaned[key] = modes
+    return cleaned
+
+
 def read_labels(source: Path) -> dict[str, dict[str, list[int]]]:
     """Read ``{view_key: {edge_id: [dx, dy]}}`` label offsets."""
     return _read_points(source, "labels")
@@ -155,6 +185,19 @@ def attach_waypoints(
         points = waypoints.get(edge.get("id", ""))
         if points:
             edge["waypoints"] = [[int(x), int(y)] for x, y in points]
+
+
+def attach_routing(data: dict[str, Any], routing: dict[str, str]) -> None:
+    """Mark re-routed edges of a graph payload with their routing mode.
+
+    Stale ids are skipped, as for waypoints.
+    """
+    if not routing:
+        return
+    for edge in data.get("edges", []):
+        mode = routing.get(edge.get("id", ""))
+        if mode in ROUTING_MODES:
+            edge["routing"] = mode
 
 
 def attach_labels(data: dict[str, Any], labels: dict[str, list[int]]) -> None:

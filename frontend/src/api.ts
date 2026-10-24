@@ -325,13 +325,21 @@ export function saveLayout(
   waypoints: Record<string, [number, number][]> = {},
   labels: Record<string, [number, number]> = {},
   chrome: Record<string, [number, number]> = {},
+  routing: Record<string, "orthogonal"> = {},
 ): Promise<LayoutResult> {
   return request<LayoutResult>(
     `/api/views/${encodeURIComponent(key)}/layout`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ positions, sizes, waypoints, labels, chrome }),
+      body: JSON.stringify({
+        positions,
+        sizes,
+        waypoints,
+        labels,
+        chrome,
+        routing,
+      }),
     },
   );
 }

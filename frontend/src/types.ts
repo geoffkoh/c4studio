@@ -120,6 +120,9 @@ export interface GEdge {
   order?: number;
   /** Manual bend points in flow coordinates, from the layout sidecar. */
   waypoints?: [number, number][];
+  /** Set once re-routed by dragging a segment (PP-196): `waypoints` are
+      then the corners of an orthogonal route. */
+  routing?: "orthogonal";
   /** Dragged label offset from its default place, from the sidecar. */
   labelOffset?: [number, number];
   /** Resolved relationship-style paint; absent fields use the defaults

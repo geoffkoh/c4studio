@@ -1,10 +1,15 @@
-import { useCallback, useRef } from "react";
+import {
+  useCallback,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import {
   BaseEdge,
   EdgeLabelRenderer,
   Position,
   getBezierPath,
-  getSmoothStepPath,
   getStraightPath,
   useStore,
   type EdgeProps,
@@ -12,6 +17,17 @@ import {
 } from "reactflow";
 
 import { EDGE_HOVER_COLOUR, EDGE_HOVER_WIDTH } from "../edgePaint";
+import {
+  dragRun,
+  handlePoint,
+  orthogonalPath,
+  orthogonalRoute,
+  routeLabelPoint,
+  segmentRuns,
+  type Pt,
+  type Rect,
+  type Run,
+} from "../orthogonal";
 import { perspectiveHint, type PerspectiveBadge } from "./ElementNode";
 
 export interface FloatingEdgeData {
@@ -36,9 +52,11 @@ export interface FloatingEdgeData {
   onHoverChange?: (edgeId: string | null) => void;
   /**
    * Manual bend points in flow coordinates. When present the edge is
-   * routed as straight segments through them and `pathStyle`/`curveOffset`
-   * are ignored: the bends are an explicit instruction, so an automatic
-   * curve fighting them would be worse than useless.
+   * routed as straight segments through them and `curveOffset` is
+   * ignored: the bends are an explicit instruction, so an automatic curve
+   * fighting them would be worse than useless. In the step styles (or
+   * once re-routed) they are the corners of an orthogonal route instead,
+   * which passes through each of them.
    */
   waypoints?: [number, number][];
   /** Drag feedback for a bend point; index identifies which. */
@@ -53,6 +71,21 @@ export interface FloatingEdgeData {
     clientY: number,
   ) => void;
   /**
+   * Set when the edge has been re-routed by dragging its segments
+   * (PP-196). It is then drawn orthogonally whatever `pathStyle` says, and
+   * `waypoints` are its corners.
+   */
+  routing?: "orthogonal";
+  /**
+   * Live segment-drag updates: the bends the dragged route now has.
+   * Absent where routes are not editable (the Explorer).
+   */
+  onSegmentDrag?: (edgeId: string, bends: [number, number][]) => void;
+  /** Fired once a segment drag finishes, so the layout can be saved. */
+  onSegmentDragEnd?: () => void;
+  /** Grid step a dragged segment snaps to, when snapping is on. */
+  snapGrid?: number;
+  /**
    * Perpendicular offset (px) separating edges that share a node pair
    * (bidirectional flows, parallel relationships): the edge bows through
    * a control point this far from the centre line, and its label sits on
@@ -65,6 +98,18 @@ interface Point {
   x: number;
   y: number;
 }
+
+function rectOf(node: Node): Rect {
+  return {
+    x: node.positionAbsolute?.x ?? 0,
+    y: node.positionAbsolute?.y ?? 0,
+    width: node.width ?? 0,
+    height: node.height ?? 0,
+  };
+}
+
+/** Runs shorter than this get no handle: there is nothing to grab. */
+const MIN_HANDLE_RUN = 16;
 
 function center(node: Node): Point {
   const { positionAbsolute, width, height } = node;
@@ -206,6 +251,8 @@ interface EdgeLabelProps {
   onHoverChange?: (edgeId: string | null) => void;
   onDrag?: (edgeId: string, dx: number, dy: number) => void;
   onDragEnd?: () => void;
+  /** Reports the label's rendered size, in canvas units. */
+  onSize?: (width: number, height: number) => void;
 }
 
 /**
@@ -235,8 +282,21 @@ function EdgeLabel({
   onHoverChange,
   onDrag,
   onDragEnd,
+  onSize,
 }: EdgeLabelProps) {
   const zoom = useStore((store) => store.transform[2]);
+  const box = useRef<HTMLDivElement | null>(null);
+  // The label layer is inside the viewport transform, so offsetWidth is
+  // already in canvas units — what the edge needs to keep a handle clear.
+  useLayoutEffect(() => {
+    const element = box.current;
+    if (!element || !onSize) return;
+    const report = () => onSize(element.offsetWidth, element.offsetHeight);
+    report();
+    const observer = new ResizeObserver(report);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [onSize]);
   const origin = useRef<{ px: number; py: number; dx: number; dy: number } | null>(
     null,
   );
@@ -244,6 +304,7 @@ function EdgeLabel({
 
   return (
     <div
+      ref={box}
       className={
         "edge-label nodrag nopan" +
         (animState === "active" ? " edge-label--active" : "") +
@@ -325,6 +386,29 @@ export function FloatingEdge({
   const targetNode = useStore(
     useCallback((store) => store.nodeInternals.get(target), [target]),
   );
+  const zoom = useStore((store) => store.transform[2]);
+  // Window listeners of a segment drag in progress, rather than pointer
+  // capture on the handle: the route's shape — and so its set of handles —
+  // changes mid-drag (a new elbow at a node), which would unmount the very
+  // handle being dragged.
+  //
+  // Deliberately *not* torn down when this component unmounts. With hover
+  // emphasis on, leaving the line mid-drag changes the edge's z-index and
+  // React Flow re-renders it in another layer — an unmount and remount.
+  // Cleaning up there silently ended the drag after its first few pixels.
+  // The listeners need nothing from the component (everything is captured
+  // when the drag starts), and they always remove themselves on pointerup
+  // or pointercancel.
+  const endDrag = useRef<(() => void) | null>(null);
+  // The label's size, so a segment handle can be kept out from under it.
+  const [labelSize, setLabelSize] = useState<[number, number] | null>(null);
+  const onLabelSize = useCallback(
+    (width: number, height: number) =>
+      setLabelSize((old) =>
+        old && old[0] === width && old[1] === height ? old : [width, height],
+      ),
+    [],
+  );
 
   if (!sourceNode || !targetNode || !sourceNode.width || !targetNode.width) {
     return null;
@@ -360,10 +444,27 @@ export function FloatingEdge({
   };
 
   const pathStyle = data?.pathStyle ?? "default";
+  // Step styles, or an edge re-routed by dragging, draw an orthogonal
+  // route from orthogonal.ts — the same one `c4 render` draws — so its
+  // segments can be grabbed and moved.
+  const orthogonal =
+    data?.routing === "orthogonal" ||
+    pathStyle === "step" ||
+    pathStyle === "smoothstep";
+  let route: Pt[] = [];
   let path: string;
   let labelX: number;
   let labelY: number;
-  if (bends.length > 0) {
+  if (orthogonal) {
+    route = orthogonalRoute(
+      rectOf(sourceNode),
+      rectOf(targetNode),
+      bends,
+      data?.curveOffset ?? 0,
+    );
+    path = orthogonalPath(route, pathStyle === "smoothstep" ? 8 : 0);
+    ({ x: labelX, y: labelY } = routeLabelPoint(route));
+  } else if (bends.length > 0) {
     // Straight segments through every bend, clipped to the node borders
     // at each end so arrowheads still land on the boundary.
     const first = { x: bends[0][0], y: bends[0][1] };
@@ -404,12 +505,6 @@ export function FloatingEdge({
       targetX: params.targetX,
       targetY: params.targetY,
     });
-  } else if (pathStyle === "step" || pathStyle === "smoothstep") {
-    [path, labelX, labelY] = getSmoothStepPath({
-      ...params,
-      borderRadius: pathStyle === "step" ? 0 : 8,
-      ...(control ? { centerX: control.x, centerY: control.y } : {}),
-    });
   } else {
     [path, labelX, labelY] = getBezierPath(params);
   }
@@ -435,10 +530,91 @@ export function FloatingEdge({
           : {};
   const edgeStyle = { ...style, ...emphasis };
 
+  /**
+   * Start dragging one run of the route. Moves are measured from where
+   * the pointer went down against the route as it was then, so the drag
+   * is stable however the route reshapes along the way.
+   */
+  const startSegmentDrag = (
+    event: ReactPointerEvent,
+    run: Run,
+    snapshot: Pt[],
+  ) => {
+    const onDrag = data?.onSegmentDrag;
+    if (!onDrag || event.button !== 0) return;
+    event.stopPropagation();
+    event.preventDefault();
+    const horizontal = run.axis === "h";
+    const origin = horizontal ? snapshot[run.start].y : snapshot[run.start].x;
+    const from = horizontal ? event.clientY : event.clientX;
+    const scale = zoom || 1;
+    const snap = data?.snapGrid;
+    const onEnd = data?.onSegmentDragEnd;
+    const move = (e: PointerEvent) => {
+      const now = horizontal ? e.clientY : e.clientX;
+      let value = origin + (now - from) / scale;
+      if (snap) value = Math.round(value / snap) * snap;
+      onDrag(id, dragRun(snapshot, run, value));
+    };
+    const stop = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+      endDrag.current = null;
+    };
+    const up = () => {
+      stop();
+      onEnd?.();
+    };
+    endDrag.current?.();
+    endDrag.current = stop;
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+  };
+
   return (
     <>
       <BaseEdge id={id} path={path} markerEnd={markerEnd} style={edgeStyle} />
-      {data?.onWaypointDrag
+      {orthogonal && data?.onSegmentDrag
+        ? segmentRuns(route).map((run, index) => {
+            const a = route[run.start];
+            const b = route[run.end];
+            if (Math.hypot(b.x - a.x, b.y - a.y) < MIN_HANDLE_RUN) return null;
+            const horizontal = run.axis === "h";
+            const { x: cx, y: cy } = handlePoint(
+              a,
+              b,
+              run,
+              data.label && labelSize
+                ? {
+                    x: labelX + (data.labelOffset?.[0] ?? 0),
+                    y: labelY + (data.labelOffset?.[1] ?? 0),
+                    width: labelSize[0],
+                    height: labelSize[1],
+                  }
+                : undefined,
+            );
+            return (
+              <rect
+                key={index}
+                className={
+                  "edge-segment-handle nodrag nopan" +
+                  (horizontal ? " edge-segment-handle--h" : " edge-segment-handle--v")
+                }
+                data-run={index}
+                x={cx - (horizontal ? 9 : 3)}
+                y={cy - (horizontal ? 3 : 9)}
+                width={horizontal ? 18 : 6}
+                height={horizontal ? 6 : 18}
+                rx={3}
+                pointerEvents="all"
+                onPointerDown={(event) => startSegmentDrag(event, run, route)}
+              />
+            );
+          })
+        : null}
+      {!orthogonal && data?.onWaypointDrag
         ? bends.map(([x, y], index) => (
             <WaypointHandle
               key={index}
@@ -467,6 +643,7 @@ export function FloatingEdge({
             onHoverChange={data.onHoverChange}
             onDrag={data.onLabelDrag}
             onDragEnd={data.onLabelDragEnd}
+            onSize={onLabelSize}
           />
         </EdgeLabelRenderer>
       ) : null}

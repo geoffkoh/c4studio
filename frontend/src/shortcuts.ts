@@ -18,6 +18,10 @@ export const GESTURES: readonly { keys: string; action: string }[] = [
   { keys: "⌘ / Ctrl + click", action: "Add / remove one node from the selection" },
   { keys: "Middle drag", action: "Pan the diagram" },
   { keys: "Right-click edge", action: "Bend points menu for a relationship" },
+  {
+    keys: "Drag a line's handle",
+    action: "Re-route a relationship (Step / Smooth step)",
+  },
   { keys: "Scroll", action: "Zoom in pan mode, pan in select mode" },
   { keys: "Pinch", action: "Zoom" },
 ];

@@ -30,6 +30,11 @@ import {
   normalizeStoredPositions,
   type RankDirection,
 } from "./layout";
+import {
+  orthogonalPath,
+  orthogonalRoute,
+  routeLabelPoint,
+} from "./orthogonal";
 import { applyPerspective, type Perspective } from "./perspective";
 import {
   CHAR_RATIO,
@@ -100,6 +105,9 @@ export interface GraphPayloadEdge {
   target: string;
   label?: string;
   waypoints?: [number, number][];
+  /** Set when the edge was re-routed orthogonally, from the sidecar's
+      `routing` section (PP-196): `waypoints` are then the route's corners. */
+  routing?: "orthogonal";
   /** Dragged offset from the label's computed place, from the sidecar. */
   labelOffset?: [number, number];
   /** Resolved relationship-style paint; absent fields use the defaults
@@ -564,21 +572,33 @@ function paintEdge(
   const target = placed.get(edge.target);
   if (!source || !target) return "";
 
-  const waypoints = (edge.waypoints ?? []).map(([x, y]) => ({ x, y }));
-  const firstAim = waypoints[0] ?? {
-    x: target.x + target.width / 2,
-    y: target.y + target.height / 2,
-  };
-  const lastAim = waypoints[waypoints.length - 1] ?? {
-    x: source.x + source.width / 2,
-    y: source.y + source.height / 2,
-  };
-  const start = borderIntersection(source, firstAim);
-  const end = borderIntersection(target, lastAim);
-  const points = [start, ...waypoints, end];
-  const d = points
-    .map((p, i) => `${i === 0 ? "M" : "L"} ${round(p.x)} ${round(p.y)}`)
-    .join(" ");
+  const orthogonal = edge.routing === "orthogonal";
+  let points: { x: number; y: number }[];
+  if (orthogonal) {
+    // The same route the canvas draws for a re-routed edge, sharp-cornered
+    // as upstream draws orthogonal routing.
+    points = orthogonalRoute(source, target, edge.waypoints ?? []).map(
+      (p) => ({ x: round(p.x), y: round(p.y) }),
+    );
+  } else {
+    const waypoints = (edge.waypoints ?? []).map(([x, y]) => ({ x, y }));
+    const firstAim = waypoints[0] ?? {
+      x: target.x + target.width / 2,
+      y: target.y + target.height / 2,
+    };
+    const lastAim = waypoints[waypoints.length - 1] ?? {
+      x: source.x + source.width / 2,
+      y: source.y + source.height / 2,
+    };
+    const start = borderIntersection(source, firstAim);
+    const end = borderIntersection(target, lastAim);
+    points = [start, ...waypoints, end];
+  }
+  const d = orthogonal
+    ? orthogonalPath(points)
+    : points
+        .map((p, i) => `${i === 0 ? "M" : "L"} ${round(p.x)} ${round(p.y)}`)
+        .join(" ");
 
   const colour = edge.color || EDGE_COLOUR;
   const strokeWidth = edge.thickness ?? EDGE_WIDTH;
@@ -605,14 +625,19 @@ function paintEdge(
 
   if (!edge.label) return path;
 
-  // Label sits at the middle of the routed line, in a small plate.
+  // Label sits at the middle of the routed line, in a small plate — on an
+  // orthogonal route, the middle of its longest run, where the canvas
+  // puts it too.
   const mid = points[Math.floor((points.length - 1) / 2)];
   const next = points[Math.floor((points.length - 1) / 2) + 1] ?? mid;
+  const at = orthogonal
+    ? routeLabelPoint(points)
+    : { x: (mid.x + next.x) / 2, y: (mid.y + next.y) / 2 };
   // The offset is stored relative to the computed point, not absolutely,
   // so a label dragged clear of a crossing line stays clear of it after a
   // re-layout (PP-180).
-  const cx = (mid.x + next.x) / 2 + (edge.labelOffset?.[0] ?? 0);
-  const cy = (mid.y + next.y) / 2 + (edge.labelOffset?.[1] ?? 0);
+  const cx = at.x + (edge.labelOffset?.[0] ?? 0);
+  const cy = at.y + (edge.labelOffset?.[1] ?? 0);
   const [line] = wrap(edge.label, 220, EDGE_LABEL_SIZE, 1);
   const width = line.length * EDGE_LABEL_SIZE * CHAR_RATIO + 10;
   // The plate fades with its line: a crisp label over a faded
