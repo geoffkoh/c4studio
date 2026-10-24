@@ -53,6 +53,18 @@ export {
 } from "./nodeMetrics";
 export { insertionIndex } from "./waypoints";
 export {
+  dragRun,
+  handlePoint,
+  orthogonalPath,
+  orthogonalRoute,
+  routeLabelPoint,
+  segmentRuns,
+  type LabelBox,
+  type Pt,
+  type Rect,
+  type Run,
+} from "./orthogonal";
+export {
   align,
   distribute,
   nudge,

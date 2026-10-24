@@ -2298,6 +2298,31 @@ button {
   cursor: grabbing;
 }
 
+/* ---- Orthogonal re-routing handles (PP-196) ---- */
+/* One pill per straight run of a Step / Smooth step line, shown while the
+   line is hovered or selected: drag it to slide that run sideways. */
+.edge-segment-handle {
+  fill: #ffffff;
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.edge-segment-handle--h {
+  cursor: ns-resize;
+}
+
+.edge-segment-handle--v {
+  cursor: ew-resize;
+}
+
+.react-flow__edge:hover .edge-segment-handle,
+.react-flow__edge.selected .edge-segment-handle,
+.edge-segment-handle:active {
+  opacity: 1;
+}
+
 /* ---- Relationship context menu ---- */
 .edge-menu {
   position: fixed;

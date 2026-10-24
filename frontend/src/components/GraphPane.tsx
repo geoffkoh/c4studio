@@ -182,6 +182,7 @@ interface GraphPaneProps {
     waypoints: Record<string, [number, number][]>,
     labels: Record<string, [number, number]>,
     chrome: Record<string, [number, number]>,
+    routing: Record<string, "orthogonal">,
   ) => Promise<unknown>;
   resetLayout: (key: string) => Promise<unknown>;
 }
@@ -273,6 +274,7 @@ async function toFlow(
         order: e.order,
         curveOffset,
         waypoints: e.waypoints,
+        routing: e.routing,
         labelOffset: e.labelOffset,
         perspectives: e.perspectives,
       },
@@ -674,6 +676,20 @@ export function GraphPane({
     [],
   );
 
+  /** Edges re-routed by dragging a segment, for the sidecar (PP-196). */
+  const collectRouting = useCallback(
+    (source: Edge[]): Record<string, "orthogonal"> => {
+      const out: Record<string, "orthogonal"> = {};
+      for (const edge of source) {
+        if ((edge.data as FloatingEdgeData | undefined)?.routing === "orthogonal") {
+          out[edge.id] = "orthogonal";
+        }
+      }
+      return out;
+    },
+    [],
+  );
+
   /** Dragged label offsets, keyed by edge id, for the layout sidecar. */
   const collectLabelOffsets = useCallback(
     (edges: Edge[]): Record<string, [number, number]> => {
@@ -721,6 +737,7 @@ export function GraphPane({
       collectWaypoints(edgeOverride ?? edgesRef.current),
       collectLabelOffsets(edgeOverride ?? edgesRef.current),
       chrome,
+      collectRouting(edgeOverride ?? edgesRef.current),
     )
       .then(() => {
         setLayoutState("saved");
@@ -728,7 +745,7 @@ export function GraphPane({
       })
       .catch(() => setLayoutState("failed"));
     },
-    [view, collectWaypoints, collectLabelOffsets, saveLayout],
+    [view, collectWaypoints, collectLabelOffsets, collectRouting, saveLayout],
   );
 
   /**
@@ -857,9 +874,18 @@ export function GraphPane({
   /** Replace one edge's bend points, then persist the whole layout. */
   const updateWaypoints = useCallback(
     (edgeId: string, next: [number, number][]) => {
+      // Clearing the bends is a full reset: a re-routed edge goes back to
+      // following the selected line style.
       const updated = edgesRef.current.map((edge) =>
         edge.id === edgeId
-          ? { ...edge, data: { ...edge.data, waypoints: next } }
+          ? {
+              ...edge,
+              data: {
+                ...edge.data,
+                waypoints: next,
+                ...(next.length === 0 ? { routing: undefined } : {}),
+              },
+            }
           : edge,
       );
       edgesRef.current = updated;
@@ -883,6 +909,31 @@ export function GraphPane({
           points[index] = [x, y];
           return { ...edge, data: { ...edge.data, waypoints: points } };
         }),
+      );
+    },
+    [setEdges],
+  );
+
+  /**
+   * A segment of an orthogonal route was dragged: store the route's new
+   * corners and mark the edge re-routed, so it stays orthogonal in every
+   * line style and in `c4 render` (PP-196). Saved when the drag ends.
+   */
+  const handleSegmentDrag = useCallback(
+    (edgeId: string, bends: [number, number][]) => {
+      setEdges((current) =>
+        current.map((edge) =>
+          edge.id === edgeId
+            ? {
+                ...edge,
+                data: {
+                  ...edge.data,
+                  waypoints: bends,
+                  routing: "orthogonal" as const,
+                },
+              }
+            : edge,
+        ),
       );
     },
     [setEdges],
@@ -923,6 +974,23 @@ export function GraphPane({
     const points = ((edge?.data as FloatingEdgeData | undefined)?.waypoints ??
       []) as [number, number][];
     const actions: MenuAction[] = [];
+
+    // An orthogonal route is shaped by dragging its segments, not by
+    // placing bend points, so all the menu offers is the way back.
+    const orthogonal =
+      (edge?.data as FloatingEdgeData | undefined)?.routing === "orthogonal" ||
+      edgeStyle === "step" ||
+      edgeStyle === "smoothstep";
+    if (orthogonal) {
+      if (points.length > 0) {
+        actions.push({
+          label: "Reset route",
+          destructive: true,
+          onSelect: () => updateWaypoints(edgeMenu.edgeId, []),
+        });
+      }
+      return actions;
+    }
 
     if (edgeMenu.waypointIndex === undefined) {
       actions.push({
@@ -974,7 +1042,7 @@ export function GraphPane({
       });
     }
     return actions;
-  }, [edgeMenu, updateWaypoints]);
+  }, [edgeMenu, updateWaypoints, edgeStyle]);
 
   const handleWaypointMenu = useCallback(
     (edgeId: string, index: number, clientX: number, clientY: number) => {
@@ -1083,6 +1151,9 @@ export function GraphPane({
           onLabelDragEnd: handleLabelDragEnd,
           onWaypointDragEnd: handleWaypointDragEnd,
           onWaypointMenu: handleWaypointMenu,
+          onSegmentDrag: handleSegmentDrag,
+          onSegmentDragEnd: handleWaypointDragEnd,
+          snapGrid: snapToGrid ? SNAP_GRID[0] : undefined,
         },
       };
     });
@@ -1099,6 +1170,8 @@ export function GraphPane({
     handleWaypointDrag,
     handleWaypointDragEnd,
     handleWaypointMenu,
+    handleSegmentDrag,
+    snapToGrid,
   ]);
 
   // A node joins the animation at its earliest step; before that it dims.

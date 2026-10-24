@@ -9492,6 +9492,201 @@ async function normalizeStoredPositions(nodes, edges) {
 	});
 }
 //#endregion
+//#region src/orthogonal.ts
+var centre = (r) => ({
+	x: r.x + r.width / 2,
+	y: r.y + r.height / 2
+});
+var within = (value, from, to) => value >= from && value <= to;
+/** Midpoint of the gap between two non-overlapping spans. */
+function gapMid(aFrom, aTo, bFrom, bTo) {
+	return aTo <= bFrom ? (aTo + bFrom) / 2 : (bTo + aFrom) / 2;
+}
+/**
+* The points from `r`'s border to (not including) `c`, every segment
+* axis-aligned. Beside the node, the route leaves the facing side at
+* `c`'s height; above or below, at `c`'s x; diagonally away, it leaves
+* from the side's centre and turns once.
+*/
+function connect(r, c) {
+	const right = r.x + r.width;
+	const bottom = r.y + r.height;
+	const besideX = !within(c.x, r.x, right);
+	const besideY = !within(c.y, r.y, bottom);
+	if (besideX && !besideY) return [{
+		x: c.x < r.x ? r.x : right,
+		y: c.y
+	}];
+	if (besideY && !besideX) return [{
+		x: c.x,
+		y: c.y < r.y ? r.y : bottom
+	}];
+	if (!besideX && !besideY) return [centre(r)];
+	const mid = centre(r);
+	return [{
+		x: c.x < r.x ? r.x : right,
+		y: mid.y
+	}, {
+		x: c.x,
+		y: mid.y
+	}];
+}
+/**
+* The route an unarranged relationship takes: a straight run where the
+* nodes face each other, otherwise a Z through the middle of the gap,
+* horizontal first when the nodes are further apart across than down.
+* `offset` fans out relationships that share a node pair, the job
+* `curveOffset` does for curves.
+*/
+function autoCorners(s, t, offset) {
+	const sc = centre(s);
+	const tc = centre(t);
+	const overlapX = Math.max(s.x, t.x) < Math.min(s.x + s.width, t.x + t.width);
+	const overlapY = Math.max(s.y, t.y) < Math.min(s.y + s.height, t.y + t.height);
+	if (overlapX && overlapY) return [];
+	if (overlapY) {
+		const y = (Math.max(s.y, t.y) + Math.min(s.y + s.height, t.y + t.height)) / 2;
+		return [{
+			x: gapMid(s.x, s.x + s.width, t.x, t.x + t.width),
+			y: y + offset
+		}];
+	}
+	if (overlapX) return [{
+		x: (Math.max(s.x, t.x) + Math.min(s.x + s.width, t.x + t.width)) / 2 + offset,
+		y: gapMid(s.y, s.y + s.height, t.y, t.y + t.height)
+	}];
+	if (Math.abs(tc.x - sc.x) >= Math.abs(tc.y - sc.y)) {
+		const x = gapMid(s.x, s.x + s.width, t.x, t.x + t.width) + offset;
+		return [{
+			x,
+			y: sc.y
+		}, {
+			x,
+			y: tc.y
+		}];
+	}
+	const y = gapMid(s.y, s.y + s.height, t.y, t.y + t.height) + offset;
+	return [{
+		x: sc.x,
+		y
+	}, {
+		x: tc.x,
+		y
+	}];
+}
+function dedupe(points) {
+	return points.filter((p, i) => i === 0 || p.x !== points[i - 1].x || p.y !== points[i - 1].y);
+}
+/**
+* The full route from `source`'s border to `target`'s, through `bends`
+* (or an automatic route when there are none). Bends that do not share
+* an axis — free bend points placed in a curved style — get an elbow
+* between them, horizontal first, so the result is always orthogonal.
+*/
+function orthogonalRoute(source, target, bends = [], offset = 0) {
+	const corners = bends.length > 0 ? bends.map(([x, y]) => ({
+		x,
+		y
+	})) : autoCorners(source, target, offset);
+	if (corners.length === 0) return [centre(source), centre(target)];
+	const interior = [corners[0]];
+	for (const c of corners.slice(1)) {
+		const prev = interior[interior.length - 1];
+		if (prev.x !== c.x && prev.y !== c.y) interior.push({
+			x: c.x,
+			y: prev.y
+		});
+		interior.push(c);
+	}
+	const head = connect(source, interior[0]);
+	const tail = connect(target, interior[interior.length - 1]).reverse();
+	return dedupe([
+		...head,
+		...interior,
+		...tail
+	]);
+}
+/** Group the route's segments into collinear runs, one handle each. */
+function segmentRuns(points) {
+	const runs = [];
+	for (let i = 0; i < points.length - 1; i++) {
+		const a = points[i];
+		const b = points[i + 1];
+		const axis = a.y === b.y ? "h" : a.x === b.x ? "v" : null;
+		if (axis === null) continue;
+		const last = runs[runs.length - 1];
+		if (last && last.axis === axis && last.end === i) last.end = i + 1;
+		else runs.push({
+			start: i,
+			end: i + 1,
+			axis
+		});
+	}
+	return runs;
+}
+/**
+* SVG path data for a route; `radius` > 0 rounds each corner (the
+* Smooth step look), clamped so a short segment is never overshot.
+*/
+function orthogonalPath(points, radius = 0) {
+	if (points.length === 0) return "";
+	const parts = [`M ${points[0].x},${points[0].y}`];
+	for (let i = 1; i < points.length - 1; i++) {
+		const prev = points[i - 1];
+		const cur = points[i];
+		const next = points[i + 1];
+		const into = Math.hypot(cur.x - prev.x, cur.y - prev.y);
+		const out = Math.hypot(next.x - cur.x, next.y - cur.y);
+		const r = Math.min(radius, into / 2, out / 2);
+		const straight = prev.x === cur.x && cur.x === next.x || prev.y === cur.y && cur.y === next.y;
+		if (r <= 0 || straight) {
+			parts.push(`L ${cur.x},${cur.y}`);
+			continue;
+		}
+		const a = {
+			x: cur.x - (cur.x - prev.x) / into * r,
+			y: cur.y - (cur.y - prev.y) / into * r
+		};
+		const b = {
+			x: cur.x + (next.x - cur.x) / out * r,
+			y: cur.y + (next.y - cur.y) / out * r
+		};
+		parts.push(`L ${a.x},${a.y} Q ${cur.x},${cur.y} ${b.x},${b.y}`);
+	}
+	const end = points[points.length - 1];
+	parts.push(`L ${end.x},${end.y}`);
+	return parts.join(" ");
+}
+/** Index (into `segmentRuns`) of the longest run: where the label goes. */
+function labelRunIndex(points) {
+	let best = -1;
+	let bestLength = -1;
+	segmentRuns(points).forEach((run, index) => {
+		const a = points[run.start];
+		const b = points[run.end];
+		const length = Math.hypot(b.x - a.x, b.y - a.y);
+		if (length > bestLength) {
+			bestLength = length;
+			best = index;
+		}
+	});
+	return best;
+}
+/** Where a label sits: the middle of the route's longest run. */
+function routeLabelPoint(points) {
+	const run = segmentRuns(points)[labelRunIndex(points)];
+	if (!run) return points[0] ?? {
+		x: 0,
+		y: 0
+	};
+	const a = points[run.start];
+	const b = points[run.end];
+	return {
+		x: (a.x + b.x) / 2,
+		y: (a.y + b.y) / 2
+	};
+}
+//#endregion
 //#region src/perspective.ts
 /** Swatch colour for a value that no `Perspective:` style painted. */
 var UNSTYLED_COLOUR = "#90a4ae";
@@ -9892,26 +10087,34 @@ function paintEdge(edge, placed) {
 	const source = placed.get(edge.source);
 	const target = placed.get(edge.target);
 	if (!source || !target) return "";
-	const waypoints = (edge.waypoints ?? []).map(([x, y]) => ({
-		x,
-		y
+	const orthogonal = edge.routing === "orthogonal";
+	let points;
+	if (orthogonal) points = orthogonalRoute(source, target, edge.waypoints ?? []).map((p) => ({
+		x: round(p.x),
+		y: round(p.y)
 	}));
-	const firstAim = waypoints[0] ?? {
-		x: target.x + target.width / 2,
-		y: target.y + target.height / 2
-	};
-	const lastAim = waypoints[waypoints.length - 1] ?? {
-		x: source.x + source.width / 2,
-		y: source.y + source.height / 2
-	};
-	const start = borderIntersection(source, firstAim);
-	const end = borderIntersection(target, lastAim);
-	const points = [
-		start,
-		...waypoints,
-		end
-	];
-	const d = points.map((p, i) => `${i === 0 ? "M" : "L"} ${round(p.x)} ${round(p.y)}`).join(" ");
+	else {
+		const waypoints = (edge.waypoints ?? []).map(([x, y]) => ({
+			x,
+			y
+		}));
+		const firstAim = waypoints[0] ?? {
+			x: target.x + target.width / 2,
+			y: target.y + target.height / 2
+		};
+		const lastAim = waypoints[waypoints.length - 1] ?? {
+			x: source.x + source.width / 2,
+			y: source.y + source.height / 2
+		};
+		const start = borderIntersection(source, firstAim);
+		const end = borderIntersection(target, lastAim);
+		points = [
+			start,
+			...waypoints,
+			end
+		];
+	}
+	const d = orthogonal ? orthogonalPath(points) : points.map((p, i) => `${i === 0 ? "M" : "L"} ${round(p.x)} ${round(p.y)}`).join(" ");
 	const colour = edge.color || "#707070";
 	const strokeWidth = edge.thickness ?? 2;
 	const lineStyle = edge.lineStyle === "solid" || edge.lineStyle === "dashed" || edge.lineStyle === "dotted" ? edge.lineStyle : EDGE_LINE_STYLE;
@@ -9921,8 +10124,12 @@ function paintEdge(edge, placed) {
 	if (!edge.label) return path;
 	const mid = points[Math.floor((points.length - 1) / 2)];
 	const next = points[Math.floor((points.length - 1) / 2) + 1] ?? mid;
-	const cx = (mid.x + next.x) / 2 + (edge.labelOffset?.[0] ?? 0);
-	const cy = (mid.y + next.y) / 2 + (edge.labelOffset?.[1] ?? 0);
+	const at = orthogonal ? routeLabelPoint(points) : {
+		x: (mid.x + next.x) / 2,
+		y: (mid.y + next.y) / 2
+	};
+	const cx = at.x + (edge.labelOffset?.[0] ?? 0);
+	const cy = at.y + (edge.labelOffset?.[1] ?? 0);
 	const [line] = wrap(edge.label, 220, EDGE_LABEL_SIZE, 1);
 	const width = line.length * EDGE_LABEL_SIZE * CHAR_RATIO + 10;
 	const label = `<rect x="${round(cx - width / 2)}" y="${round(cy - 8)}" width="${round(width)}" height="16" rx="4" ry="4" fill="${EDGE_LABEL_BG}" stroke="${EDGE_LABEL_BORDER}"/>` + textLine(line, cx, cy + 3.5, EDGE_LABEL_SIZE, EDGE_LABEL_COLOUR);

@@ -28,7 +28,13 @@ from c4studio import templates
 from c4studio.diagnostics import Diagnostic, Severity
 from c4studio.graph.view_graph import apply_positions, apply_sizes
 from c4studio.layout_sidecar import (
+    ROUTING_MODES as _ROUTING_MODES,
+)
+from c4studio.layout_sidecar import (
     attach_labels as _attach_labels,
+)
+from c4studio.layout_sidecar import (
+    attach_routing as _attach_routing,
 )
 from c4studio.layout_sidecar import (
     attach_waypoints as _attach_waypoints,
@@ -44,6 +50,9 @@ from c4studio.layout_sidecar import (
 )
 from c4studio.layout_sidecar import (
     read_positions as _read_layout_sidecar,
+)
+from c4studio.layout_sidecar import (
+    read_routing as _read_layout_routing,
 )
 from c4studio.layout_sidecar import (
     read_waypoints as _read_layout_waypoints,
@@ -149,6 +158,10 @@ class AppState:
     discovery: _Discovery | None = None
     waypoints: dict[str, dict[str, list[list[int]]]] = field(default_factory=dict)
     labels: dict[str, dict[str, list[int]]] = field(default_factory=dict)
+    # Edges re-routed orthogonally by dragging a segment (PP-196), from the
+    # sidecar's `routing` section: ``{view_key: {edge_id: "orthogonal"}}``.
+    # Their `waypoints` are then the corners of that route.
+    routing: dict[str, dict[str, str]] = field(default_factory=dict)
     # Per-view UI state from the sidecar's `expanded`/`collapsed` sections:
     # element ids expanded in place and group node ids collapsed, as
     # ``{view_key: [id, ...]}``. Applied when a graph request names neither.
@@ -178,6 +191,10 @@ class LayoutRequest(BaseModel):
     # Dragged label offsets, keyed by edge id. An edge present with a zero
     # offset has been dragged back to its default place.
     labels: dict[str, tuple[int, int]] = {}
+    # Edges re-routed orthogonally (PP-196), keyed by edge id. The whole
+    # view's map is sent on every save, so an edge absent here is not
+    # re-routed (any other mode string is ignored).
+    routing: dict[str, str] = {}
     # Dragged diagram-chrome positions ("title", "legend"), absolute flow
     # coordinates. Only chrome the user actually moved is sent; anything
     # absent returns to its computed placement.
@@ -715,6 +732,7 @@ def _write_layout_sidecar(
     expanded: dict[str, list[str]] | None = None,
     collapsed: dict[str, list[str]] | None = None,
     chrome: dict[str, dict[str, list[int]]] | None = None,
+    routing: dict[str, dict[str, str]] | None = None,
 ) -> Path:
     """Write every sidecar section, removing the file when nothing is left."""
     sidecar = _layout_sidecar(source)
@@ -729,7 +747,9 @@ def _write_layout_sidecar(
         document["collapsed"] = collapsed
     if chrome:
         document["chrome"] = chrome
-    if not any((views, waypoints, labels, expanded, collapsed, chrome)):
+    if routing:
+        document["routing"] = routing
+    if not any((views, waypoints, labels, expanded, collapsed, chrome, routing)):
         sidecar.unlink(missing_ok=True)
         return sidecar
     sidecar.write_text(json.dumps(document, indent=2, sort_keys=True), encoding="utf-8")
@@ -744,6 +764,7 @@ def _apply_saved_layout(state: AppState) -> None:
     # deployment/dynamic edges have no RelationshipView to hold them.
     state.waypoints = _read_layout_waypoints(state.current_path)
     state.labels = _read_layout_labels(state.current_path)
+    state.routing = _read_layout_routing(state.current_path)
     state.expanded = _read_layout_ids(state.current_path, "expanded")
     state.collapsed = _read_layout_ids(state.current_path, "collapsed")
     state.chrome = _read_layout_chrome(state.current_path)
@@ -1440,6 +1461,7 @@ def create_app(
             workspace, view, expand_ids or None, collapse_ids or None
         )
         _attach_waypoints(data, state.waypoints.get(key, {}))
+        _attach_routing(data, state.routing.get(key, {}))
         _attach_labels(data, state.labels.get(key, {}))
         # Dragged title/legend positions; absent chrome is placed by the
         # client's own computation.
@@ -1505,6 +1527,19 @@ def create_app(
             all_waypoints.pop(key, None)
         state.waypoints = all_waypoints
 
+        # Same shape of rule: only re-routed edges are recorded.
+        modes = {
+            edge_id: mode
+            for edge_id, mode in body.routing.items()
+            if mode in _ROUTING_MODES
+        }
+        all_routing = _read_layout_routing(state.current_path)
+        if modes:
+            all_routing[key] = modes
+        else:
+            all_routing.pop(key, None)
+        state.routing = all_routing
+
         # A zero offset means "dragged back to default", so it is dropped
         # rather than stored — the sidecar records deviations only.
         offsets = {
@@ -1535,6 +1570,7 @@ def create_app(
             state.expanded,
             state.collapsed,
             state.chrome,
+            all_routing,
         )
         return {"saved": str(sidecar)}
 
@@ -1557,6 +1593,7 @@ def create_app(
         saved = _read_layout_sidecar(state.current_path)
         all_waypoints = _read_layout_waypoints(state.current_path)
         all_labels = _read_layout_labels(state.current_path)
+        all_routing = _read_layout_routing(state.current_path)
         # Reset means back to auto-layout: straight edges, labels at their
         # default place on the line, chrome at its computed placement, and
         # expansion state cleared.
@@ -1567,6 +1604,7 @@ def create_app(
             state.expanded,
             state.collapsed,
             state.chrome,
+            all_routing,
         )
         if any(key in section for section in sections):
             for section in sections:
@@ -1576,6 +1614,7 @@ def create_app(
             # graph request re-attaches what was just reset.
             state.waypoints = all_waypoints
             state.labels = all_labels
+            state.routing = all_routing
             _write_layout_sidecar(
                 state.current_path,
                 saved,
@@ -1584,6 +1623,7 @@ def create_app(
                 state.expanded,
                 state.collapsed,
                 state.chrome,
+                all_routing,
             )
         return {"reset": key}
 
@@ -1617,6 +1657,7 @@ def create_app(
             state.expanded,
             state.collapsed,
             state.chrome,
+            _read_layout_routing(state.current_path),
         )
         return {"saved": str(sidecar)}
 
