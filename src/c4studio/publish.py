@@ -26,6 +26,7 @@ import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
+from c4studio.graph.view_graph import build_view_graph, shown_properties
 from c4studio.markdown import render as render_markdown
 from c4studio.models import View, Workspace
 from c4studio.render import render_view
@@ -103,6 +104,14 @@ blockquote {
   background: #e8f1fb;
   color: var(--accent);
 }
+.properties h3 { font-size: 15px; margin: 20px 0 6px; }
+.properties h3 .kind { color: var(--muted); font-size: 12px; font-weight: 400; }
+.properties table { width: 100%; margin: 0 0 8px; table-layout: fixed; }
+.properties th { width: 28%; vertical-align: top; background: none; }
+.properties td { vertical-align: top; overflow-wrap: anywhere; }
+.properties td > :first-child { margin-top: 0; }
+.properties td > :last-child { margin-bottom: 0; }
+.properties td :is(h1, h2, h3, h4, h5, h6) { font-size: 14px; margin: 10px 0 4px; }
 footer { color: var(--muted); font-size: 12px; margin-top: 40px; }
 @media (max-width: 800px) {
   .layout { display: block; }
@@ -190,6 +199,91 @@ def _page(
         + _nav(pages, current, workspace)
         + f"<main>{body}</main>"
         + "</div>\n</body>\n</html>\n"
+    )
+
+
+_URL = re.compile(r"^https?://\S+$")
+
+
+def _property_value(value: str) -> str:
+    """One property value as HTML.
+
+    A value written over several lines — a text block — is Markdown, and
+    is rendered as such. A one-line value is shown as written, except that
+    a bare URL becomes a link: ``"owner" "*team*"`` is a name with
+    asterisks in it far more often than it is emphasis.
+    """
+    if "\n" in value:
+        return render_markdown(value)
+    escaped = html.escape(value)
+    if _URL.match(value):
+        return f'<a href="{escaped}">{escaped}</a>'
+    return escaped
+
+
+def _kind_label(element: object) -> str:
+    """``SoftwareSystem`` → ``Software System``."""
+    return re.sub(r"(?<=[a-z])(?=[A-Z])", " ", type(element).__name__)
+
+
+def _properties_section(workspace: Workspace, view: View) -> str:
+    """The properties of what ``view`` draws, or ``""`` if it has none.
+
+    Elements in the diagram's own order, then relationships. A
+    relationship is listed only when the view draws an edge between its
+    own endpoints: a lifted edge — a container's call drawn between the
+    systems that hold them — is not that relationship, and its properties
+    are not the systems'.
+    """
+    data = build_view_graph(workspace, view)
+    blocks: list[str] = []
+
+    def block(title: str, kind: str, properties: dict[str, str]) -> None:
+        rows = "".join(
+            f'<tr><th scope="row">{html.escape(key)}</th>'
+            f"<td>{_property_value(value)}</td></tr>"
+            for key, value in properties.items()
+        )
+        blocks.append(
+            f"<h3>{html.escape(title)} "
+            f'<span class="kind">{html.escape(kind)}</span></h3>'
+            f"<table><tbody>{rows}</tbody></table>"
+        )
+
+    names: dict[str, str] = {}
+    for node in data["nodes"]:
+        element = workspace.find_element(node["id"])
+        if element is None:
+            continue
+        names[element.id] = element.name
+        shown = shown_properties(getattr(element, "properties", {}))
+        if shown:
+            block(element.name, _kind_label(element), shown)
+
+    # By endpoints, not by edge id: a relationship without an alias has
+    # no id, and its edge is given a made-up one.
+    drawn = {(edge["source"], edge["target"]) for edge in data["edges"]}
+    for rel in workspace.relationships:
+        if (
+            rel.linked_relationship_id
+            or (rel.source_id, rel.destination_id) not in drawn
+        ):
+            continue
+        shown = shown_properties(rel.properties)
+        if shown:
+            source = names.get(rel.source_id, rel.source_id)
+            target = names.get(rel.destination_id, rel.destination_id)
+            title = f"{source} → {target}"
+            if rel.description:
+                title += f": {rel.description}"
+            block(title, "Relationship", shown)
+
+    if not blocks:
+        return ""
+    return (
+        '<section class="properties"><h2>Properties</h2>'
+        + "".join(blocks)
+        + "</section>"
     )
 
 
@@ -297,6 +391,7 @@ def publish(
         if view.description:
             body.append(f'<p class="subtitle">{html.escape(view.description)}</p>')
         body.append(f'<div class="diagram">{svg}</div>')
+        body.append(_properties_section(workspace, view))
         write(
             page.path,
             _page(

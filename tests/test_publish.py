@@ -18,7 +18,7 @@ from click.testing import CliRunner
 
 from c4studio.cli.main import cli
 from c4studio.parser.dsl import parse_dsl
-from c4studio.publish import publish
+from c4studio.publish import _properties_section, publish
 from c4studio.render import RenderError, node_executable
 
 SAMPLES = Path(__file__).parent.parent / "samples"
@@ -218,3 +218,116 @@ def test_the_richest_sample_publishes(tmp_path: Path) -> None:
     assert len(written) > 15
     index = (out / "index.html").read_text(encoding="utf-8")
     assert "Quantia" in index
+
+
+PROPERTIES = '''
+workspace "W" {
+    model {
+        u = person "User"
+        s = softwareSystem "S" {
+            api = container "API" {
+                properties {
+                    "owner" "team-*a*"
+                    "repo" "https://example.com/repo"
+                    "c4studio.autolayout" "lr"
+                    "runbook" """
+                        ## Restart
+
+                        1. Drain **all** traffic
+                        """
+                }
+            }
+            db = container "DB"
+        }
+        u -> api "Uses" {
+            properties {
+                "sla" "99.9%"
+            }
+        }
+        api -> db "Reads"
+    }
+    views {
+        systemContext s "ctx" {
+            include *
+        }
+        container s "cont" {
+            include *
+        }
+    }
+}
+'''
+
+
+class TestProperties:
+    """A view page lists the properties of what it draws (PP-203).
+
+    The section is built without Node, so these run everywhere.
+    """
+
+    @pytest.fixture()
+    def sections(self) -> dict[str, str]:
+        workspace = parse_dsl(PROPERTIES)
+        return {
+            view.key: _properties_section(workspace, view) for view in workspace.views
+        }
+
+    def test_an_element_and_a_relationship_are_listed(
+        self, sections: dict[str, str]
+    ) -> None:
+        cont = sections["cont"]
+        assert "<h2>Properties</h2>" in cont
+        assert "API" in cont
+        assert "User → API: Uses" in cont
+        assert '<th scope="row">sla</th><td>99.9%</td>' in cont
+
+    def test_c4studio_settings_are_not(self, sections: dict[str, str]) -> None:
+        assert "c4studio.autolayout" not in sections["cont"]
+
+    def test_one_line_is_as_written_and_a_bare_url_is_a_link(
+        self, sections: dict[str, str]
+    ) -> None:
+        cont = sections["cont"]
+        assert "<td>team-*a*</td>" in cont
+        assert (
+            '<td><a href="https://example.com/repo">https://example.com/repo</a></td>'
+            in cont
+        )
+
+    def test_several_lines_are_markdown(self, sections: dict[str, str]) -> None:
+        cont = sections["cont"]
+        assert "<h2>Restart</h2>" in cont
+        assert "<strong>all</strong>" in cont
+
+    def test_a_lifted_edge_does_not_take_its_relationship_s_properties(
+        self, sections: dict[str, str]
+    ) -> None:
+        """In the context view `User -> API` is drawn as User -> S. The SLA
+        is the container's relationship's, not the system's."""
+        assert sections["ctx"] == ""
+
+    def test_a_view_with_none_has_no_section(self) -> None:
+        workspace = parse_dsl(WORKSPACE)
+        assert all(
+            _properties_section(workspace, view) == "" for view in workspace.views
+        )
+
+    def test_markup_in_a_key_or_value_is_escaped(self) -> None:
+        workspace = parse_dsl(
+            PROPERTIES.replace('"owner" "team-*a*"', '"<b>k</b>" "<script>x</script>"')
+        )
+        cont = _properties_section(workspace, workspace.views[1])
+        assert "<script>" not in cont
+        assert "<b>" not in cont
+        assert "&lt;script&gt;x&lt;/script&gt;" in cont
+
+
+@needs_node
+def test_a_published_view_page_carries_the_section(tmp_path: Path) -> None:
+    out = tmp_path / "site"
+    publish(parse_dsl(PROPERTIES), out)
+    assert 'class="properties"' in (out / "views" / "cont.html").read_text(
+        encoding="utf-8"
+    )
+    assert 'class="properties"' not in (out / "views" / "ctx.html").read_text(
+        encoding="utf-8"
+    )

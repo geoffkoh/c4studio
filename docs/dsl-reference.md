@@ -231,7 +231,11 @@ s = softwareSystem "Platform" {
 - `tags` accepts several arguments on one line, and splits comma-separated
   values, so `tags "A,B"` and `tags "A" "B"` are the same.
 - `properties` keys and values are free text; `c4studio.*` keys are read by
-  this application (§10).
+  this application (§10). The rest are shown in the Explorer's details
+  panel and on each published view page, for elements and relationships
+  alike: a multi-line value (a text block, below) is rendered as
+  Markdown, a one-line value as written, and a bare `http(s)` URL as a
+  link.
 - `perspectives` is covered in §9.
 
 ### Groups

@@ -29,6 +29,7 @@ import {
   layoutGraph,
 } from "@c4studio/diagram-core";
 import { crumbLabel } from "../navigation";
+import { PropertyList } from "./PropertyList";
 import { isTypingTarget } from "../shortcuts";
 import type {
   ExplorerLevel,
@@ -445,6 +446,16 @@ export function ExplorerPane({
             </div>
           ) : null}
 
+          {Object.keys(selected.properties ?? {}).length > 0 ? (
+            <>
+              <h4 className="explorer-details__heading">Properties</h4>
+              <PropertyList
+                properties={selected.properties ?? {}}
+                label={`Properties of ${selected.name}`}
+              />
+            </>
+          ) : null}
+
           {selectedRelationships.length > 0 ? (
             <>
               <h4 className="explorer-details__heading">Relationships</h4>
@@ -471,6 +482,10 @@ export function ExplorerPane({
                         <span>{otherId}</span>
                       )}
                       {rel.description ? <em> — {rel.description}</em> : null}
+                      <PropertyList
+                        properties={rel.properties ?? {}}
+                        label={`Properties of ${rel.description || "relationship"}`}
+                      />
                     </li>
                   );
                 })}

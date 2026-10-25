@@ -26,6 +26,7 @@ from c4studio.graph.view_graph import (
     _person_kind,
     _system_kind,
     build_view_graph,
+    shown_properties,
 )
 from c4studio.models import Workspace
 from c4studio.webapp import graph
@@ -59,6 +60,7 @@ def _element_index(workspace: Workspace) -> list[dict[str, Any]]:
                 "technology": getattr(element, "technology", ""),
                 "description": element.description,
                 "tags": list(element.tags),
+                "properties": shown_properties(getattr(element, "properties", {})),
                 "parent": " › ".join(parent_path),
                 "level": level,
             }
@@ -95,6 +97,7 @@ def _relationship_index(workspace: Workspace) -> list[dict[str, Any]]:
             "destination_id": rel.destination_id,
             "description": rel.description,
             "technology": rel.technology,
+            "properties": shown_properties(rel.properties),
         }
         for rel in workspace.relationships
         if not rel.linked_relationship_id

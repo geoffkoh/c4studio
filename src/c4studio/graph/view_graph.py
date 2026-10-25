@@ -15,7 +15,7 @@ conventions.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from typing import Any
 
 from c4studio.models import (
@@ -1254,6 +1254,25 @@ def build_view_graph(
     _attach_perspectives(workspace, data)
     _attach_layout_hints(workspace, view, data)
     return data
+
+
+#: Properties under this prefix are settings c4studio reads (the layout
+#: and legend hints below), not facts about the model.
+OWN_PROPERTY_PREFIX = "c4studio."
+
+
+def shown_properties(properties: Mapping[str, str]) -> dict[str, str]:
+    """An element's or relationship's properties as a reader should see them.
+
+    In source order, without the ``c4studio.*`` settings: those configure
+    how the diagram is drawn, and listing them beside an owner or a
+    runbook would read as model data (PP-203).
+    """
+    return {
+        key: value
+        for key, value in properties.items()
+        if not key.startswith(OWN_PROPERTY_PREFIX)
+    }
 
 
 #: The property that lets a boundary override the view's rank direction for

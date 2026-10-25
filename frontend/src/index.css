@@ -2315,6 +2315,63 @@ button {
   font-size: 12px;
 }
 
+/* Element and relationship properties (PP-203). */
+.properties {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.properties__row {
+  padding: 3px 0;
+  border-top: 1px solid var(--border);
+}
+
+.properties__row:first-child {
+  border-top: none;
+}
+
+.properties__key {
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.properties__value {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.properties a {
+  color: var(--accent);
+}
+
+.properties__markdown > :first-child {
+  margin-top: 0;
+}
+
+.properties__markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.properties__markdown :is(h1, h2, h3, h4, h5, h6) {
+  margin: 8px 0 2px;
+  font-size: 12.5px;
+}
+
+.properties__markdown :is(ul, ol) {
+  margin: 4px 0;
+  padding-left: 18px;
+}
+
+.properties__markdown p {
+  margin: 4px 0;
+}
+
+/* Under a relationship in the list, set in from its arrow. */
+.explorer-details__rels .properties {
+  margin: 2px 0 4px 16px;
+}
+
 .explorer-details__arrow {
   display: inline-block;
   width: 16px;

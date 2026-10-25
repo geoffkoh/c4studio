@@ -192,6 +192,9 @@ export interface ModelElement {
   technology: string;
   description: string;
   tags: string[];
+  /** `properties`, in source order, without `c4studio.*` settings.
+      Absent from servers older than PP-203. */
+  properties?: Record<string, string>;
   /** Human-readable ancestry path, e.g. "Internet Banking › API". */
   parent: string;
   /** Shallowest explorer level at which this element has its own node. */
@@ -205,6 +208,8 @@ export interface ModelRelationship {
   destination_id: string;
   description: string;
   technology: string;
+  /** As on `ModelElement`. */
+  properties?: Record<string, string>;
 }
 
 /** Response body from GET /api/model/graph. */
