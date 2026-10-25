@@ -47,6 +47,7 @@ export const SHORTCUTS: readonly { keys: string; action: string }[] = [
   { keys: "a", action: "Toggle animated relationships on hover" },
   { keys: "g", action: "Toggle snap to grid" },
   { keys: "v", action: "Switch pan / select mode" },
+  { keys: "i", action: "Show / hide details of the selection" },
   { keys: "?", action: "Show / hide this help" },
   { keys: "Esc", action: "Close this help" },
 ];

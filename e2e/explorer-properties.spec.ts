@@ -108,7 +108,7 @@ test.describe("Explorer properties", () => {
 
   test("a relationship's properties sit under it", async ({ page }) => {
     await openExplorer(page);
-    const rels = page.locator(".explorer-details__rels");
+    const rels = page.locator(".details__rels");
     await expect(rels.locator(".properties__row", { hasText: "sla" })).toContainText("99.9%");
   });
 });

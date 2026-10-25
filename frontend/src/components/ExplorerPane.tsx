@@ -29,7 +29,7 @@ import {
   layoutGraph,
 } from "@c4studio/diagram-core";
 import { crumbLabel } from "../navigation";
-import { PropertyList } from "./PropertyList";
+import { ElementDetails, KIND_LABELS } from "./ElementDetails";
 import { isTypingTarget } from "../shortcuts";
 import type {
   ExplorerLevel,
@@ -51,16 +51,6 @@ const LEVELS: { value: ExplorerLevel; label: string }[] = [
 const LEVEL_ORDER: ExplorerLevel[] = ["systems", "containers", "components"];
 const LEVEL_STORAGE_KEY = "c4studio.explorerLevel";
 
-/** Human label per element kind, for search results and the details panel. */
-const KIND_LABELS: Record<string, string> = {
-  person: "Person",
-  "person-external": "Person",
-  system: "Software System",
-  "system-external": "Software System",
-  container: "Container",
-  component: "Component",
-  custom: "Custom Element",
-};
 
 function storedLevel(): ExplorerLevel {
   const raw = window.localStorage.getItem(LEVEL_STORAGE_KEY);
@@ -418,105 +408,35 @@ export function ExplorerPane({
       </div>
       {selected ? (
         <aside className="explorer-details">
-          <button
-            className="explorer-details__close"
-            title="Close"
-            onClick={() => setSelectedId(null)}
-          >
-            ×
-          </button>
-          <h3 className="explorer-details__name">{selected.name}</h3>
-          <div className="explorer-details__kind">
-            [{KIND_LABELS[selected.kind] ?? selected.kind}
-            {selected.technology ? `: ${selected.technology}` : ""}]
-          </div>
-          {selected.parent ? (
-            <div className="explorer-details__parent">{selected.parent}</div>
-          ) : null}
-          {selected.description ? (
-            <p className="explorer-details__desc">{selected.description}</p>
-          ) : null}
-          {selected.tags.length > 0 ? (
-            <div className="explorer-details__tags">
-              {selected.tags.map((tag) => (
-                <span key={tag} className="explorer-details__tag">
-                  {tag}
-                </span>
-              ))}
-            </div>
-          ) : null}
-
-          {Object.keys(selected.properties ?? {}).length > 0 ? (
-            <>
-              <h4 className="explorer-details__heading">Properties</h4>
-              <PropertyList
-                properties={selected.properties ?? {}}
-                label={`Properties of ${selected.name}`}
-              />
-            </>
-          ) : null}
-
-          {selectedRelationships.length > 0 ? (
-            <>
-              <h4 className="explorer-details__heading">Relationships</h4>
-              <ul className="explorer-details__rels">
-                {selectedRelationships.map((rel, index) => {
-                  const outgoing = rel.source_id === selectedId;
-                  const otherId = outgoing
-                    ? rel.destination_id
-                    : rel.source_id;
-                  const other = elementsById.get(otherId);
-                  return (
-                    <li key={rel.id || index}>
-                      <span className="explorer-details__arrow">
-                        {outgoing ? "→" : "←"}
-                      </span>
-                      {other ? (
-                        <button
-                          className="explorer-details__link"
-                          onClick={() => select(other)}
-                        >
-                          {other.name}
-                        </button>
-                      ) : (
-                        <span>{otherId}</span>
-                      )}
-                      {rel.description ? <em> — {rel.description}</em> : null}
-                      <PropertyList
-                        properties={rel.properties ?? {}}
-                        label={`Properties of ${rel.description || "relationship"}`}
-                      />
-                    </li>
-                  );
-                })}
-              </ul>
-            </>
-          ) : null}
-
-          {selectedViews.length > 0 ? (
-            <>
-              <h4 className="explorer-details__heading">Appears in</h4>
-              <ul className="explorer-details__views">
-                {selectedViews.map((view) => (
-                  <li key={view.key}>
-                    <button
-                      className="explorer-details__link"
-                      onClick={() => onOpenView(view)}
-                    >
-                      {crumbLabel(view, workspace)}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </>
-          ) : null}
-
-          <button
-            className="explorer-details__definition"
-            onClick={() => onShowDefinition(selected.id)}
-          >
-            Open in Source ↗
-          </button>
+          <ElementDetails
+            name={selected.name}
+            kind={KIND_LABELS[selected.kind] ?? selected.kind}
+            technology={selected.technology}
+            parent={selected.parent}
+            description={selected.description}
+            tags={selected.tags}
+            properties={selected.properties}
+            relationships={selectedRelationships.map((rel, index) => {
+              const outgoing = rel.source_id === selectedId;
+              const otherId = outgoing ? rel.destination_id : rel.source_id;
+              const other = elementsById.get(otherId);
+              return {
+                key: rel.id || String(index),
+                outgoing,
+                peer: other?.name ?? otherId,
+                onPeer: other ? () => select(other) : undefined,
+                description: rel.description,
+                properties: rel.properties,
+              };
+            })}
+            views={selectedViews.map((view) => ({
+              key: view.key,
+              label: crumbLabel(view, workspace),
+              onOpen: () => onOpenView(view),
+            }))}
+            onShowDefinition={() => onShowDefinition(selected.id)}
+            onClose={() => setSelectedId(null)}
+          />
         </aside>
       ) : null}
     </div>

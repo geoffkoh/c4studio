@@ -11,7 +11,8 @@ when you finish a run of work, not when you remember.
 Last updated: **24 October 2026**, after the interface run
 (PP-195 … PP-201): animated relationships, segment re-routing with steps
 and pinned sides, named layouts, and file-based themes; then multi-line
-strings in the parser (PP-202) and properties on screen (PP-203, PP-204).
+strings in the parser (PP-202), properties on screen (PP-203, PP-204),
+and a details card on the Diagrams page (PP-205).
 
 ---
 
@@ -23,7 +24,7 @@ strings in the parser (PP-202) and properties on screen (PP-203, PP-204).
 | VS Code extension | **0.3.1**, packaged as `.vsix` only. Not on the Marketplace, and versioned independently of the Python package |
 | `main` | Green. Four CI jobs: Python gate, bundle + layout, VS Code extension packaging, and the `render` dogfood |
 | Open PRs | **None** |
-| Open `PP` tickets | PP-192 (drive the `.vsix` for a day — needs a human), PP-193, PP-194, PP-198 — see *Open now* |
+| Open `PP` tickets | PP-192 (drive the `.vsix` for a day — needs a human), PP-193, PP-194, PP-198, PP-206 — see *Open now* |
 | Frontend runtime | React **19**, TypeScript **7**, Vite **8**, marked **18**. `reactflow` stays on **11** — see below |
 
 ---
@@ -69,6 +70,19 @@ route leaves a pinned side square-on along a 20px stub, and goes round
 the node rather than through it when it has to double back. The stub is
 recomputed and never stored, which is why `routeBends` drops it by index
 and `insertStep` keeps a new step off it.
+
+### A details card on the Diagrams page (PP-205)
+
+The toolbar's **Details** button (or `i`) opens a 320px card under the
+toolbar that follows the selection: one element, one relationship line,
+or a placeholder for nothing or several. It overlays the canvas rather
+than narrowing it, and opens on request rather than on click, because
+selecting is how a drag starts; a one-time "Press i for details" hint
+makes it findable. The layout was reviewed by `ux-reviewer` first.
+`ElementDetails` is now the one copy of the details content, used by the
+Explorer too. The view graph gained `properties` on nodes and a
+`relationship` on edges that draw exactly one (by endpoints, then label).
+The toolbar now wraps instead of running off the canvas's left edge.
 
 ### Properties on screen (PP-203), and the site's link URLs (PP-204)
 
@@ -121,6 +135,10 @@ expected, not a failure.
 
 ## Open now
 
+- **PP-206:** the canvas toolbar covers the breadcrumb on drilled-down
+  views. At 1440px the toolbar is about 1110px wide, against the 470px
+  the breadcrumb's `max-width` reserves for it. This predates PP-205; it
+  was measured on main.
 - **PP-198:** dynamic-view step ids embed the step order, so waypoints,
   routes and label offsets on a dynamic view are lost when steps are
   renumbered. Logged, not scheduled.
