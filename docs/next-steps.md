@@ -8,14 +8,11 @@ open right now, and what to do next.
 **Keep it current.** It is only worth reading if it is true, so update it
 when you finish a run of work, not when you remember.
 
-Last updated: **24 October 2026**, after the interface run
-(PP-195 … PP-201): animated relationships, segment re-routing with steps
-and pinned sides, named layouts, and file-based themes; then multi-line
-strings in the parser (PP-202), properties on screen (PP-203, PP-204),
-a details card on the Diagrams page (PP-205), and a badge on elements
-that have properties (PP-207), coloured by a style if wanted (PP-208),
-and the canvas controls stacked top-left so the breadcrumb is never
-covered (PP-206).
+Last updated: **25 October 2026**, after the interface run
+(PP-195 … PP-208, PP-206) and the October roadmap review: dynamic-view
+step ids (PP-198), `routing Orthogonal` (PP-209), `workspace extends`
+(PP-210), impact in the Studio (PP-193), the diff as a PR comment
+(PP-194), and a dependency security scan (PP-213, Python half merged).
 
 ---
 
@@ -27,7 +24,7 @@ covered (PP-206).
 | VS Code extension | **0.3.1**, packaged as `.vsix` only. Not on the Marketplace, and versioned independently of the Python package |
 | `main` | Green. Four CI jobs: Python gate, bundle + layout, VS Code extension packaging, and the `render` dogfood |
 | Open PRs | **None** |
-| Open `PP` tickets | PP-192 (drive the `.vsix` for a day — needs a human), PP-193, PP-194 — see *Open now* |
+| Open `PP` tickets | PP-192 (drive the `.vsix` for a day — needs a human), PP-213 (npm half), PP-211 (parked) — see *Open now* |
 | Frontend runtime | React **19**, TypeScript **7**, Vite **8**, marked **18**. `reactflow` stays on **11** — see below |
 
 ---
@@ -229,6 +226,12 @@ expected, not a failure.
 
 ## Open now
 
+- **PP-213, npm half:** high advisories (none critical) in vite and
+  source-map-js at the root, and undici, fast-uri, markdown-it,
+  brace-expansion and @azure/msal-node in `editors/vscode`. All fixable
+  within range by `npm audit fix` in each install; then rebuild the
+  bundle, `npm run test:visual` and `c4 render` a sample, as for any
+  bundler bump (see CLAUDE.md on Dependabot).
 - **PP-211 (parked):** the diagram diff's visual overlay, split from
   PP-194. Worth it once a team reviews diagrams in PRs.
 
