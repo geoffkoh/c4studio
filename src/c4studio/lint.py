@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from c4studio.diagnostics import Diagnostic, Severity
+from c4studio.graph.view_graph import BADGE_COLOUR_PROPERTY, HEX_COLOUR
 from c4studio.models import (
     Component,
     Container,
@@ -336,6 +337,27 @@ class UnusedStyle:
                 )
 
 
+class InvalidBadgeColour:
+    """A ``c4studio.badge`` style colour that is not a hex colour.
+
+    The diagram ignores it and keeps the automatic colour, so without this
+    a typo looks like a setting that does nothing (PP-208).
+    """
+
+    code = "invalid-badge-colour"
+    summary = "c4studio.badge is not a #rgb or #rrggbb colour"
+
+    def check(self, workspace: Workspace) -> Iterable[tuple[str, str]]:
+        for style in workspace.views.configuration.styles.element_styles:
+            value = style.properties.get(BADGE_COLOUR_PROPERTY)
+            if value is not None and not HEX_COLOUR.fullmatch(value):
+                message = (
+                    f"element style {style.tag!r}: {BADGE_COLOUR_PROPERTY} "
+                    f"{value!r} is not a #rgb or #rrggbb colour"
+                )
+                yield "", message
+
+
 class NamingConvention:
     """Element names that do not match a configured pattern.
 
@@ -373,6 +395,7 @@ def default_rules(config: LintConfig) -> list[Rule]:
         OrphanElement(),
         DuplicateRelationship(),
         UnusedStyle(),
+        InvalidBadgeColour(),
         NamingConvention(config.naming),
     ]
     return [rule for rule in rules if config.wants(rule.code)]

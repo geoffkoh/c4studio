@@ -13,7 +13,7 @@ Last updated: **24 October 2026**, after the interface run
 and pinned sides, named layouts, and file-based themes; then multi-line
 strings in the parser (PP-202), properties on screen (PP-203, PP-204),
 a details card on the Diagrams page (PP-205), and a badge on elements
-that have properties (PP-207).
+that have properties (PP-207), coloured by a style if wanted (PP-208).
 
 ---
 
@@ -71,6 +71,16 @@ route leaves a pinned side square-on along a 20px stub, and goes round
 the node rather than through it when it has to double back. The stub is
 recomputed and never stored, which is why `routeBends` drops it by index
 and `insertStep` keeps a new step off it.
+
+### Badge colours (PP-208)
+
+The badge is now a solid chip in the element's text colour, which
+already contrasts with the box. A `c4studio.badge` element-style
+property overrides that per tag, as a hex colour; `_apply_styles` passes
+it through as `badgeColor`. The "i" is black or white by the chip's
+luminance (`readableOn` in `ElementNode.tsx`), so no chosen colour can
+hide its own glyph. A colour that is not hex is ignored on the diagram
+and reported by the new `invalid-badge-colour` lint rule.
 
 ### A properties badge on elements (PP-207)
 

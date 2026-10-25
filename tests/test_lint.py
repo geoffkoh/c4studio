@@ -173,6 +173,28 @@ class TestRules:
         )
         assert "unused-style" not in _codes(workspace)
 
+    @pytest.mark.parametrize(
+        ("value", "flagged"),
+        [("#ffcc00", False), ("#fc0", False), ("yellow", True), ("#ffcc0", True)],
+    )
+    def test_a_badge_colour_must_be_hex(self, value: str, flagged: bool) -> None:
+        """The diagram ignores anything else, so a typo would do nothing
+        visibly (PP-208)."""
+        workspace = parse_dsl(
+            GOOD.replace(
+                "        systemLandscape",
+                f"""        styles {{
+            element "Element" {{
+                properties {{
+                    "c4studio.badge" "{value}"
+                }}
+            }}
+        }}
+        systemLandscape""",
+            )
+        )
+        assert ("invalid-badge-colour" in _codes(workspace)) is flagged
+
     def test_naming_convention_does_nothing_until_configured(self) -> None:
         workspace = parse_dsl(GOOD.replace('"Platform"', '"platform"'))
         assert "naming-convention" not in _codes(workspace)

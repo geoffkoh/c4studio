@@ -31,7 +31,12 @@ type Payload = {
 
 async function open(
   page: Page,
-  { width = 1440, height = 900, details = "closed" } = {},
+  {
+    width = 1440,
+    height = 900,
+    details = "closed",
+    badgeColor,
+  }: { width?: number; height?: number; details?: string; badgeColor?: string } = {},
 ): Promise<{ element: { id: string; label: string }; edgeIds: string[]; withProperties: number }> {
   const found = { element: { id: "", label: "" }, edgeIds: [] as string[], withProperties: 0 };
   await page.route(/\/api\/views\/[^/]+\/(expansion|layout)$/, async (route) => {
@@ -48,6 +53,7 @@ async function open(
     for (const edge of edges) edge.relationship!.properties = REL_PROPS;
     const node = data.nodes.find((n) => n.id === edges[0].source)!;
     node.data.properties = PROPS;
+    if (badgeColor) (node.data as { badgeColor?: string }).badgeColor = badgeColor;
     found.element = { id: node.id, label: node.data.label };
     found.edgeIds = edges.map((e) => e.id);
     found.withProperties = data.nodes.filter(
@@ -229,4 +235,21 @@ test.describe("diagram details card", () => {
     expect(svg).toContain(element.label);
     expect(svg).not.toContain("node__properties");
   });
+
+  for (const [chosen, chip, glyph] of [
+    // Automatic: the element's text colour (white here), a dark "i".
+    [undefined, "rgb(255, 255, 255)", "rgb(28, 37, 48)"],
+    // A `c4studio.badge` style colour, with whichever glyph reads on it.
+    ["#ffcc00", "rgb(255, 204, 0)", "rgb(28, 37, 48)"],
+    ["#000000", "rgb(0, 0, 0)", "rgb(255, 255, 255)"],
+  ] as const) {
+    test(`the badge chip is ${chosen ?? "automatic"} and its glyph reads on it (PP-208)`, async ({
+      page,
+    }) => {
+      const { element } = await open(page, { badgeColor: chosen });
+      const badge = page.locator(`.react-flow__node[data-id="${element.id}"] .node__properties`);
+      await expect(badge).toHaveCSS("background-color", chip);
+      await expect(badge).toHaveCSS("color", glyph);
+    });
+  }
 });

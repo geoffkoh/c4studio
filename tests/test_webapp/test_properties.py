@@ -159,3 +159,42 @@ class TestViewGraph:
             if (e["source"], e["target"]) == ("u", "s")
         ]
         assert "relationship" not in edge
+
+
+class TestBadgeColour:
+    """A `c4studio.badge` element style colours the properties badge (PP-208)."""
+
+    def _node(self, tmp_path: Path, styles: str) -> dict[str, Any]:
+        dsl = DSL.replace("    views {", "    views {\n        styles {" + styles + "}")
+        (tmp_path / "w.dsl").write_text(dsl, encoding="utf-8")
+        client = TestClient(create_app(root=tmp_path))
+        assert client.post("/api/load", json={"path": "w.dsl"}).status_code == 200
+        graph = client.get("/api/views/cont/graph").json()
+        node: dict[str, Any] = next(
+            n["data"] for n in graph["nodes"] if n["id"] == "api"
+        )
+        return node
+
+    def test_a_style_sets_it_and_the_last_match_wins(self, tmp_path: Path) -> None:
+        node = self._node(
+            tmp_path,
+            """
+            element "Element" { properties { "c4studio.badge" "#000000" } }
+            element "Container" { properties { "c4studio.badge" "#ffcc00" } }
+            """,
+        )
+        assert node["badgeColor"] == "#ffcc00"
+
+    def test_anything_but_hex_is_ignored(self, tmp_path: Path) -> None:
+        node = self._node(
+            tmp_path, 'element "Container" { properties { "c4studio.badge" "red" } }'
+        )
+        assert "badgeColor" not in node
+
+    def test_it_is_not_listed_as_a_property(self, tmp_path: Path) -> None:
+        """It is on the style, not the element — but check the element's
+        own properties stay its own."""
+        node = self._node(
+            tmp_path, 'element "Container" { properties { "c4studio.badge" "#fff" } }'
+        )
+        assert "c4studio.badge" not in node["properties"]

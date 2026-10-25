@@ -389,7 +389,8 @@ def lint_command(
 
     Where ``check`` asks whether the file parses, this asks whether it is
     a good model: elements nothing relates to, missing descriptions and
-    technologies, relationships declared twice, styles that match nothing.
+    technologies, relationships declared twice, styles that match nothing,
+    badge colours that are not hex.
 
     Every finding is a warning — a model that breaks a house style still
     parses and still renders — so the exit code is what makes CI care: 1

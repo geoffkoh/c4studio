@@ -15,6 +15,7 @@ conventions.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable, Mapping
 from typing import Any
 
@@ -433,6 +434,9 @@ def _apply_styles(workspace: Workspace, nodes: list[GraphNode]) -> None:
             caption = style.properties.get(LEGEND_LABEL_PROPERTY, "")
             if caption:
                 data["styleLabel"] = caption
+            badge = style.properties.get(BADGE_COLOUR_PROPERTY, "")
+            if HEX_COLOUR.fullmatch(badge):
+                data["badgeColor"] = badge
             if style.background:
                 data["background"] = style.background
             if style.color:
@@ -648,6 +652,13 @@ def _edge_paint(styles: list[RelationshipStyle], rel: Relationship) -> dict[str,
 #: this is valid Structurizr DSL that upstream simply ignores — the same
 #: escape hatch as ``structurizr.perspective.interval`` (PP-175).
 LEGEND_LABEL_PROPERTY = "c4studio.legend"
+
+#: Element style property that colours the properties badge (PP-208), for
+#: boxes the automatic chip — the element's text colour — does not suit.
+#: A hex colour, as Structurizr writes colours; anything else is ignored
+#: here and reported by ``c4 lint`` (``invalid-badge-colour``).
+BADGE_COLOUR_PROPERTY = "c4studio.badge"
+HEX_COLOUR = re.compile(r"#(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})")
 
 
 #: Style tag prefix that paints an active perspective, upstream
