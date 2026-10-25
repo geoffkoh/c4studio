@@ -881,6 +881,37 @@ Paths are relative to the including file, and nest. Diagnostics are
 reported against the fragment that contains the problem, not the file that
 included it. `samples/c4studio/` is a worked example.
 
+### Extending a whole workspace
+
+A team can build on a shared model without copying it. `workspace extends`
+names another workspace file; everything it declares — identifiers,
+`!const` values, the model and its views — is in scope, and the extending
+file adds to it:
+
+```dsl
+workspace extends shared/base.dsl {
+    model {
+        shop = softwareSystem "Shop" {
+            api = container "API" "Takes orders" "Python"
+        }
+        customer -> api "Places orders"
+    }
+    views {
+        container shop ShopContainers {
+            include *
+        }
+    }
+}
+```
+
+Declaring an element the base already has, by kind and name, means that
+element: `softwareSystem "Shop" { … }` above adds a container to the base's
+Shop rather than a second system. An argument left out keeps the base's
+value. The base's own `!docs`, `!adrs` and theme paths resolve from its
+directory, and editing it reloads the Studio. Only a local DSL file can be
+extended: a URL is not fetched and a JSON base is not read; both are
+reported and the file is parsed without them.
+
 ---
 
 ## 14. Working with the result

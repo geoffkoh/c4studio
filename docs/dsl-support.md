@@ -50,7 +50,7 @@ prints. A skipped construct never consumes its enclosing scope.
 | Keyword | Support | Notes |
 | --- | --- | --- |
 | `workspace [name] [description]` | ✅ | |
-| `workspace extends <file\|url>` | ⛔ | Parse error rather than a skip — the whole file fails. Workspace composition is a roadmap item (Phase 4) |
+| `workspace extends <file\|url>` | ◐ | A local DSL file is extended as upstream does (PP-210): the base's identifiers, constants, model and views are in scope, and declaring a person, software system, container or component the base already has, by name, means that element. Unlike upstream, an argument left out keeps the base's value instead of resetting it. The base's `!docs`, `!adrs` and theme paths resolve from its own directory, and editing it live-reloads. A URL is not fetched and a JSON base is not read: both are reported (`unsupported-extends`) and the file is parsed on its own |
 | `!identifiers hierarchical\|flat` | ◐ | Accepted, but identifier resolution is always flat; the requested mode is ignored |
 | `!impliedRelationships <true\|false>` | ✅ | |
 | `properties { … }` (workspace level) | ✅ | On `Workspace.properties`, exported at the top level of the JSON as upstream's `AbstractWorkspace.properties` is. Previously written to the *views* configuration instead, which is a different statement's target — see the Views table |

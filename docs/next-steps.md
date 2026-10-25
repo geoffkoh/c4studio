@@ -74,6 +74,19 @@ the node rather than through it when it has to double back. The stub is
 recomputed and never stored, which is why `routeBends` drops it by index
 and `insertStep` keeps a new step off it.
 
+### `workspace extends` (PP-210)
+
+It was a parse error that failed the whole file. `_splice_extends` in
+`dsl.py` now splices the base's flattened text (its last `}` removed)
+and the extending file's (header blanked) into one workspace block, with
+source-map runs for both, so one parser sees the base's identifiers and
+constants as upstream's two-stage parse does. Declarations after
+`_Extends.boundary` reuse a same-named person, system, container or
+component. Deliberate divergence: an omitted argument keeps the base's
+value, where upstream resets it. Relative paths resolve per part
+(`_dir_for`), and `collect_source_files` follows the base. A URL or JSON
+base is reported as `unsupported-extends` and skipped.
+
 ### `routing Orthogonal` is drawn (PP-209)
 
 A relationship style's `routing Orthogonal` resolves to the edge's
@@ -195,7 +208,6 @@ expected, not a failure.
 - **PP-193 / PP-194:** impact analysis in the Studio, and the diagram
   diff as a PR comment with a visual overlay. Both are carried over from
   the September run.
-- **PP-210:** `workspace extends <file>`, which is a parse error today.
 
 ---
 

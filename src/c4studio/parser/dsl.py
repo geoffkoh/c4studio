@@ -8,6 +8,7 @@ Supports a subset of the Structurizr DSL spec:
 
 from __future__ import annotations
 
+import bisect
 import re
 import warnings
 from collections.abc import Callable, Mapping
@@ -376,8 +377,12 @@ class _Parser:
         source_map: SourceMap | None = None,
         base_dir: Path | None = None,
         source_lines: list[str] | None = None,
+        extends: _Extends | None = None,
     ) -> None:
         self._tokens = tokens
+        #: Where an extended base workspace ends and the extending file
+        #: starts, and each part's directory (PP-210).
+        self._extends = extends
         self._source_map = source_map or SourceMap()
         #: The flattened source, by line. `!docs some-dir/sub` cannot be
         #: read back from tokens — the tokenizer drops `-` and `/` — so
@@ -429,6 +434,22 @@ class _Parser:
     @property
     def _current_group(self) -> str:
         return "/".join(g for g in self._group_stack if g)
+
+    def _dir_for(self, line: int) -> Path | None:
+        """Directory a relative path on flattened ``line`` resolves against.
+
+        The workspace file's own directory, as for any file. Under
+        ``workspace extends`` that differs by part: the base is parsed as
+        its own workspace upstream, so its ``!docs`` and themes resolve
+        against where it lives, not where the extending file does.
+        """
+        if self._extends is None or self._base_dir is None:
+            return self._base_dir
+        return self._extends.dir_for(line)
+
+    def _extending(self, line: int) -> bool:
+        """Whether ``line`` is in the extending file, after the base."""
+        return self._extends is not None and line >= self._extends.boundary
 
     def _peek(self) -> Token:
         # Clamped to the trailing EOF token: recovery can be entered with the
@@ -772,7 +793,8 @@ class _Parser:
                 code="unsupported-directive",
             )
             return
-        directory = (self._base_dir / target).resolve()
+        directory = (self._dir_for(line) or self._base_dir) / target
+        directory = directory.resolve()
         if kind == "docs":
             holder.documentation.sections.extend(load_sections(directory))
         else:
@@ -1109,6 +1131,30 @@ class _Parser:
             )
         return name
 
+    def _existing_element(
+        self, ws: Workspace, kw: str, name: str, parent_id: str | None
+    ) -> Person | SoftwareSystem | Container | Component | None:
+        """The element of this kind and name the base workspace declared.
+
+        People and software systems are found in the model, containers in
+        their system and components in their container — the scopes
+        upstream searches. Other kinds are always declared afresh.
+        """
+        found: list[Person] | list[SoftwareSystem] | list[Container] | list[Component]
+        if kw == "person":
+            found = ws.people
+        elif kw == "softwaresystem":
+            found = ws.software_systems
+        elif kw == "container":
+            system = self._find_system(ws, parent_id)
+            found = system.containers if system is not None else []
+        elif kw == "component":
+            container = self._find_container(ws, parent_id)
+            found = container.components if container is not None else []
+        else:
+            return None
+        return next((e for e in found if e.name == name), None)
+
     def _parse_element(
         self, ws: Workspace, alias: str | None, parent_id: str | None
     ) -> None:
@@ -1141,6 +1187,26 @@ class _Parser:
                 instances = self._advance().value.strip('"') or "1"
 
         elem_id = alias or name.replace(" ", "_").lower()
+
+        # Extending a workspace, a declaration naming an element the base
+        # already has means that element, as upstream's parsers look it up
+        # by name before adding one (PP-210). Its alias, if any, now names
+        # it too. Unlike upstream, an argument left out keeps the base's
+        # value rather than resetting it: `softwareSystem "Shop" { … }` is
+        # how an extension adds containers, not how it clears a description.
+        if self._extending(kw_tok.line):
+            existing = self._existing_element(ws, kw, name, parent_id)
+            if existing is not None:
+                if description:
+                    existing.description = description
+                if technology and hasattr(existing, "technology"):
+                    existing.technology = technology
+                existing.tags.extend(t for t in tags if t not in existing.tags)
+                if alias:
+                    self._id_map[alias] = existing.id
+                if self._match(LBRACE):
+                    self._parse_element_body(ws, existing, kw)
+                return
 
         if kw == "person":
             location = Location.EXTERNAL if "External" in tags else Location.UNSPECIFIED
@@ -1906,7 +1972,7 @@ class _Parser:
                 **where,
             )
             return
-        path = (self._base_dir / target).resolve()
+        path = ((self._dir_for(token.line) or self._base_dir) / target).resolve()
         try:
             text = path.read_text(encoding="utf-8")
         except OSError:
@@ -2558,6 +2624,158 @@ _DOCS_RE = re.compile(
     re.MULTILINE,
 )
 
+#: `workspace extends <file|url> {` — the brace on the same line, as every
+#: example upstream writes it.
+_EXTENDS_RE = re.compile(
+    r'^[ \t]*workspace[ \t]+extends[ \t]+(?P<target>"[^"]+"|[^\s{]+)[ \t]*\{[ \t]*$',
+    re.IGNORECASE | re.MULTILINE,
+)
+
+#: The first `workspace` statement, extending or not.
+_WORKSPACE_RE = re.compile(r"^[ \t]*workspace\b", re.IGNORECASE | re.MULTILINE)
+
+
+@dataclass(frozen=True)
+class _Extends:
+    """How a ``workspace extends`` source was spliced (PP-210).
+
+    Attributes:
+        boundary: First flattened line of the extending file's own body;
+            everything before it came from the base workspace (or its own
+            base, for a chain).
+        parts: ``(first flattened line, workspace file directory)`` per
+            spliced workspace, in order, for resolving relative paths.
+    """
+
+    boundary: int
+    parts: tuple[tuple[int, Path], ...]
+
+    def dir_for(self, line: int) -> Path:
+        starts = [start for start, _ in self.parts]
+        index = max(bisect.bisect_right(starts, line) - 1, 0)
+        return self.parts[index][1]
+
+
+def _splice_extends(
+    source: str,
+    base_dir: Path | None,
+    origin: Path | None,
+    source_map: SourceMap,
+    warnings_out: list[tuple[int, str, str]],
+    overlay: SourceOverlay | None = None,
+    stack: tuple[Path, ...] = (),
+) -> tuple[str, _Extends | None]:
+    """Expand includes, splicing in the base of a ``workspace extends``.
+
+    Upstream parses the base workspace and then carries on parsing the
+    extending file into it, with the base's identifiers and constants in
+    scope. A line-based splice gets the same from one parser: the base's
+    flattened text with its closing brace removed, then the extending
+    file's with its header blanked, so one workspace block holds both and
+    the source map still names the right file for every line.
+
+    Only a local DSL base is spliced. A URL is not fetched — opening a
+    model must not make this machine call a host the file names — and a
+    JSON base is not read; either is reported, and the extending file is
+    parsed on its own.
+
+    Returns:
+        The flattened text, and how it was spliced (``None`` when the
+        source extends nothing).
+
+    Raises:
+        ParseError: If there is no file context, the base does not exist,
+            or the bases form a cycle.
+    """
+    lines = source.split("\n")
+    first = _WORKSPACE_RE.search(source)
+    header = _EXTENDS_RE.match(source, first.start()) if first is not None else None
+    if header is None:
+        flat, _ = _expand_includes(
+            source,
+            base_dir,
+            stack,
+            origin=origin,
+            source_map=source_map,
+            overlay=overlay,
+        )
+        return flat, None
+
+    index = source.count("\n", 0, header.start())
+    target = header.group("target").strip('"')
+
+    def standalone(message: str) -> tuple[str, None]:
+        warnings_out.append((index + 1, message, "unsupported-extends"))
+        lines[index] = "workspace {"
+        flat, _ = _expand_includes(
+            "\n".join(lines),
+            base_dir,
+            stack,
+            origin=origin,
+            source_map=source_map,
+            overlay=overlay,
+        )
+        return flat, None
+
+    if re.match(r"https?://", target, re.IGNORECASE):
+        return standalone(
+            f"workspace extends {target}: a base workspace is not fetched from a "
+            "URL; parsed without it"
+        )
+    if target.lower().endswith(".json"):
+        return standalone(
+            f"workspace extends {target}: extending a JSON workspace is not "
+            "supported; parsed without it"
+        )
+    if base_dir is None:
+        raise ParseError(
+            f"workspace extends {target!r} requires a file context; "
+            "parse from a file instead of a string",
+            line=index + 1,
+            path=origin,
+        )
+    base = (base_dir / target).resolve()
+    if base in stack or base == origin:
+        chain = " -> ".join(str(p) for p in (*stack, origin, base) if p is not None)
+        raise ParseError(
+            f"Circular workspace extends: {chain}", line=index + 1, path=origin
+        )
+    text = overlay.get(base) if overlay is not None else None
+    if text is None:
+        if not base.is_file():
+            raise ParseError(
+                f"workspace extends target not found: {base}",
+                line=index + 1,
+                path=origin,
+            )
+        text = base.read_text(encoding="utf-8")
+
+    ancestry = (*stack, *((origin,) if origin is not None else ()))
+    base_flat, inner = _splice_extends(
+        text, base.parent, base, source_map, warnings_out, overlay, ancestry
+    )
+    # The base's own closing brace would end the workspace before the
+    # extension's body; the extending file's closes it instead.
+    close = base_flat.rfind("}")
+    if close >= 0:
+        base_flat = base_flat[:close] + " " + base_flat[close + 1 :]
+    start = base_flat.count("\n") + 2
+    lines[index] = ""
+    ext_flat, _ = _expand_includes(
+        "\n".join(lines),
+        base_dir,
+        stack,
+        origin=origin,
+        source_map=source_map,
+        flat_line=start,
+        overlay=overlay,
+    )
+    parts = (inner.parts if inner is not None else ((1, base.parent),)) + (
+        (start, base_dir),
+    )
+    boundary = inner.boundary if inner is not None else start
+    return base_flat + "\n" + ext_flat, _Extends(boundary, parts)
+
 
 def _expand_includes(
     source: str,
@@ -2669,7 +2887,7 @@ _CONST_RE = re.compile(
 _PLACEHOLDER_RE = re.compile(r"\$\{([A-Za-z0-9_.\-]+)\}")
 
 
-def _strip_scripts(source: str, warnings_out: list[tuple[int, str]]) -> str:
+def _strip_scripts(source: str, warnings_out: list[tuple[int, str, str]]) -> str:
     """Remove ``!script <lang> { ... }`` blocks, recording a warning each.
 
     Script bodies are foreign syntax (Groovy/Kotlin/JS) whose strings may
@@ -2700,7 +2918,11 @@ def _strip_scripts(source: str, warnings_out: list[tuple[int, str]]) -> str:
             pos += 1
         line = result.count("\n", 0, match.start()) + 1
         warnings_out.append(
-            (line, "unsupported directive '!script' ignored (body skipped)")
+            (
+                line,
+                "unsupported directive '!script' ignored (body skipped)",
+                "unsupported-directive",
+            )
         )
         # Replace the block with as many blank lines as it occupied: every
         # later line number (and the include source map) depends on the
@@ -2775,10 +2997,10 @@ def parse_dsl(
     resolved = Path(base_dir).resolve() if base_dir is not None else None
     root = Path(path).resolve() if path is not None else None
     source_map = SourceMap()
-    flattened, _ = _expand_includes(
-        source, resolved, (), origin=root, source_map=source_map, overlay=overlay
+    preprocess_warnings: list[tuple[int, str, str]] = []
+    flattened, extends = _splice_extends(
+        source, resolved, root, source_map, preprocess_warnings, overlay
     )
-    preprocess_warnings: list[tuple[int, str]] = []
     flattened = _strip_scripts(flattened, preprocess_warnings)
     flattened = _apply_constants(flattened)
 
@@ -2792,6 +3014,7 @@ def parse_dsl(
             source_map,
             base_dir=resolved,
             source_lines=flattened.split("\n"),
+            extends=extends,
         ).parse()
     except ParseError as error:
         # Positions from the parser are flattened-source lines; resolve them
@@ -2801,14 +3024,14 @@ def parse_dsl(
         raise
     # Preprocessing runs before tokenising, so its positions are flattened
     # lines too and resolve through the same map.
-    for line, message in preprocess_warnings:
+    for line, message, code in preprocess_warnings:
         origin_path, origin_line = source_map.resolve(line)
         diagnostic = Diagnostic(
             message=message,
             severity=Severity.WARNING,
             path=origin_path,
             line=origin_line,
-            code="unsupported-directive",
+            code=code,
         )
         warnings.warn(str(diagnostic), UnsupportedFeatureWarning, stacklevel=2)
         workspace.diagnostics.append(diagnostic)
@@ -2840,7 +3063,7 @@ def collect_source_files(path: str | Path) -> list[Path]:
     seen: set[Path] = set()
     ordered: list[Path] = []
 
-    def visit(current: Path) -> None:
+    def visit(current: Path, workspace_dir: Path) -> None:
         if current in seen:
             return
         seen.add(current)
@@ -2849,21 +3072,29 @@ def collect_source_files(path: str | Path) -> list[Path]:
             text = current.read_text(encoding="utf-8")
         except OSError:
             return
+        # A base workspace is a file the model is built from, so editing it
+        # must reload too; its own paths resolve from where it lives.
+        extends = _EXTENDS_RE.search(text)
+        if extends is not None:
+            target = extends.group("target").strip('"')
+            if not re.match(r"https?://", target, re.IGNORECASE):
+                base = (current.parent / target).resolve()
+                visit(base, base.parent)
         for match in _INCLUDE_RE.finditer(text):
             target = match.group("target").strip('"')
             included = (current.parent / target).resolve()
             if included.is_file():
-                visit(included)
+                visit(included, workspace_dir)
             elif not included.exists() and included not in seen:
                 seen.add(included)
                 ordered.append(included)
         for match in _DOCS_RE.finditer(text):
             target = match.group("target").strip('"')
-            directory = (root.parent / target).resolve()
+            directory = (workspace_dir / target).resolve()
             for doc in markdown_files(directory):
                 if doc not in seen:
                     seen.add(doc)
                     ordered.append(doc)
 
-    visit(root)
+    visit(root, root.parent)
     return ordered
