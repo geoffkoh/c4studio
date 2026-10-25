@@ -12,6 +12,7 @@ from typing import Any
 
 from c4studio.graph.view_graph import (
     KIND_COLOURS,
+    PREVIOUS_IDS,
     build_view_graph,
     effective_layout,
     perspective_names,
@@ -165,6 +166,10 @@ def react_flow_graph(
         }
         if "order" in edge_data:
             edge["order"] = edge_data["order"]
+        # Older ids the sidecar may still hold this edge's layout under
+        # (PP-198); read by layout_sidecar.saved_for, ignored by the client.
+        if PREVIOUS_IDS in graph_edge:
+            edge[PREVIOUS_IDS] = graph_edge[PREVIOUS_IDS]
         # Resolved relationship-style paint; absent fields mean "use the
         # renderer's default" (dashed, per upstream Structurizr).
         for field in ("color", "lineStyle", "thickness", "opacity"):
