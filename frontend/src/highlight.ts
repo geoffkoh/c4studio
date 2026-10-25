@@ -20,6 +20,8 @@ export type DslTokenClass =
 
 export const DSL_KEYWORDS: ReadonlySet<string> = new Set([
   "workspace",
+  // `workspace extends <file>` (PP-210).
+  "extends",
   "model",
   "views",
   "person",

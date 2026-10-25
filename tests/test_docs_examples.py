@@ -120,6 +120,14 @@ def _scaffold(root: Path) -> None:
     (root / "views" / "context.dsl").write_text(
         'systemLandscape "Included" {\n    include *\n}\n', "utf-8"
     )
+    (root / "shared").mkdir()
+    (root / "shared" / "base.dsl").write_text(
+        'workspace "Shop" {\n    model {\n'
+        '        customer = person "Customer"\n'
+        '        shop = softwareSystem "Shop" "Sells things"\n'
+        '        customer -> shop "Buys from"\n    }\n}\n',
+        "utf-8",
+    )
 
 
 @pytest.mark.parametrize("block", [b for _, b in _blocks(REFERENCE)], ids=_ids())
