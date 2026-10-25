@@ -354,6 +354,12 @@ def _edges(
     return edges
 
 
+#: Edge key listing ids the same edge was saved under by older versions,
+#: so a layout sidecar keyed by one still applies; the next save rewrites
+#: it under the current id (``layout_sidecar.saved_for``).
+PREVIOUS_IDS = "previousIds"
+
+
 def _pair_edge_id(src: str, dst: str, counts: dict[tuple[str, str], int]) -> str:
     """Stable id for an edge that has no relationship id of its own.
 
@@ -1082,6 +1088,7 @@ def _dynamic_data(workspace: Workspace, view: View) -> GraphData:
     nodes: list[GraphNode] = []
     seen_nodes: set[str] = set()
     edges: list[GraphEdge] = []
+    pair_counts: dict[tuple[str, str], int] = {}
 
     positions = _stored_positions(view)
 
@@ -1123,7 +1130,12 @@ def _dynamic_data(workspace: Workspace, view: View) -> GraphData:
                 description = ""
         edges.append(
             {
-                "id": f"step-{order}-{src}__{dst}",
+                # Keyed by endpoints and occurrence, not by step number, so
+                # renumbering the steps keeps their saved layout (PP-198);
+                # the number also failed to tell parallel steps apart.
+                "id": f"step-{_pair_edge_id(src, dst, pair_counts)}",
+                # What layout written before PP-198 is keyed by.
+                PREVIOUS_IDS: [f"step-{order}-{src}__{dst}"],
                 "source": src,
                 "target": dst,
                 "data": {

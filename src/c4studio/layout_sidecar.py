@@ -216,6 +216,24 @@ def read_ids(source: Path, section: str) -> dict[str, list[str]]:
     return cleaned
 
 
+def saved_for[T](saved: dict[str, T], edge: dict[str, Any]) -> T | None:
+    """The saved entry for an edge: under its id, else an id it once had.
+
+    An edge whose id changed format (dynamic steps, PP-198) lists its old
+    ids under ``previousIds``. Its layout reaches the client under the new
+    id, and the client's next save writes it back that way, which is the
+    whole migration.
+    """
+    found = saved.get(edge.get("id", ""))
+    if found is not None:
+        return found
+    for previous in edge.get("previousIds", ()):
+        found = saved.get(previous)
+        if found is not None:
+            return found
+    return None
+
+
 def attach_waypoints(
     data: dict[str, Any], waypoints: dict[str, list[list[int]]]
 ) -> None:
@@ -228,7 +246,7 @@ def attach_waypoints(
     if not waypoints:
         return
     for edge in data.get("edges", []):
-        points = waypoints.get(edge.get("id", ""))
+        points = saved_for(waypoints, edge)
         if points:
             edge["waypoints"] = [[int(x), int(y)] for x, y in points]
 
@@ -241,7 +259,7 @@ def attach_routing(data: dict[str, Any], routing: dict[str, str]) -> None:
     if not routing:
         return
     for edge in data.get("edges", []):
-        mode = routing.get(edge.get("id", ""))
+        mode = saved_for(routing, edge)
         if mode in ROUTING_MODES:
             edge["routing"] = mode
 
@@ -254,7 +272,7 @@ def attach_sides(data: dict[str, Any], sides: dict[str, dict[str, str]]) -> None
     if not sides:
         return
     for edge in data.get("edges", []):
-        pins = sides.get(edge.get("id", ""))
+        pins = saved_for(sides, edge)
         if pins:
             edge["sides"] = dict(pins)
 
@@ -269,7 +287,7 @@ def attach_labels(data: dict[str, Any], labels: dict[str, list[int]]) -> None:
     if not labels:
         return
     for edge in data.get("edges", []):
-        offset = labels.get(edge.get("id", ""))
+        offset = saved_for(labels, edge)
         if offset:
             edge["labelOffset"] = [int(offset[0]), int(offset[1])]
 

@@ -27,7 +27,7 @@ covered (PP-206).
 | VS Code extension | **0.3.1**, packaged as `.vsix` only. Not on the Marketplace, and versioned independently of the Python package |
 | `main` | Green. Four CI jobs: Python gate, bundle + layout, VS Code extension packaging, and the `render` dogfood |
 | Open PRs | **None** |
-| Open `PP` tickets | PP-192 (drive the `.vsix` for a day — needs a human), PP-193, PP-194, PP-198 — see *Open now* |
+| Open `PP` tickets | PP-192 (drive the `.vsix` for a day — needs a human), PP-193, PP-194 — see *Open now* |
 | Frontend runtime | React **19**, TypeScript **7**, Vite **8**, marked **18**. `reactflow` stays on **11** — see below |
 
 ---
@@ -73,6 +73,16 @@ route leaves a pinned side square-on along a 20px stub, and goes round
 the node rather than through it when it has to double back. The stub is
 recomputed and never stored, which is why `routeBends` drops it by index
 and `insertStep` keeps a new step off it.
+
+### Dynamic-view step ids (PP-198)
+
+A step's edge id was `step-<order>-<src>__<dst>`, so inserting a step
+renumbered every later one and dropped its saved waypoints, route, sides
+and label offset; two `parallel` steps between one pair shared an id.
+Ids are now `step-<src>__<dst>__<n>`, by endpoints and occurrence like
+static views' unaliased edges. Each step edge lists its old id under
+`previousIds`, and `layout_sidecar.saved_for` falls back to it, so an
+existing sidecar still applies and the next save rewrites it.
 
 ### Canvas controls stacked top-left (PP-206)
 
@@ -172,9 +182,6 @@ expected, not a failure.
 
 ## Open now
 
-- **PP-198:** dynamic-view step ids embed the step order, so waypoints,
-  routes and label offsets on a dynamic view are lost when steps are
-  renumbered. Logged, not scheduled.
 - **PP-193 / PP-194:** impact analysis in the Studio, and the diagram
   diff as a PR comment with a visual overlay. Both are carried over from
   the September run.
