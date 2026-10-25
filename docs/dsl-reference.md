@@ -766,6 +766,7 @@ not know. Nothing here changes the grammar.
 | `c4studio.autolayout` | On an element with children (a system or container drawn as a boundary) | Lays that boundary's children out in its own direction: `tb`, `bt`, `lr`, `rl`. |
 | `c4studio.autolayout.<group name>` | In a **view's** `properties` | The same, for a group — groups have no properties of their own, so the hint lives on the view. |
 | `c4studio.legend` | In a style's `properties` | Replaces that style's legend row label with a sentence. |
+| `c4studio.badge` | In an **element** style's `properties` | Colours the Studio's properties badge (the ⓘ on an element that has properties) for elements with that tag: `#rgb` or `#rrggbb`. Without it the badge is the element's text colour. The "i" is drawn black or white, whichever reads on it. Anything but hex is ignored and reported by `c4 lint` (`invalid-badge-colour`). |
 
 ```dsl
 workspace "Extensions" {
@@ -794,6 +795,12 @@ workspace "Extensions" {
             element "Element" {
                 properties {
                     "c4studio.legend" "Everything on this diagram"
+                }
+            }
+            element "Database" {
+                background #000000
+                properties {
+                    "c4studio.badge" "#ffcc00"
                 }
             }
         }
@@ -884,7 +891,7 @@ included it. `samples/c4studio/` is a worked example.
 | `c4 diff <file> [--from REV] [--to REV]` | What changed between two revisions: elements and relationships added, removed, changed, and the views to look at again. `--json` for a PR comment. |
 | `c4 publish <file> -o site/` | A self-contained HTML site: every view as a page, plus `!docs` prose and ADRs. No network, no server. `--perspective`, `--no-layout`, `--clean`. |
 | `c4 impact <file> <identifier>` | What else is involved when an element changes: what depends on it, what it depends on, and which views draw it. `--json`, `--depth N`. |
-| `c4 lint <file>` | Check the model against standards — orphans, missing descriptions and technologies, duplicate relationships, styles that match nothing. Exits 1 on any finding, so it gates CI; `--exit-zero` reports without failing. |
+| `c4 lint <file>` | Check the model against standards — orphans, missing descriptions and technologies, duplicate relationships, styles that match nothing, badge colours that are not hex. Exits 1 on any finding, so it gates CI; `--exit-zero` reports without failing. |
 | `c4 webapp <file-or-dir>` | The Studio on `127.0.0.1:8090`; add `--viewer` for read-only, `--dynamic-perspectives` to allow perspective URL fetches. |
 | `c4 render <file> -o out/` | Standalone SVGs. `--view <key>`, `--perspective <name>`, `--no-layout`, `--no-title`, `--no-legend`. Needs Node. |
 | `c4 generate <file>` | Mermaid C4 diagrams. |

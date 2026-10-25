@@ -45,6 +45,9 @@ export interface ElementNodeData {
   perspective?: PerspectiveBadge;
   /** The element's own properties, without `c4studio.*` settings. */
   properties?: Record<string, string>;
+  /** The badge's colour from a `c4studio.badge` style property (PP-208);
+      otherwise it takes the element's text colour. */
+  badgeColor?: string;
   /** Wired by a surface with a details card: the node then shows a
       properties badge that opens it (PP-207). Absent in exports and the
       headless renderer, which draw the diagram and nothing to click. */
@@ -57,6 +60,22 @@ export function perspectiveHint(perspective: PerspectiveBadge): string {
     ? `${perspective.name}: ${perspective.value}`
     : perspective.name;
   return perspective.description ? `${head}\n${perspective.description}` : head;
+}
+
+/**
+ * Black or white, whichever reads on `colour` — by relative luminance, so
+ * yellow takes black and navy takes white. `null` for anything but a hex
+ * colour, where the caller falls back to the box's own colour.
+ */
+export function readableOn(colour: string): string | null {
+  const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(colour.trim())?.[1];
+  if (!hex) return null;
+  const full = hex.length === 3 ? [...hex].map((c) => c + c).join("") : hex;
+  const [r, g, b] = [0, 2, 4].map((i) => {
+    const v = parseInt(full.slice(i, i + 2), 16) / 255;
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.179 ? "#1c2530" : "#ffffff";
 }
 
 /** CSS modifier class per Structurizr shape; unlisted shapes use the default. */
@@ -121,6 +140,10 @@ function ElementNodeComponent({ id, data }: NodeProps<ElementNodeData>) {
   };
 
   const propertyCount = Object.keys(data.properties ?? {}).length;
+  // A solid chip in the text colour, which already contrasts with the box,
+  // unless a style chose one; the "i" in whichever of black or white reads
+  // on the chip, so a chosen colour can never hide its own glyph (PP-208).
+  const chip = data.badgeColor || data.textColor || "#ffffff";
   const showBadge = propertyCount > 0 && Boolean(data.onShowDetails);
   const handleDetails = (event: MouseEvent) => {
     event.stopPropagation();
@@ -177,6 +200,7 @@ function ElementNodeComponent({ id, data }: NodeProps<ElementNodeData>) {
         // `export-hidden` so a PNG or SVG export leaves it out.
         <button
           className="node__properties nodrag export-hidden"
+          style={{ background: chip, color: readableOn(chip) ?? background }}
           title={`${propertyCount} ${propertyCount === 1 ? "property" : "properties"} — show details`}
           aria-label={`Show ${propertyCount} ${propertyCount === 1 ? "property" : "properties"} of ${data.label}`}
           onClick={handleDetails}

@@ -72,6 +72,8 @@ export interface GNode {
     /** `properties`, without `c4studio.*` settings; absent when none
         (PP-205). */
     properties?: Record<string, string>;
+    /** From a `c4studio.badge` element style property (PP-208). */
+    badgeColor?: string;
   };
   /** Present on nodes nested inside a boundary group node. */
   parentId?: string;
