@@ -32,29 +32,29 @@ governance and overlay features are UI/reporting work, not model work.
 
 | Feature | Value | Cx | Notes |
 |---|---|---|---|
-| **Public query layer + CLI** — `c4studio query` over elements/relationships/tags/properties, JSON/CSV out, transitive closure | High (enabler) | M | New `model/query.py`. Everything below consumes it; feeds scripts/CMDB sync. The filtered-view tag predicate (PP-62) is its seed. |
-| **Model lint/validation** — orphans, missing description/technology, duplicate relationships, naming conventions; configurable ruleset; CLI exit code for CI | High | M | `c4studio lint`; rules as small classes. How standards get enforced without review bottlenecks. |
+| ~~**Public query layer + CLI**~~ **dropped, October 2026** | — | — | Meant as the enabler for everything below, but lint, diff and impact all shipped without it, and `c4 export` already gives scripts the whole model as JSON. See *October 2026 review*. |
+| ~~**Model lint/validation**~~ **shipped** — `c4 lint`, rules as small classes, `c4studio.lint.json`, exit code for CI | High | M | CI runs it over `samples/`. |
 | ~~**Full-model explorer + search**~~ **shipped, PP-69** — whole-model graph page + element/relationship search across all `!include` fragments | High | M-L | Reuse React Flow + dagre (no new deps); jump from a result to the views containing the element. |
-| **Governance inventory** — owner/team/lifecycle from element `properties` in the UI + CMDB/tech-radar report (HTML/CSV) | High | M | `c4studio inventory`; makes the model the system of record. |
+| **Governance inventory** — owner/team/lifecycle from element `properties` | ? | S-M | **Open question** (October 2026). Properties now show in the UI (PP-203, PP-205); what remains is a report. If wanted, as an Inventory page on the published site plus `--csv`, not a separate command — and only if real models carry owner/lifecycle properties. |
 
 ## Phase 3 — Foundation B: headless rendering → docs-as-code
 
 | Feature | Value | Cx | Notes |
 |---|---|---|---|
 | ~~**Headless CI rendering**~~ **shipped, PP-93** — `c4 render` → SVG for all views, no browser | High (enabler) | L | Server-side SVG reusing `graph/view_graph.py` semantics. **Now also pulled by Phase 5** (Confluence export, the GitHub Action, Pages), which settles the layout-engine question: dagre is pure JS and runs headless in Node, so layout stays in `diagram-core` with one implementation and no new Python dependency. |
-| **Static HTML site export** — self-contained site (diagrams + docs + ADRs + inventory) for any static host/Confluence | High | M-L | *The* sharing story for a local-first tool. Must embed fetched theme icons as data URIs. |
-| **Diagram diff** — two git revisions compared: added/removed/changed elements & relationships per view, visual overlay + text report | High | L | `c4studio diff rev1 rev2` for PR comments; model diff on the query layer, overlay via the renderer. |
+| ~~**Static HTML site export**~~ **shipped** — `c4 publish` | High | M-L | Self-contained: inlined SVG, icons as `data:` URIs. |
+| **Diagram diff** — ~~model diff + text report~~ **shipped** (`c4 diff`, PP-190); ~~as a PR comment~~ **shipped** as a README workflow snippet (PP-194); visual overlay **parked** (PP-211) | High | L | The overlay pays off once a team reviews diagrams in PRs. |
 
 ## Phase 4 — Differentiators & authoring depth
 
 | Feature | Value | Cx | Notes |
 |---|---|---|---|
-| **Impact analysis** — transitive dependents/dependencies + affected views for a chosen element | High | M | The most-asked change-advisory-board question; query-layer walk + UI highlight mode. |
-| **Perspectives overlays** — security/data/infra per-element overlays | Med-High | M | Parsed already; toolbar overlay selector + badge/tint rendering. |
-| **Workspace composition / landscape roll-up** — stitch per-team workspaces (`extends`/federation) into one enterprise landscape | High | L | The real "enterprise" scope gap; align DSL semantics with upstream `extends`. |
-| **ADR workflow tooling** — CLI create/supersede, ADR↔element links, status dashboard | Med | M | Templates + git already cover much; links add traceability. |
+| ~~**Impact analysis**~~ **shipped** — `c4 impact` (PP-189) and the Studio overlay (PP-193) | High | M | |
+| ~~**Perspectives overlays**~~ **shipped** — PP-173 … PP-183, dynamic values PP-179 | Med-High | M | |
+| **Workspace composition** — ~~`workspace extends <file>`~~ **shipped** (PP-210); federation / landscape roll-up of many workspaces **dropped** | High | L | `extends` was a parse error, which broke the fail-soft contract; it is Structurizr compatibility. Stitching many teams' workspaces together is not, and was dropped. |
+| ~~**ADR workflow tooling**~~ **dropped, October 2026** | — | — | ADRs are Markdown and existing tools write them; ADR↔element links would be an extension upstream cannot read. |
 | ~~**In-browser DSL editor** — diagnostics + element-id autocomplete~~ | — | — | ✅ **Shipped in 0.3.0.** The judgement that this was "convenience rather than capability" was revisited and reversed — see `studio-editor-plan.md`. CodeMirror 6 went in as a `frontend/` dependency, asked for and agreed. |
-| **Scaffolding** — org templates; deterministic diff-friendly layout sidecars | Med | S-M | ◐ **Half shipped in 0.3.0**: `c4 new` writes one of four starter workspaces, and the app creates one from a picker (PP-137, PP-139). What remains is *org* templates and diff-friendly sidecar ordering. |
+| **Scaffolding** — ~~starter workspaces~~ **shipped in 0.3.0** (`c4 new`, PP-137, PP-139); org templates and diff-friendly sidecar ordering **dropped** | Med | S-M | Sidecars are gitignored per-user state that nobody diffs, and an org template is a `.dsl` file kept somewhere. |
 
 **Previously parked, now shipped:** the in-browser DSL editor (PP-119 …
 PP-142, the whole of `studio-editor-plan.md`) and manual edge vertices
@@ -120,7 +120,7 @@ filesystem, and an export path for PDF/email where iframes do not render.
 | ~~**`flowchart`/`subgraph` Mermaid target**~~ **shipped, PP-89** | Med-High | S | Mermaid's `C4Context`/`C4Container` types are experimental upstream, lay out poorly on dense models, and GitHub pins its own Mermaid version. Same graph model in, more reliable rendering out — and it took the view types the C4 target skips (dynamic, deployment, filtered), so every view now renders. `generate -f flowchart`; the C4 target stays the default. |
 | ~~**Headless SVG renderer**~~ **shipped, PP-93** | High (enabler) | L | This was Phase 3's headless-rendering item. Serves Confluence export, the GitHub Action and Pages — and answers Phase 3's open "Python dagre-equivalent vs small Node script" question: dagre is pure JS and runs headless in Node, so layout stays in one implementation. |
 | ~~**`diagram-core` extraction**~~ **shipped, PP-92** | High (enabler) | M-L | Move `frontend/src/layout.ts`, the node/edge components and export out of the SPA into a package. `GraphPane` currently imports `api.ts` and saves layout itself; that coupling must be lifted into props before it can embed anywhere. Also carries the settled layout-engine decision below: migrate to `@dagrejs/dagre` and give layout an async interface. |
-| **`SourceResolver` injection** | Med | M | `!include` (`dsl.py`), `docs.py` and `locations.py` reach for the filesystem. Replace `base_dir: Path` with a `read(name) -> str` protocol. Kept after the Confluence parking because it stands on its own: it makes the parser testable without temp dirs. |
+| ~~**`SourceResolver` injection**~~ **dropped, October 2026** | Med | M | Confluence was its reason, and Confluence is parked; testing without temp directories does not justify it alone. Revisit with Confluence. |
 | ~~**GitHub Action**~~ **shipped, PP-95** | High | M | Renders every view on push/PR; `mode` selects artifact, commit or PR comment. Composite action installing the published wheel with pip — runners already have Python *and* Node, which `render` needs. `.github/workflows/diagrams.yml` dogfoods it against `samples/hedge_fund`. Becomes "diagram diff on PRs" once the model diff exists. |
 
 ### The defect this fixed (PP-88, resolved)
@@ -306,10 +306,34 @@ own merits, and none of them depend on Forge) → ~~Pyodide spike~~
 wheel → Forge CSP verification → `SourceResolver` → Confluence macro →
 github.dev.
 
-**Next up: the Forge CSP verification**, the one remaining item that can
-invalidate a design rather than merely cost time. Splitting the core's
-dependencies out of the wheel can proceed in parallel, since it is
-worthwhile on its own.
+The Forge, `SourceResolver` and Confluence steps are parked with the
+Confluence half (August 2026). Nothing in this sequence is next.
+
+## October 2026 review
+
+Every open item was reviewed for whether it still made sense. Kept and
+done: PP-198 (dynamic-view step ids), PP-209 (`routing Orthogonal`),
+PP-210 (`workspace extends`), PP-193 (impact in the Studio), PP-194 (the
+diff as a PR comment). Parked: PP-211 (the diff's visual overlay).
+
+**Dropped**, with the reason each time, so they are not re-proposed
+without one:
+
+- **Query layer / `c4 query`** — everything it was to enable shipped
+  without it; `c4 export` covers scripting.
+- **ADR tooling** — Markdown plus existing tools; element links would be
+  unreadable upstream.
+- **Org templates, diff-friendly sidecar ordering** — sidecars are never
+  diffed; a template is a file.
+- **`SourceResolver`** — its reason was Confluence, which is parked.
+- **Workspace federation / landscape roll-up** — `extends` covers the
+  compatibility need; roll-up is a different product.
+- **Custom and image views** — rare even upstream.
+
+**Open questions for a human:** the governance inventory (do real models
+carry owner/lifecycle properties?), and merging the Diagrams and Source
+pages (`studio-editor-plan.md`, "After F1"), which changes how people use
+the app and is not an agent's call.
 
 ## Delivery conventions (unchanged)
 

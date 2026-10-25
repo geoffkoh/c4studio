@@ -122,8 +122,9 @@ editor (PP-125).
 
 ### Remaining gaps, should they ever be worth closing
 
-1. **Custom / image views, dynamic perspectives** — long-tail Structurizr
-   features with niche usage.
+1. **Custom / image views** — long-tail Structurizr features with niche
+   usage; dropped in the October 2026 review. Dynamic perspectives, once
+   listed here, shipped in PP-179.
 2. **Multi-user anything** — locking, branches, accounts. Ruled out by
    design, not backlog: c4studio is local-first and shares through git.
    Worth knowing that upstream's own DSL editor is behind a feature flag
