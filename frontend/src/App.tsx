@@ -9,6 +9,7 @@ import {
   deleteLayout,
   deleteNamedLayout,
   getCapabilities,
+  getImpact,
   getPerspectiveValues,
   getStatus,
   getViewGraph,
@@ -357,7 +358,7 @@ export default function App() {
 
   // A stable object, so the pane's effects do not re-run on every render.
   const diagramDetails = useMemo(
-    () => ({ onShowDefinition: handleShowDefinition }),
+    () => ({ onShowDefinition: handleShowDefinition, loadImpact: getImpact }),
     [handleShowDefinition],
   );
 

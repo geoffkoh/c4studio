@@ -1,7 +1,7 @@
 import { useMemo, type KeyboardEvent } from "react";
 import type { Edge, Node } from "reactflow";
 
-import type { GraphData } from "../types";
+import type { GraphData, ImpactResult } from "../types";
 import { ElementDetails, KIND_LABELS } from "./ElementDetails";
 
 interface DiagramDetailsProps {
@@ -12,6 +12,13 @@ interface DiagramDetailsProps {
   payload: GraphData | null;
   onSelectNode: (id: string) => void;
   onShowDefinition?: (elementId: string) => void;
+  /** The impact overlay (PP-193); absent where it is not offered. */
+  impact?: {
+    shown: ImpactResult | null;
+    failed: boolean;
+    onShow: (elementId: string) => void;
+    onClear: () => void;
+  };
   onClose: () => void;
 }
 
@@ -30,6 +37,7 @@ export function DiagramDetails({
   payload,
   onSelectNode,
   onShowDefinition,
+  impact,
   onClose,
 }: DiagramDetailsProps) {
   // Elements only: boundaries and the title/legend chrome are layout,
@@ -80,7 +88,9 @@ export function DiagramDetails({
           })}
         onShowDefinition={onShowDefinition ? () => onShowDefinition(id) : undefined}
         onClose={onClose}
-      />
+      >
+        {impact ? <ImpactSection id={id} {...impact} /> : null}
+      </ElementDetails>
     ) : null;
   } else if (count === 1) {
     const edge = edgeById.get(selectedEdges[0].id);
@@ -125,5 +135,47 @@ export function DiagramDetails({
         </>
       )}
     </aside>
+  );
+}
+
+function dependentsText(count: number): string {
+  if (count === 0) return "Nothing depends on it";
+  return `${count} ${count === 1 ? "depends" : "depend"} on it`;
+}
+
+/**
+ * The card's way into the impact overlay, and its answer in numbers.
+ *
+ * The overlay shows what the view on screen draws; the counts are the
+ * whole model's, so an element whose dependents live on other views
+ * still says how many there are — and which views draw it.
+ */
+function ImpactSection({
+  id,
+  shown,
+  failed,
+  onShow,
+  onClear,
+}: { id: string } & NonNullable<DiagramDetailsProps["impact"]>) {
+  const active = shown?.element.id === id;
+  return (
+    <>
+      <h4 className="details__heading">Impact</h4>
+      {active ? (
+        <p className="details__impact" aria-label="Impact summary">
+          {dependentsText(shown.dependents.length)} · it depends on{" "}
+          {shown.dependencies.length} · drawn in {shown.views.length}{" "}
+          {shown.views.length === 1 ? "view" : "views"}
+        </p>
+      ) : null}
+      {failed ? <p className="details__note">Could not work out the impact.</p> : null}
+      <button
+        className="details__definition"
+        aria-pressed={active}
+        onClick={() => (active ? onClear() : onShow(id))}
+      >
+        {active ? "Hide impact" : "Show impact"}
+      </button>
+    </>
   );
 }

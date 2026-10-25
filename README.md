@@ -362,6 +362,14 @@ rule the views apply when they lift an edge to the nearest visible
 ancestor. An answer that ignored the hierarchy would disagree with the
 diagrams it is about.
 
+The same answer is on the Diagrams page: select an element, open its
+details (`i`), and choose **Show impact**. The view repaints — the element
+and whatever contains it marked *Changed*, what depends on it and what it
+depends on in their own colours, the rest faded — and the card gives the
+model-wide counts and how many views draw it. It stays on as you move
+between views; the chip in the toolbar clears it, and choosing a
+perspective replaces it.
+
 ## Model standards (`c4 lint`)
 Where `c4 check` asks whether a file parses, `c4 lint` asks whether it is
 a good model — the review comments someone would otherwise have to make

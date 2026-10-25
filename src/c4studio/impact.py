@@ -243,6 +243,27 @@ def analyse(
     )
 
 
+def family(workspace: Workspace, element_id: str) -> list[str]:
+    """What contains ``element_id`` and what it contains, at any depth.
+
+    Not part of :class:`Impact`, whose lists are what a change *reaches*:
+    the element's own family is the change. The Studio needs it to mark
+    what a view draws in the element's place — the software system on a
+    context view, when the element asked about is one of its containers.
+
+    Returns:
+        Ids in model order, the element itself excluded.
+
+    Raises:
+        KeyError: If no element has that id.
+    """
+    index = _index(workspace)
+    if element_id not in index:
+        raise KeyError(element_id)
+    related = _descendants(index, element_id) | _ancestors(index, element_id)
+    return [node_id for node_id in index if node_id in related - {element_id}]
+
+
 def to_dict(impact: Impact) -> dict[str, object]:
     """The answer as JSON-ready data, for scripts and tickets."""
 
