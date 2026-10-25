@@ -69,6 +69,9 @@ export interface GNode {
     expanded?: boolean;
     /** The element's perspectives, own then inherited (instances). */
     perspectives?: GPerspective[];
+    /** `properties`, without `c4studio.*` settings; absent when none
+        (PP-205). */
+    properties?: Record<string, string>;
   };
   /** Present on nodes nested inside a boundary group node. */
   parentId?: string;
@@ -118,6 +121,13 @@ export interface GEdge {
   label: string;
   /** 1-based step number; only present on dynamic-view edges. */
   order?: number;
+  /** The one relationship this line draws, for the details card. Absent
+      when it stands for several — a lifted edge (PP-205). */
+  relationship?: {
+    description: string;
+    technology: string;
+    properties: Record<string, string>;
+  };
   /** Manual bend points in flow coordinates, from the layout sidecar. */
   waypoints?: [number, number][];
   /** Set once re-routed by dragging a segment (PP-196): `waypoints` are

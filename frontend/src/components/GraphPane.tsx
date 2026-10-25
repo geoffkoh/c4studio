@@ -66,6 +66,7 @@ import {
   type MenuAction,
 } from "./EdgeContextMenu";
 import { KeyboardShortcuts } from "./KeyboardShortcuts";
+import { DiagramDetails } from "./DiagramDetails";
 import { LayoutsMenu, type LayoutsApi } from "./LayoutsMenu";
 import { SelectionTools } from "./SelectionTools";
 
@@ -95,6 +96,8 @@ const HOVER_EMPHASIS_STORAGE_KEY = "c4studio.hoverEmphasis";
 const ANIMATE_EDGES_STORAGE_KEY = "c4studio.animateEdges";
 const SNAP_TO_GRID_STORAGE_KEY = "c4studio.snapToGrid";
 const INTERACTION_STORAGE_KEY = "c4studio.interaction";
+const DETAILS_STORAGE_KEY = "c4studio.details";
+const DETAILS_HINT_STORAGE_KEY = "c4studio.detailsHint";
 
 // Drag snapping step. Matches the Background dot spacing so the dots read
 // as the grid being snapped to rather than as unrelated decoration.
@@ -150,6 +153,11 @@ function storedSnapToGrid(): boolean {
   return window.localStorage.getItem(SNAP_TO_GRID_STORAGE_KEY) === "on";
 }
 
+/** Closed unless explicitly opened: the canvas is for arranging first. */
+function storedDetailsOpen(): boolean {
+  return window.localStorage.getItem(DETAILS_STORAGE_KEY) === "open";
+}
+
 /** Pan unless explicitly switched: a viewer pans on drag by convention. */
 function storedInteraction(): Interaction {
   return window.localStorage.getItem(INTERACTION_STORAGE_KEY) === "select"
@@ -197,6 +205,10 @@ interface GraphPaneProps {
   resetLayout: (key: string) => Promise<unknown>;
   /** Named layouts (PP-197); the Layouts menu is shown only when given. */
   layouts?: LayoutsApi;
+  /** The details card (PP-205); offered only when given. Not on the
+      Source page, where the pane is half the width and the editor is
+      already beside it. */
+  details?: { onShowDefinition: (elementId: string) => void };
 }
 
 /** Convert the API graph payload into React Flow nodes/edges. */
@@ -405,6 +417,7 @@ export function GraphPane({
   saveLayout,
   resetLayout,
   layouts,
+  details,
 }: GraphPaneProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
@@ -418,6 +431,11 @@ export function GraphPane({
   // name, so reloading after a rename does not leave everything faded.
   const [perspective, setPerspective] = useState<string | null>(null);
   const [perspectiveNames, setPerspectiveNames] = useState<string[]>([]);
+  // What the server sent for the view on screen: the details card reads
+  // properties and relationships from it by id.
+  const [payload, setPayload] = useState<GraphData | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState<boolean>(storedDetailsOpen);
+  const [detailsHint, setDetailsHint] = useState(false);
   // Live values for the shown perspective, keyed by the URL they came
   // from. Empty unless the server was started with
   // `--dynamic-perspectives` and something on screen declares one.
@@ -527,6 +545,24 @@ export function GraphPane({
       return next;
     });
   }, []);
+
+  const handleDetailsToggle = useCallback(() => {
+    setDetailsOpen((open) => {
+      const next = !open;
+      window.localStorage.setItem(DETAILS_STORAGE_KEY, next ? "open" : "closed");
+      return next;
+    });
+    setDetailsHint(false);
+  }, []);
+
+  /** Select one node on the canvas, as clicking it would. */
+  const selectOnly = useCallback(
+    (id: string) => {
+      setNodes((current) => current.map((n) => ({ ...n, selected: n.id === id })));
+      setEdges((current) => current.map((e) => ({ ...e, selected: false })));
+    },
+    [setNodes, setEdges],
+  );
 
   const handleInteraction = useCallback((mode: Interaction) => {
     setInteraction(mode);
@@ -1507,6 +1543,7 @@ export function GraphPane({
           });
         }
         setPerspectiveNames(data.perspectives ?? []);
+        setPayload(data);
         const flow = await toFlow(
           data,
           view,
@@ -1589,6 +1626,22 @@ export function GraphPane({
     () => nodes.filter((node) => node.selected).length,
     [nodes],
   );
+
+  // The card opens on request, not on click, so it has to be findable:
+  // the first time one element is selected with it closed, say how —
+  // once, ever (PP-205).
+  useEffect(() => {
+    if (!details || detailsOpen || selectedCount !== 1) return;
+    if (window.localStorage.getItem(DETAILS_HINT_STORAGE_KEY) === "shown") return;
+    window.localStorage.setItem(DETAILS_HINT_STORAGE_KEY, "shown");
+    setDetailsHint(true);
+  }, [details, detailsOpen, selectedCount]);
+
+  useEffect(() => {
+    if (!detailsHint) return;
+    const timer = window.setTimeout(() => setDetailsHint(false), 6000);
+    return () => window.clearTimeout(timer);
+  }, [detailsHint]);
 
   const trail = useMemo(
     () => (view ? buildTrail(view, views, workspace) : []),
@@ -1730,129 +1783,159 @@ export function GraphPane({
           onAlign={handleAlign}
           onDistribute={handleDistribute}
         />
-        <Panel position="top-right" className="edge-style">
-          <span className="edge-style__title">Mouse</span>
-          {INTERACTIONS.map((mode) => (
-            <button
-              key={mode.value}
-              className={
-                "edge-style__option" +
-                (mode.value === interaction ? " edge-style__option--active" : "")
-              }
-              title={
-                mode.value === "pan"
-                  ? "Drag pans the diagram; Shift+drag selects"
-                  : "Drag draws a selection box; scroll or middle-drag pans"
-              }
-              onClick={() => handleInteraction(mode.value)}
-            >
-              {mode.label}
-            </button>
-          ))}
-          <span className="edge-style__divider" />
-          <span className="edge-style__title">Edges</span>
-          {EDGE_STYLES.map((style) => (
-            <button
-              key={style.value}
-              className={
-                "edge-style__option" +
-                (style.value === edgeStyle ? " edge-style__option--active" : "")
-              }
-              onClick={() => handleEdgeStyle(style.value)}
-            >
-              {style.label}
-            </button>
-          ))}
-          <ExportButtons viewKey={view.key} />
-          <span className="edge-style__divider" />
-          <button
-            className="edge-style__option"
-            title="Discard saved positions and re-run auto-layout"
-            onClick={handleResetLayout}
-          >
-            Reset layout
-          </button>
-          {layouts ? (
-            <LayoutsMenu
-              viewKey={view.key}
-              api={layouts}
-              flush={flushLayout}
-              onApplied={handleLayoutApplied}
-            />
-          ) : null}
-          <span className="edge-style__divider" />
-          <button
-            className={
-              "edge-style__option" +
-              (hoverEmphasis ? " edge-style__option--active" : "")
-            }
-            title="Highlight the hovered relationship and dim the rest"
-            onClick={handleHoverToggle}
-          >
-            Hover
-          </button>
-          <button
-            className={
-              "edge-style__option" +
-              (animateEdges ? " edge-style__option--active" : "")
-            }
-            title="Animate the relationships of the hovered element"
-            aria-pressed={animateEdges}
-            onClick={handleAnimateToggle}
-          >
-            Animate
-          </button>
-          <button
-            className={
-              "edge-style__option" +
-              (snapToGrid ? " edge-style__option--active" : "")
-            }
-            title={`Snap dragged nodes to a ${SNAP_GRID[0]}px grid`}
-            onClick={handleSnapToggle}
-          >
-            Snap
-          </button>
-          {perspectiveNames.length > 0 ? (
-            <>
-              <span className="edge-style__divider" />
-              <label
-                className="edge-style__title"
-                htmlFor="perspective-picker"
-              >
-                Perspective
-              </label>
-              <select
-                id="perspective-picker"
+        <Panel position="top-right" className="graph-corner">
+          <div className="edge-style">
+            <span className="edge-style__title">Mouse</span>
+            {INTERACTIONS.map((mode) => (
+              <button
+                key={mode.value}
                 className={
-                  "edge-style__select" +
-                  (activePerspective !== null
-                    ? " edge-style__select--active"
-                    : "")
+                  "edge-style__option" +
+                  (mode.value === interaction ? " edge-style__option--active" : "")
                 }
-                title="Fade everything that does not carry this perspective"
-                value={activePerspective ?? ""}
-                onChange={(event) =>
-                  setPerspective(event.target.value || null)
+                title={
+                  mode.value === "pan"
+                    ? "Drag pans the diagram; Shift+drag selects"
+                    : "Drag draws a selection box; scroll or middle-drag pans"
+                }
+                onClick={() => handleInteraction(mode.value)}
+              >
+                {mode.label}
+              </button>
+            ))}
+            <span className="edge-style__divider" />
+            <span className="edge-style__title">Edges</span>
+            {EDGE_STYLES.map((style) => (
+              <button
+                key={style.value}
+                className={
+                  "edge-style__option" +
+                  (style.value === edgeStyle ? " edge-style__option--active" : "")
+                }
+                onClick={() => handleEdgeStyle(style.value)}
+              >
+                {style.label}
+              </button>
+            ))}
+            <ExportButtons viewKey={view.key} />
+            <span className="edge-style__divider" />
+            <button
+              className="edge-style__option"
+              title="Discard saved positions and re-run auto-layout"
+              onClick={handleResetLayout}
+            >
+              Reset layout
+            </button>
+            {layouts ? (
+              <LayoutsMenu
+                viewKey={view.key}
+                api={layouts}
+                flush={flushLayout}
+                onApplied={handleLayoutApplied}
+              />
+            ) : null}
+            <span className="edge-style__divider" />
+            <button
+              className={
+                "edge-style__option" +
+                (hoverEmphasis ? " edge-style__option--active" : "")
+              }
+              title="Highlight the hovered relationship and dim the rest"
+              onClick={handleHoverToggle}
+            >
+              Hover
+            </button>
+            <button
+              className={
+                "edge-style__option" +
+                (animateEdges ? " edge-style__option--active" : "")
+              }
+              title="Animate the relationships of the hovered element"
+              aria-pressed={animateEdges}
+              onClick={handleAnimateToggle}
+            >
+              Animate
+            </button>
+            <button
+              className={
+                "edge-style__option" +
+                (snapToGrid ? " edge-style__option--active" : "")
+              }
+              title={`Snap dragged nodes to a ${SNAP_GRID[0]}px grid`}
+              onClick={handleSnapToggle}
+            >
+              Snap
+            </button>
+            {details ? (
+              <button
+                className={
+                  "edge-style__option" +
+                  (detailsOpen ? " edge-style__option--active" : "")
+                }
+                title="Details of the selected element or relationship (i)"
+                aria-pressed={detailsOpen}
+                onClick={handleDetailsToggle}
+              >
+                Details
+              </button>
+            ) : null}
+            {perspectiveNames.length > 0 ? (
+              <>
+                <span className="edge-style__divider" />
+                <label
+                  className="edge-style__title"
+                  htmlFor="perspective-picker"
+                >
+                  Perspective
+                </label>
+                <select
+                  id="perspective-picker"
+                  className={
+                    "edge-style__select" +
+                    (activePerspective !== null
+                      ? " edge-style__select--active"
+                      : "")
+                  }
+                  title="Fade everything that does not carry this perspective"
+                  value={activePerspective ?? ""}
+                  onChange={(event) =>
+                    setPerspective(event.target.value || null)
+                  }
+                >
+                  <option value="">None</option>
+                  {perspectiveNames.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              </>
+            ) : null}
+            {layoutState !== "idle" ? (
+              <span
+                className={
+                  "layout-status" +
+                  (layoutState === "failed" ? " layout-status--failed" : "")
                 }
               >
-                <option value="">None</option>
-                {perspectiveNames.map((name) => (
-                  <option key={name} value={name}>
-                    {name}
-                  </option>
-                ))}
-              </select>
-            </>
-          ) : null}
-          {layoutState !== "idle" ? (
-            <span
-              className={
-                "layout-status" +
-                (layoutState === "failed" ? " layout-status--failed" : "")
-              }
-            >
-              {layoutState === "saved" ? "Saved ✓" : "Save failed"}
-            </span>
+                {layoutState === "saved" ? "Saved ✓" : "Save failed"}
+              </span>
+            ) : null}
+            {detailsHint ? (
+              <span className="details-hint" role="status">
+                Press <kbd>i</kbd> for details
+              </span>
+            ) : null}
+          </div>
+          {details && detailsOpen ? (
+            <DiagramDetails
+              nodes={nodes}
+              edges={edges}
+              payload={payload}
+              onSelectNode={selectOnly}
+              onShowDefinition={details.onShowDefinition}
+              onClose={handleDetailsToggle}
+            />
           ) : null}
         </Panel>
         {isDynamic && maxStep > 0 ? (
@@ -1913,6 +1996,7 @@ export function GraphPane({
           onAnimateToggle={handleAnimateToggle}
           onSnapToggle={handleSnapToggle}
           onInteractionToggle={handleInteractionToggle}
+          onDetailsToggle={details ? handleDetailsToggle : undefined}
         />
         {edgeMenu && edgeMenuActions.length > 0 ? (
           <EdgeContextMenu

@@ -355,6 +355,12 @@ export default function App() {
     setPage("source");
   }, []);
 
+  // A stable object, so the pane's effects do not re-run on every render.
+  const diagramDetails = useMemo(
+    () => ({ onShowDefinition: handleShowDefinition }),
+    [handleShowDefinition],
+  );
+
   /** A file picked in the tree: show it in the editor, whatever it is.
 
       A workspace root is loaded as well (see handleSelectFile); a fragment
@@ -514,6 +520,7 @@ export default function App() {
               saveLayout={saveLayout}
               resetLayout={deleteLayout}
               layouts={NAMED_LAYOUTS}
+              details={diagramDetails}
             />
           ) : page === "explorer" ? (
             <ExplorerPane

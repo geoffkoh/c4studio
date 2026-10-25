@@ -91,3 +91,71 @@ def test_only_the_prefix_is_reserved() -> None:
     assert shown_properties(
         {"c4studio.legend": "x", "c4studio": "a", "c4studios.x": "b"}
     ) == {"c4studio": "a", "c4studios.x": "b"}
+
+
+class TestViewGraph:
+    """The Diagrams page's details card reads the view graph (PP-205)."""
+
+    @pytest.fixture()
+    def client(self, tmp_path: Path) -> TestClient:
+        dsl = DSL.replace(
+            'container s "cont" {',
+            'systemContext s "ctx" {\n            include *\n        }\n'
+            '        container s "cont" {',
+        ).replace(
+            '        u -> api "Uses" {',
+            '        db = softwareSystem "DB"\n'
+            '        api -> db "Reads"\n'
+            '        api -> db "Writes"\n'
+            '        u -> api "Uses" {',
+        )
+        (tmp_path / "w.dsl").write_text(dsl, encoding="utf-8")
+        client = TestClient(create_app(root=tmp_path))
+        assert client.post("/api/load", json={"path": "w.dsl"}).status_code == 200
+        return client
+
+    def _graph(self, client: TestClient, key: str) -> dict[str, Any]:
+        response = client.get(f"/api/views/{key}/graph")
+        assert response.status_code == 200
+        data: dict[str, Any] = response.json()
+        return data
+
+    def test_a_node_carries_its_properties_only_when_it_has_any(
+        self, client: TestClient
+    ) -> None:
+        nodes = {n["id"]: n["data"] for n in self._graph(client, "cont")["nodes"]}
+        assert nodes["api"]["properties"] == {
+            "owner": "team-a",
+            "runbook": "## Restart\n\n1. Drain",
+        }
+        assert "properties" not in nodes["u"]
+
+    def test_a_line_drawing_one_relationship_carries_it(
+        self, client: TestClient
+    ) -> None:
+        (edge,) = [
+            e for e in self._graph(client, "cont")["edges"] if e["source"] == "u"
+        ]
+        assert edge["relationship"] == {
+            "description": "Uses",
+            "technology": "",
+            "properties": {"sla": "99.9%"},
+        }
+
+    def test_two_relationships_on_one_pair_are_told_apart_by_label(
+        self, client: TestClient
+    ) -> None:
+        edges = [e for e in self._graph(client, "cont")["edges"] if e["target"] == "db"]
+        assert sorted(e["relationship"]["description"] for e in edges) == [
+            "Reads",
+            "Writes",
+        ]
+
+    def test_a_lifted_line_carries_none(self, client: TestClient) -> None:
+        """In the context view `u -> api` is drawn as `u -> s`."""
+        (edge,) = [
+            e
+            for e in self._graph(client, "ctx")["edges"]
+            if (e["source"], e["target"]) == ("u", "s")
+        ]
+        assert "relationship" not in edge

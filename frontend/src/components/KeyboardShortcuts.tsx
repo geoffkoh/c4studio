@@ -14,13 +14,16 @@ interface KeyboardShortcutsProps {
   onSnapToggle: () => void;
   /** Flips between pan and select mode (the toolbar's Mouse buttons). */
   onInteractionToggle: () => void;
+  /** Shows or hides the details card (the toolbar's Details button);
+      absent where there is no card. */
+  onDetailsToggle?: () => void;
 }
 
 /**
  * Graph-scoped keyboard shortcuts: `f` fits the diagram to the window,
  * `p`/`s` export PNG/SVG, `h` toggles hover emphasis, `a` toggles
  * marching-ants edges, `g` toggles snap to grid, `v` flips between pan
- * and select mode. Renders nothing;
+ * and select mode, `i` shows or hides the details card. Renders nothing;
  * must sit inside the ReactFlow component for `useReactFlow`. App-level
  * shortcuts (view navigation, help overlay) live in App.tsx.
  */
@@ -30,6 +33,7 @@ export function KeyboardShortcuts({
   onAnimateToggle,
   onSnapToggle,
   onInteractionToggle,
+  onDetailsToggle,
 }: KeyboardShortcutsProps) {
   const { fitView, getNodes } = useReactFlow();
 
@@ -59,6 +63,10 @@ export function KeyboardShortcuts({
         case "v":
           onInteractionToggle();
           break;
+        case "i":
+          if (!onDetailsToggle) return;
+          onDetailsToggle();
+          break;
         default:
           return;
       }
@@ -74,6 +82,7 @@ export function KeyboardShortcuts({
     onAnimateToggle,
     onSnapToggle,
     onInteractionToggle,
+    onDetailsToggle,
   ]);
 
   return null;

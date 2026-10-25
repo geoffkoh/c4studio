@@ -16,8 +16,9 @@ from c4studio.graph.view_graph import (
     effective_layout,
     perspective_names,
     rank_direction,
+    shown_properties,
 )
-from c4studio.models import View, ViewType, Workspace
+from c4studio.models import Relationship, View, ViewType, Workspace
 
 #: What the frontend laid out with before spacing was plumbed through, and
 #: still the look of any view that declares no autoLayout.
@@ -85,6 +86,27 @@ def views_index(workspace: Workspace) -> list[dict[str, Any]]:
     return entries
 
 
+def _relationship_for(
+    workspace: Workspace, source: str, target: str, label: str
+) -> Relationship | None:
+    """The one declared relationship an edge draws, if it draws exactly one.
+
+    By endpoints, since an unaliased relationship has no id. ``None`` for a
+    lifted edge — drawn between ancestors, so no relationship has those
+    endpoints — and for one that two relationships share and its label
+    cannot tell apart.
+    """
+    candidates = [
+        rel
+        for rel in workspace.relationships
+        if not rel.linked_relationship_id
+        and (rel.source_id, rel.destination_id) == (source, target)
+    ]
+    if len(candidates) > 1:
+        candidates = [rel for rel in candidates if rel.description == label]
+    return candidates[0] if len(candidates) == 1 else None
+
+
 def react_flow_graph(
     workspace: Workspace,
     view: View,
@@ -116,6 +138,12 @@ def react_flow_graph(
         data = dict(graph_node.get("data", {}))
         # Tag-based style backgrounds win over the built-in kind palette.
         data["color"] = data.get("background") or KIND_COLOURS.get(data.get("kind", ""))
+        # For the details card (PP-205); only when there are any, so a
+        # view without properties sends what it always did.
+        element = workspace.find_element(graph_node["id"])
+        shown = shown_properties(getattr(element, "properties", {}))
+        if shown:
+            data["properties"] = shown
         node: ReactFlowNode = {"id": graph_node["id"], "data": data}
         if "parentId" in graph_node:
             node["parentId"] = graph_node["parentId"]
@@ -144,6 +172,17 @@ def react_flow_graph(
                 edge[field] = edge_data[field]
         if "perspectives" in edge_data:
             edge["perspectives"] = edge_data["perspectives"]
+        # What the details card shows for a selected line (PP-205). Absent
+        # when the line stands for no single relationship.
+        rel = _relationship_for(
+            workspace, edge["source"], edge["target"], edge_data.get("label", "")
+        )
+        if rel is not None:
+            edge["relationship"] = {
+                "description": rel.description,
+                "technology": rel.technology,
+                "properties": shown_properties(rel.properties),
+            }
         edges.append(edge)
 
     # Filtered views carry no layout of their own; inherit the base view's.
