@@ -74,6 +74,16 @@ the node rather than through it when it has to double back. The stub is
 recomputed and never stored, which is why `routeBends` drops it by index
 and `insertStep` keeps a new step off it.
 
+### `routing Orthogonal` is drawn (PP-209)
+
+A relationship style's `routing Orthogonal` resolves to the edge's
+`styleRouting`, which the canvas and `svg.ts` draw with the PP-196
+router whatever the toolbar's line style. It is deliberately not the
+`routing` key: that one is the sidecar's record of a user re-route, so a
+save would copy the model's choice into per-user state and Reset route
+would undo it. `Direct`/`Curved` are not painted; a later rule
+overriding an earlier `Orthogonal` clears it.
+
 ### Dynamic-view step ids (PP-198)
 
 A step's edge id was `step-<order>-<src>__<dst>`, so inserting a step
@@ -185,8 +195,7 @@ expected, not a failure.
 - **PP-193 / PP-194:** impact analysis in the Studio, and the diagram
   diff as a PR comment with a visual overlay. Both are carried over from
   the September run.
-- **Not ticketed yet:** paint the DSL's `routing Orthogonal` relationship
-  style with the PP-196 router. The style is parsed and ignored today.
+- **PP-210:** `workspace extends <file>`, which is a parse error today.
 
 ---
 

@@ -34,6 +34,7 @@ from c4studio.models import (
     RankDirection,
     Relationship,
     RelationshipStyle,
+    Routing,
     SoftwareSystem,
     View,
     ViewElement,
@@ -626,6 +627,7 @@ def _edge_paint(styles: list[RelationshipStyle], rel: Relationship) -> dict[str,
         return paint
     tags = {"Relationship", *rel.tags}
     matched: list[str] = []
+    routing: Routing | None = None
     for style in styles:
         if style.tag not in tags or style.color_scheme == ColorScheme.DARK:
             continue
@@ -648,6 +650,16 @@ def _edge_paint(styles: list[RelationshipStyle], rel: Relationship) -> dict[str,
             paint["lineStyle"] = style.style.value.lower()
         elif style.dashed is not None:
             paint["lineStyle"] = "dashed" if style.dashed else "solid"
+        if style.routing is not None:
+            routing = style.routing
+    # `routing Orthogonal` draws the line with the step router (PP-209).
+    # Its own key, not `routing`: that one is the sidecar's record of a
+    # line the user re-routed, which Reset route clears and a save writes
+    # back, and neither should touch what the model says. A later
+    # `Direct` or `Curved` rule overrides an earlier `Orthogonal`; those
+    # two are not painted, the toolbar's line style draws them.
+    if routing == Routing.ORTHOGONAL:
+        paint["styleRouting"] = "orthogonal"
     if matched:
         paint["styleTag"] = ", ".join(matched)
     return paint

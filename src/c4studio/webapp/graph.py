@@ -172,7 +172,7 @@ def react_flow_graph(
             edge[PREVIOUS_IDS] = graph_edge[PREVIOUS_IDS]
         # Resolved relationship-style paint; absent fields mean "use the
         # renderer's default" (dashed, per upstream Structurizr).
-        for field in ("color", "lineStyle", "thickness", "opacity"):
+        for field in ("color", "lineStyle", "thickness", "opacity", "styleRouting"):
             if field in edge_data:
                 edge[field] = edge_data[field]
         if "perspectives" in edge_data:

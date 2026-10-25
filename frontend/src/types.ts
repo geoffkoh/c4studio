@@ -135,6 +135,9 @@ export interface GEdge {
   /** Set once re-routed by dragging a segment (PP-196): `waypoints` are
       then the corners of an orthogonal route. */
   routing?: "orthogonal";
+  /** A relationship style's `routing Orthogonal` (PP-209): drawn
+      orthogonally whatever the toolbar's line style, but never saved. */
+  styleRouting?: "orthogonal";
   /** Sides a re-routed edge's ends are pinned to (PP-201). */
   sides?: {
     source?: "top" | "right" | "bottom" | "left";
