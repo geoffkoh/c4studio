@@ -7,6 +7,8 @@ not, and that nothing in a document can inject markup.
 
 from __future__ import annotations
 
+import pytest
+
 from c4studio.markdown import render
 
 
@@ -90,6 +92,59 @@ class TestEscaping:
     def test_markup_inside_a_table_cell_is_escaped(self) -> None:
         rendered = render("| <i>a</i> |\n| --- |\n| b |")
         assert "<i>" not in rendered
+
+
+class TestUrls:
+    """A URL cannot leave its attribute, or run script (PP-204).
+
+    The text was escaped without quotes, so a `"` in a URL closed the
+    attribute it was put in, and any scheme was accepted.
+    """
+
+    @pytest.mark.parametrize(
+        "source",
+        [
+            '[a](x"onmouseover="alert(1))',
+            '![a](x"onerror="alert(1))',
+            '![a"onerror="alert(1)](y.png)',
+        ],
+        ids=["link url", "image url", "image alt"],
+    )
+    def test_a_quote_cannot_close_the_attribute(self, source: str) -> None:
+        rendered = render(source)
+        assert "onmouseover=" not in rendered.replace("&quot;onmouseover=", "")
+        assert "onerror=" not in rendered.replace("&quot;onerror=", "")
+        assert '"alert' not in rendered
+
+    @pytest.mark.parametrize(
+        "source",
+        [
+            "[run](javascript:alert)",
+            "[run](JaVaScRiPt:alert)",
+            "[run](data:text/html,x)",
+            "[run](vbscript:x)",
+        ],
+    )
+    def test_a_script_scheme_keeps_only_the_text(self, source: str) -> None:
+        assert render(source) == "<p>run</p>"
+
+    def test_an_image_cannot_be_a_mailto(self) -> None:
+        assert render("![a](mailto:x@y.z)") == "<p>a</p>"
+
+    @pytest.mark.parametrize(
+        ("source", "expected"),
+        [
+            ("[w](https://e.x/?a=1&b=2)", '<a href="https://e.x/?a=1&amp;b=2">w</a>'),
+            ("[m](mailto:a@b.c)", '<a href="mailto:a@b.c">m</a>'),
+            ("[r](../docs/a.md)", '<a href="../docs/a.md">r</a>'),
+            (
+                "![i](data:image/png;base64,AA)",
+                '<img src="data:image/png;base64,AA" alt="i">',
+            ),
+        ],
+    )
+    def test_ordinary_urls_still_work(self, source: str, expected: str) -> None:
+        assert render(source) == f"<p>{expected}</p>"
 
 
 class TestUnsupported:
