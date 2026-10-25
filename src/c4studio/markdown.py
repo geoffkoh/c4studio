@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import html
 import re
+from collections.abc import Callable
 
 _HEADING = re.compile(r"^(?P<level>#{1,6})\s+(?P<text>.*)$")
 _ORDERED = re.compile(r"^\s*\d+[.)]\s+(?P<text>.*)$")
@@ -38,10 +39,40 @@ _CODE_SPAN = re.compile(r"`([^`]+)`")
 #: while the other rules run.
 _PLACEHOLDER = "\x00"
 
-#: Inline rules, applied in order to already-escaped text.
-_INLINE = (
-    (re.compile(r"!\[([^\]]*)\]\(([^)\s]+)\)"), r'<img src="\2" alt="\1">'),
-    (re.compile(r"\[([^\]]+)\]\(([^)\s]+)\)"), r'<a href="\2">\1</a>'),
+#: A URL that names its scheme. One without is relative, and safe.
+_SCHEME = re.compile(r"^([A-Za-z][A-Za-z0-9+.-]*):")
+
+#: Schemes a link or an image may use. Anything else — `javascript:`
+#: above all — is dropped, keeping the text (PP-204).
+_LINK_SCHEMES = frozenset({"http", "https", "mailto"})
+_IMAGE_SCHEMES = frozenset({"http", "https"})
+
+
+def _safe_url(url: str, *, image: bool = False) -> bool:
+    """Whether ``url`` may go into an ``href`` (or, for an image, a ``src``)."""
+    scheme = _SCHEME.match(url)
+    if scheme is None:
+        return True
+    if scheme.group(1).lower() in (_IMAGE_SCHEMES if image else _LINK_SCHEMES):
+        return True
+    return image and url.lower().startswith("data:image/")
+
+
+def _image(match: re.Match[str]) -> str:
+    alt, url = match.group(1), match.group(2)
+    return f'<img src="{url}" alt="{alt}">' if _safe_url(url, image=True) else alt
+
+
+def _link(match: re.Match[str]) -> str:
+    text, url = match.group(1), match.group(2)
+    return f'<a href="{url}">{text}</a>' if _safe_url(url) else text
+
+
+#: Inline rules, applied in order to already-escaped text. Escaped with
+#: quotes, so a URL or alt text cannot close its attribute early.
+_INLINE: tuple[tuple[re.Pattern[str], str | Callable[[re.Match[str]], str]], ...] = (
+    (re.compile(r"!\[([^\]]*)\]\(([^)\s]+)\)"), _image),
+    (re.compile(r"\[([^\]]+)\]\(([^)\s]+)\)"), _link),
     (re.compile(r"\*\*([^*]+)\*\*"), r"<strong>\1</strong>"),
     (re.compile(r"(?<!\w)_([^_]+)_(?!\w)"), r"<em>\1</em>"),
     (re.compile(r"(?<!\*)\*([^*]+)\*(?!\*)"), r"<em>\1</em>"),
@@ -56,7 +87,7 @@ def _inline(text: str) -> str:
     kept matching *inside* the tag, so `` `**not bold**` `` came back
     bold — code that had been reformatted as the thing it was quoting.
     """
-    rendered = html.escape(text, quote=False)
+    rendered = html.escape(text)
 
     spans: list[str] = []
 
