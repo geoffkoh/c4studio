@@ -13,7 +13,9 @@ Last updated: **24 October 2026**, after the interface run
 and pinned sides, named layouts, and file-based themes; then multi-line
 strings in the parser (PP-202), properties on screen (PP-203, PP-204),
 a details card on the Diagrams page (PP-205), and a badge on elements
-that have properties (PP-207), coloured by a style if wanted (PP-208).
+that have properties (PP-207), coloured by a style if wanted (PP-208),
+and the canvas controls stacked top-left so the breadcrumb is never
+covered (PP-206).
 
 ---
 
@@ -25,7 +27,7 @@ that have properties (PP-207), coloured by a style if wanted (PP-208).
 | VS Code extension | **0.3.1**, packaged as `.vsix` only. Not on the Marketplace, and versioned independently of the Python package |
 | `main` | Green. Four CI jobs: Python gate, bundle + layout, VS Code extension packaging, and the `render` dogfood |
 | Open PRs | **None** |
-| Open `PP` tickets | PP-192 (drive the `.vsix` for a day — needs a human), PP-193, PP-194, PP-198, PP-206 — see *Open now* |
+| Open `PP` tickets | PP-192 (drive the `.vsix` for a day — needs a human), PP-193, PP-194, PP-198 — see *Open now* |
 | Frontend runtime | React **19**, TypeScript **7**, Vite **8**, marked **18**. `reactflow` stays on **11** — see below |
 
 ---
@@ -71,6 +73,20 @@ route leaves a pinned side square-on along a 20px stub, and goes round
 the node rather than through it when it has to double back. The stub is
 recomputed and never stored, which is why `routeBends` drops it by index
 and `insertStep` keeps a new step off it.
+
+### Canvas controls stacked top-left (PP-206)
+
+The breadcrumb, the toolbar and the alignment tools are now one column
+in the canvas's top-left corner, in that order, and the details card has
+the top-right corner to itself. The toolbar used to sit on the right
+with no width limit, and at about 1110px it covered the breadcrumb on any
+drilled-down view. To keep it to one row, the export formats are under
+**Export ▾** and the Hover/Animate/Snap toggles under **View ▾**
+(`ToolbarMenu.tsx`); their keyboard shortcuts are unchanged. Beside an
+open card the column stops 8px short of it. Below 640px the card is a
+full-width sheet, so it starts under the column, whose height GraphPane
+measures into `--controls-height`. `e2e/graph-controls.spec.ts` checks
+the deepest trail a sample has, a component view, at three widths.
 
 ### Badge colours (PP-208)
 
@@ -156,10 +172,6 @@ expected, not a failure.
 
 ## Open now
 
-- **PP-206:** the canvas toolbar covers the breadcrumb on drilled-down
-  views. At 1440px the toolbar is about 1110px wide, against the 470px
-  the breadcrumb's `max-width` reserves for it. This predates PP-205; it
-  was measured on main.
 - **PP-198:** dynamic-view step ids embed the step order, so waypoints,
   routes and label offsets on a dynamic view are lost when steps are
   renumbered. Logged, not scheduled.

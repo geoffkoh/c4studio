@@ -851,12 +851,8 @@ button {
   border-radius: 8px;
   padding: 4px 8px;
   box-shadow: var(--shadow);
-  /* A deep drill-down would otherwise run under the toolbar on the right,
-     which has no width limit of its own. Reserve that toolbar's width
-     (~470px with every group shown) plus the two 15px panel margins; the
-     crumb text ellipsises inside whatever is left. If the toolbar gains
-     controls, this number moves with it. */
-  max-width: calc(100% - 500px);
+  /* As wide as the column it heads (`.graph-controls`), and the crumb
+     text ellipsises inside that. */
   overflow: hidden;
 }
 
@@ -908,25 +904,62 @@ button {
   margin: 0 2px;
 }
 
-/* ---- Edge style selector ---- */
-/* The canvas's top-right corner: the toolbar, and the details card
-   under it (PP-205). A column, so the card follows the toolbar down if it
-   wraps. The corner itself lets clicks through — it is as wide as the
-   toolbar, and the space beside the card is canvas. */
-.graph-corner {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 8px;
-  /* Down to the MiniMap and no further: its 150px and 15px margin, the
-     panel's own 15px top margin, and a 10px gap. The card takes whatever
-     the toolbar leaves, however many rows that wraps to. */
-  max-height: calc(100% - 190px);
+/* ---- Canvas controls ---- */
+/* The canvas's top-left corner (PP-206): the breadcrumb, the toolbar
+   under it, and the selection's tools under that, as one column. They
+   used to share the top row with the toolbar on the right, and the
+   toolbar, having no width limit, covered the breadcrumb on any drill-down
+   deep enough to need it. Stacked, each can be as wide as the canvas.
+
+   Beside an open details card the column stops short of it: the card's
+   320px and an 8px gap. Below 640px the card is a full-width sheet, which
+   goes under the column instead (`.graph-corner`). */
+.react-flow__panel.graph-controls {
+  /* Above the card's panel, so a menu that opens near it is not under it. */
+  z-index: 6;
+  max-width: calc(100cqw - 30px);
   pointer-events: none;
 }
 
-.graph-corner > * {
+.react-flow__panel.graph-controls--beside-card {
+  max-width: calc(100cqw - 30px - 328px);
+}
+
+@container (max-width: 640px) {
+  .react-flow__panel.graph-controls--beside-card {
+    max-width: calc(100cqw - 30px);
+  }
+}
+
+.graph-controls__column {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.graph-controls__column > * {
+  box-sizing: border-box;
+  max-width: 100%;
   pointer-events: auto;
+}
+
+/* The top-right corner: the details card alone (PP-205). */
+.react-flow__panel.graph-corner {
+  display: flex;
+  flex-direction: column;
+  /* Down to the MiniMap and no further: its 150px and 15px margin, the
+     panel's own 15px top margin, and a 10px gap. */
+  max-height: calc(100% - 190px);
+}
+
+@container (max-width: 640px) {
+  /* A full-width sheet cannot sit beside the controls, so it starts under
+     them. GraphPane measures the column into `--controls-height`. */
+  .react-flow__panel.graph-corner {
+    margin-top: calc(15px + var(--controls-height, 0px) + 8px);
+    max-height: calc(100% - 198px - var(--controls-height, 0px));
+  }
 }
 
 .diagram-details {
@@ -976,12 +1009,8 @@ button {
 .edge-style {
   display: flex;
   align-items: center;
-  /* Wraps rather than running off the canvas's left edge: with every
-     group shown (a perspective picker, Details, a save status) it is
-     wider than a 1440px window's canvas. */
+  /* Wraps rather than running off the canvas, within the column's width. */
   flex-wrap: wrap;
-  justify-content: flex-end;
-  max-width: calc(100cqw - 30px);
   gap: 2px;
   background: var(--panel);
   border: 1px solid var(--border);
@@ -1041,6 +1070,32 @@ button {
   cursor: default;
 }
 
+/* Export ▾ and View ▾ (PP-206): a column of the toolbar's own buttons. */
+.toolbar-menu {
+  position: relative;
+}
+
+.toolbar-menu__popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  min-width: 110px;
+  padding: 4px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.16);
+}
+
+.toolbar-menu__popover .edge-style__option {
+  text-align: left;
+}
+
 /* Named layouts (PP-197): a small popover under its toolbar button. */
 .layouts-menu {
   position: relative;
@@ -1049,7 +1104,8 @@ button {
 .layouts-menu__popover {
   position: absolute;
   top: calc(100% + 8px);
-  right: 0;
+  /* The toolbar is anchored left, so its menus open rightwards. */
+  left: 0;
   z-index: 20;
   width: 240px;
   padding: 8px;
@@ -2748,17 +2804,7 @@ button {
 
 /* ---- Align / distribute toolbar (PP-101) ---- */
 /* Appears only while several nodes are selected, so it costs no chrome
-   the rest of the time. */
-/* Every React Flow panel gets `margin: 15px` at `top: 0`, so the top row
-   is one ~34px band shared by the breadcrumb (top-left) and the mouse/edge
-   toolbar (top-right). Both grow with content, so this panel takes a second
-   row rather than competing for the first. Right-aligned, so it stacks
-   under the toolbar it belongs with. Being contextual, the row exists only
-   while a selection does. */
-.react-flow__panel.selection-tools {
-  margin-top: 58px;
-}
-
+   the rest of the time. It is the last row of `.graph-controls`. */
 .selection-tools {
   display: flex;
   align-items: center;
@@ -2851,9 +2897,5 @@ button {
      file tree, and at this width it only crowds the tabs. */
   .topbar__file {
     display: none;
-  }
-
-  .breadcrumb {
-    max-width: calc(100% - 120px);
   }
 }

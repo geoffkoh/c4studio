@@ -29,7 +29,6 @@ export function ExportButtons({ viewKey }: { viewKey: string }) {
 
   return (
     <>
-      <span className="edge-style__divider" />
       {(["png", "svg"] as const).map((format) => (
         <button
           key={format}
