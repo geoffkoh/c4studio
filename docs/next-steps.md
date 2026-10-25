@@ -74,6 +74,19 @@ the node rather than through it when it has to double back. The stub is
 recomputed and never stored, which is why `routeBends` drops it by index
 and `insertStep` keeps a new step off it.
 
+### Impact analysis in the Studio (PP-193)
+
+The details card's **Show impact** calls `GET /api/impact/{id}` (the
+`c4 impact --json` answer plus the element's `family`) and paints it as
+a perspective of its own: `frontend/src/impact.ts` adds a
+`Change impact` perspective to each involved node, and to edges whose
+ends are both involved, so the fading, badges and legend are the
+perspective machinery unchanged. `perspectiveLegendEntries` gained an
+optional faded-row label ("Not involved"). It is one overlay or the
+other: showing impact clears the perspective picker, picking a
+perspective clears the impact. It survives view switches and is
+refetched on reload, ending if the element is gone. Not in `c4 render`.
+
 ### `workspace extends` (PP-210)
 
 It was a parse error that failed the whole file. `_splice_extends` in
@@ -205,9 +218,8 @@ expected, not a failure.
 
 ## Open now
 
-- **PP-193 / PP-194:** impact analysis in the Studio, and the diagram
-  diff as a PR comment with a visual overlay. Both are carried over from
-  the September run.
+- **PP-194:** the diagram diff as a PR comment, through a documented
+  workflow snippet. The visual overlay is split out to PP-211 and parked.
 
 ---
 

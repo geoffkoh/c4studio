@@ -115,6 +115,30 @@ export interface GPerspective {
   color?: string;
 }
 
+/** One element a change reaches, from GET /api/impact/{id} (PP-193). */
+export interface ImpactHop {
+  id: string;
+  name: string;
+  kind: string;
+  /** Relationships away; 1 is a direct neighbour. */
+  depth: number;
+  /** The element it was reached from. */
+  via: string;
+}
+
+/** GET /api/impact/{id}: what else is involved when the element changes. */
+export interface ImpactResult {
+  element: { id: string; name: string; kind: string };
+  /** What reaches it, nearest first. */
+  dependents: ImpactHop[];
+  /** What it reaches, nearest first. */
+  dependencies: ImpactHop[];
+  /** Keys of the views that draw it. */
+  views: string[];
+  /** What contains it and what it contains: the change itself. */
+  family: string[];
+}
+
 /** A React Flow edge as returned by GET /api/views/{key}/graph. */
 export interface GEdge {
   id: string;

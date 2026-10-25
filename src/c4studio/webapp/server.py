@@ -28,6 +28,9 @@ from pydantic import BaseModel
 from c4studio import templates
 from c4studio.diagnostics import Diagnostic, Severity
 from c4studio.graph.view_graph import apply_positions, apply_sizes
+from c4studio.impact import analyse as analyse_impact
+from c4studio.impact import family as impact_family
+from c4studio.impact import to_dict as impact_to_dict
 from c4studio.layout_sidecar import (
     ROUTING_MODES as _ROUTING_MODES,
 )
@@ -1053,6 +1056,31 @@ def create_app(
                 "dynamicPerspectives": state.config.dynamic_perspectives,
             },
         }
+
+    @app.get("/api/impact/{element_id}")
+    def element_impact(
+        element_id: str,
+        depth: int | None = None,
+        state: AppState = Depends(_get_state),
+    ) -> dict[str, Any]:
+        """What else is involved when ``element_id`` changes (PP-193).
+
+        The same answer as ``c4 impact --json``, plus the element's
+        ``family`` — what contains it and what it contains — so the page
+        can mark whatever a view draws in its place. A read, so Viewer
+        may ask too.
+        """
+        workspace = _require_workspace(state)
+        if depth is not None and depth < 1:
+            raise HTTPException(status_code=422, detail="depth must be at least 1")
+        try:
+            result = impact_to_dict(analyse_impact(workspace, element_id, depth))
+            result["family"] = impact_family(workspace, element_id)
+        except KeyError:
+            raise HTTPException(
+                status_code=404, detail=f"No element {element_id!r} in the model"
+            ) from None
+        return result
 
     @app.get("/api/perspectives/{name}/values")
     async def perspective_values(

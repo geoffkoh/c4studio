@@ -60,7 +60,14 @@ import {
 import { marchingEdgeIds, marchingStyle } from "../marching";
 import { buildTrail, crumbLabel, drillTarget } from "../navigation";
 import { isTypingTarget } from "../shortcuts";
-import type { GPerspective, GraphData, ViewInfo, Workspace } from "../types";
+import { IMPACT, IMPACT_FADED, impactPerspectives, withImpact } from "../impact";
+import type {
+  GPerspective,
+  GraphData,
+  ImpactResult,
+  ViewInfo,
+  Workspace,
+} from "../types";
 import {
   EdgeContextMenu,
   type EdgeMenuState,
@@ -210,7 +217,12 @@ interface GraphPaneProps {
   /** The details card (PP-205); offered only when given. Not on the
       Source page, where the pane is half the width and the editor is
       already beside it. */
-  details?: { onShowDefinition: (elementId: string) => void };
+  details?: {
+    onShowDefinition: (elementId: string) => void;
+    /** What else a change to the element involves (PP-193); the card
+        offers the overlay only when this is given. */
+    loadImpact?: (elementId: string) => Promise<ImpactResult>;
+  };
 }
 
 /** Convert the API graph payload into React Flow nodes/edges. */
@@ -449,6 +461,16 @@ export function GraphPane({
     perspective !== null && perspectiveNames.includes(perspective)
       ? perspective
       : null;
+  // The impact overlay (PP-193): one element's change, painted as a
+  // perspective of its own. Shown instead of a model perspective, never
+  // beside one — two overlays fading by different rules would leave
+  // "faded" meaning nothing in particular.
+  const [impact, setImpact] = useState<ImpactResult | null>(null);
+  const impactMap = useMemo(
+    () => (impact ? impactPerspectives(impact) : null),
+    [impact],
+  );
+  const overlay = impactMap ? IMPACT : activePerspective;
   // Hover emphasis: highlight the hovered relationship, dim the rest.
   const [hoverEmphasis, setHoverEmphasis] = useState<boolean>(storedHoverEmphasis);
   const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
@@ -559,6 +581,45 @@ export function GraphPane({
     });
     setDetailsHint(false);
   }, []);
+
+  const loadImpact = details?.loadImpact;
+  // A failure leaves whatever was shown; the card says it could not.
+  const [impactFailed, setImpactFailed] = useState(false);
+  const handleShowImpact = useCallback(
+    (elementId: string) => {
+      if (!loadImpact) return;
+      setImpactFailed(false);
+      loadImpact(elementId)
+        .then((result) => {
+          setPerspective(null);
+          setImpact(result);
+        })
+        .catch(() => setImpactFailed(true));
+    },
+    [loadImpact],
+  );
+  const handleClearImpact = useCallback(() => setImpact(null), []);
+
+  // The answer is the model's: a reload can change it, or remove the
+  // element altogether, which ends the overlay rather than leaving it
+  // describing something that is gone.
+  const impactIdRef = useRef<string | null>(null);
+  impactIdRef.current = impact?.element.id ?? null;
+  useEffect(() => {
+    const id = impactIdRef.current;
+    if (!id || !loadImpact) return;
+    let cancelled = false;
+    loadImpact(id)
+      .then((result) => {
+        if (!cancelled) setImpact(result);
+      })
+      .catch(() => {
+        if (!cancelled) setImpact(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [workspace, loadImpact]);
 
   /** Select one node on the canvas, as clicking it would. */
   const selectOnly = useCallback(
@@ -1326,12 +1387,19 @@ export function GraphPane({
     [animateEdges, nodes, edges, hoveredNodeId],
   );
 
+  // The impact perspective added where it applies; the nodes and edges
+  // themselves while there is no impact to show.
+  const overlaid = useMemo(
+    () => (impactMap ? withImpact(nodes, edges, impactMap) : { nodes, edges }),
+    [impactMap, nodes, edges],
+  );
+
   // Routing is presentation-only, so it is applied on the way into React
   // Flow rather than baked into the edge state.
   const styledEdges = useMemo(() => {
     const activeHover = hoverEmphasis ? hoveredEdgeId : null;
     const marching = new Set(marchingKey ? marchingKey.split("\n") : []);
-    return edges.map((edge) => {
+    return overlaid.edges.map((edge) => {
       const order = (edge.data as { order?: number } | undefined)?.order;
       const animState =
         isDynamic && animStep !== null && order !== undefined
@@ -1343,9 +1411,7 @@ export function GraphPane({
           : undefined;
       const hovered = edge.id === activeHover;
       const shown =
-        activePerspective !== null
-          ? shownPerspective(edge.data, activePerspective)
-          : undefined;
+        overlay !== null ? shownPerspective(edge.data, overlay) : undefined;
       // A relationship `Perspective:` style recolours the line and its
       // arrowhead together, as a relationship style does.
       const recolour =
@@ -1377,7 +1443,7 @@ export function GraphPane({
           pathStyle: edgeStyle,
           animState,
           hoverState: hovered ? ("hovered" as const) : undefined,
-          dimmed: activePerspective !== null && !shown,
+          dimmed: overlay !== null && !shown,
           perspective: shown,
           onHoverChange: hoverEmphasis ? setHoveredEdgeId : undefined,
           onWaypointDrag: handleWaypointDrag,
@@ -1393,14 +1459,14 @@ export function GraphPane({
       };
     });
   }, [
-    edges,
+    overlaid.edges,
     edgeStyle,
     isDynamic,
     animStep,
     hoverEmphasis,
     hoveredEdgeId,
     marchingKey,
-    activePerspective,
+    overlay,
     shownPerspective,
     handleWaypointDrag,
     handleWaypointDragEnd,
@@ -1429,10 +1495,16 @@ export function GraphPane({
   // server's style rows in place.
   const perspectiveLegend = useMemo(
     () =>
-      activePerspective === null
+      overlay === null
         ? null
-        : perspectiveLegendEntries(nodes, edges, activePerspective, liveValues),
-    [nodes, edges, activePerspective, liveValues],
+        : perspectiveLegendEntries(
+            overlaid.nodes,
+            overlaid.edges,
+            overlay,
+            liveValues,
+            overlay === IMPACT ? IMPACT_FADED : undefined,
+          ),
+    [overlaid, overlay, liveValues],
   );
 
   // Poll while a perspective with URLs is shown. One request covers the
@@ -1477,17 +1549,15 @@ export function GraphPane({
 
   const styledNodes = useMemo(() => {
     const animating = isDynamic && animStep !== null;
-    if (!animating && activePerspective === null) return nodes;
+    if (!animating && overlay === null) return nodes;
     // Upstream fades the boundaries too once anything is faded, so the
     // eye is left on what carries the perspective.
     const anyFaded =
-      activePerspective !== null &&
-      nodes.some(
-        (node) =>
-          node.type === "element" &&
-          !findPerspective(node.data, activePerspective),
+      overlay !== null &&
+      overlaid.nodes.some(
+        (node) => node.type === "element" && !findPerspective(node.data, overlay),
       );
-    return nodes.map((node) => {
+    return overlaid.nodes.map((node) => {
       const classes: string[] = [];
       if (animating) {
         const firstStep = firstStepByNode.get(node.id);
@@ -1496,18 +1566,16 @@ export function GraphPane({
         }
       }
       let data = node.data;
-      if (activePerspective !== null && isChromeNode(node.id)) {
+      if (overlay !== null && isChromeNode(node.id)) {
         // The legend explains styles; under a perspective the diagram is
         // painted by perspective, so the rows are replaced rather than
         // left saying something the colours no longer mean (PP-176).
         if (node.data.kind === "legend") {
           data = { ...node.data, entries: perspectiveLegend ?? [] };
         }
-      } else if (activePerspective !== null) {
+      } else if (overlay !== null) {
         const shown =
-          node.type === "element"
-            ? shownPerspective(node.data, activePerspective)
-            : undefined;
+          node.type === "element" ? shownPerspective(node.data, overlay) : undefined;
         if (shown) {
           data = {
             ...node.data,
@@ -1528,10 +1596,11 @@ export function GraphPane({
     });
   }, [
     nodes,
+    overlaid,
     isDynamic,
     animStep,
     firstStepByNode,
-    activePerspective,
+    overlay,
     perspectiveLegend,
     shownPerspective,
   ]);
@@ -1921,6 +1990,22 @@ export function GraphPane({
                   Details
                 </button>
               ) : null}
+              {impact ? (
+                <>
+                  <span className="edge-style__divider" />
+                  <span className="impact-chip" role="status">
+                    Impact of <strong>{impact.element.name}</strong>
+                    <button
+                      className="impact-chip__clear"
+                      aria-label="Clear impact"
+                      title="Clear impact"
+                      onClick={handleClearImpact}
+                    >
+                      ×
+                    </button>
+                  </span>
+                </>
+              ) : null}
               {perspectiveNames.length > 0 ? (
                 <>
                   <span className="edge-style__divider" />
@@ -1940,9 +2025,10 @@ export function GraphPane({
                     }
                     title="Fade everything that does not carry this perspective"
                     value={activePerspective ?? ""}
-                    onChange={(event) =>
-                      setPerspective(event.target.value || null)
-                    }
+                    onChange={(event) => {
+                      setPerspective(event.target.value || null);
+                      setImpact(null);
+                    }}
                   >
                     <option value="">None</option>
                     {perspectiveNames.map((name) => (
@@ -1988,6 +2074,16 @@ export function GraphPane({
               payload={payload}
               onSelectNode={selectOnly}
               onShowDefinition={details.onShowDefinition}
+              impact={
+                loadImpact
+                  ? {
+                      shown: impact,
+                      failed: impactFailed,
+                      onShow: handleShowImpact,
+                      onClear: handleClearImpact,
+                    }
+                  : undefined
+              }
               onClose={handleDetailsToggle}
             />
           </Panel>

@@ -111,6 +111,9 @@ function labelFor(perspective: Perspective, name: string): string {
  * @param edges Graph edges, carrying theirs.
  * @param name The perspective being shown.
  * @param live Values read from perspective URLs, keyed by URL.
+ * @param fadedLabel The faded row's wording, for an overlay that is not
+ *   a model perspective and has better words than "Not in <name>" — the
+ *   Studio's impact overlay (PP-193).
  * @returns Rows in the same shape the legend already renders.
  */
 export function perspectiveLegendEntries(
@@ -118,6 +121,7 @@ export function perspectiveLegendEntries(
   edges: LegendEdge[],
   name: string,
   live?: LiveValues,
+  fadedLabel?: string,
 ): LegendEntry[] {
   const entries: LegendEntry[] = [];
   const seen = new Set<string>();
@@ -166,7 +170,7 @@ export function perspectiveLegendEntries(
   if (anyFaded) {
     entries.push({
       kind: "element",
-      label: `Not in ${name}`,
+      label: fadedLabel ?? `Not in ${name}`,
       colour: FADED_COLOUR,
       shape: "RoundedBox",
       border: "",

@@ -10,6 +10,7 @@ import type {
   CheckResult,
   ExplorerLevel,
   GraphData,
+  ImpactResult,
   LayoutResult,
   LoadResult,
   ModelGraphData,
@@ -262,6 +263,13 @@ export function getPerspectiveValues(
   return request<{ values: Record<string, string> }>(
     `/api/perspectives/${encodeURIComponent(name)}/values`,
   );
+}
+
+/** GET /api/impact/{id} -> what else is involved when the element
+    changes (PP-193): the answer `c4 impact --json` gives, plus the
+    element's family. 404 when the model has no such element. */
+export function getImpact(elementId: string): Promise<ImpactResult> {
+  return request<ImpactResult>(`/api/impact/${encodeURIComponent(elementId)}`);
 }
 
 /** GET /api/views -> the index of views in the loaded workspace. */
