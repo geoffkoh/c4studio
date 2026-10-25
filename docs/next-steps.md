@@ -11,7 +11,7 @@ when you finish a run of work, not when you remember.
 Last updated: **24 October 2026**, after the interface run
 (PP-195 … PP-201): animated relationships, segment re-routing with steps
 and pinned sides, named layouts, and file-based themes; then multi-line
-strings in the parser (PP-202).
+strings in the parser (PP-202) and properties on screen (PP-203, PP-204).
 
 ---
 
@@ -23,7 +23,7 @@ strings in the parser (PP-202).
 | VS Code extension | **0.3.1**, packaged as `.vsix` only. Not on the Marketplace, and versioned independently of the Python package |
 | `main` | Green. Four CI jobs: Python gate, bundle + layout, VS Code extension packaging, and the `render` dogfood |
 | Open PRs | **None** |
-| Open `PP` tickets | PP-192 (drive the `.vsix` for a day — needs a human), PP-193, PP-194, PP-198, PP-203 — see *Open now* |
+| Open `PP` tickets | PP-192 (drive the `.vsix` for a day — needs a human), PP-193, PP-194, PP-198 — see *Open now* |
 | Frontend runtime | React **19**, TypeScript **7**, Vite **8**, marked **18**. `reactflow` stays on **11** — see below |
 
 ---
@@ -70,6 +70,21 @@ the node rather than through it when it has to double back. The stub is
 recomputed and never stored, which is why `routeBends` drops it by index
 and `insertStep` keeps a new step off it.
 
+### Properties on screen (PP-203), and the site's link URLs (PP-204)
+
+Element and relationship `properties` now show in the Explorer's details
+panel and in a Properties section on each published view page. One rule
+on both sides: `shown_properties` in `graph/view_graph.py` drops the
+`c4studio.*` settings, a multi-line value is Markdown, a one-line value
+is as written, a bare URL is a link. In the SPA the Markdown goes
+through its own `marked` instance that escapes raw HTML and allows the
+same URL schemes as the site, because a value is model data, unlike
+`!docs`. On the site a relationship is listed only when the view draws
+an edge between its own endpoints: unaliased relationships have no id,
+and a lifted edge is not its relationship. PP-204 was found on the way:
+the site's Markdown let a `"` in a link URL close the attribute, and
+took any scheme.
+
 ### Multi-line strings: text blocks and continuation (PP-202)
 
 `"""` text blocks and a trailing `\` now parse as structurizr-java's
@@ -106,10 +121,6 @@ expected, not a failure.
 
 ## Open now
 
-- **PP-203:** show element and relationship `properties` in the details
-  panel and the published site, rendering multi-line values with the
-  site's Markdown subset. Properties are parsed and exported today but
-  nothing displays them. The natural next step after PP-202.
 - **PP-198:** dynamic-view step ids embed the step order, so waypoints,
   routes and label offsets on a dynamic view are lost when steps are
   renumbered. Logged, not scheduled.

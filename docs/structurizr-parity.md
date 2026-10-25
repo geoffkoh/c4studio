@@ -77,7 +77,7 @@ inferring behaviour from this document when the two might disagree.
 | Feature | Java UI | c4studio |
 | --- | --- | --- |
 | DSL parsing incl. `!include` | ✅ | ✅ |
-| Element body metadata (`description`, `technology`, `url`, `tags`, `properties`, `perspectives`) | ✅ | ✅ parsed into the model + JSON export; perspectives drive the viewer's perspective overlay (PP-173) |
+| Element body metadata (`description`, `technology`, `url`, `tags`, `properties`, `perspectives`) | ✅ | ✅ parsed into the model + JSON export; perspectives drive the viewer's perspective overlay (PP-173); `properties` (but not `c4studio.*` settings) are shown in the Explorer's details panel and on each published view page, multi-line values as Markdown (PP-203) |
 | `properties` at workspace / model / views scope | ✅ three distinct holders | ✅ `Workspace.properties` (top level of the JSON, as `AbstractWorkspace.properties`), `Model.properties`, and the views configuration. They were two-thirds wrong until PP-105: workspace properties were written to the views configuration, and `views { properties … }` was skipped entirely |
 | Relationship metadata (positional tags + nested `tags`/`url`/`properties`/`perspectives`) and `this`/implicit-source relationships | ✅ | ✅ parsed into the model + JSON export |
 | Default relationship colour | `#444444` (`structurizr-ui.js`, `LIGHT_MODE_DEFAULTS.color`) | ⚠ **`#707070` — a deliberate divergence.** Upstream's value is 9.7:1 on white and reads as heavy ink; relationships are supporting detail in a C4 diagram, not its subject. `#707070` is 4.95:1, still well clear of the 3:1 WCAG 1.4.11 floor for non-text. Thickness (2) and line style (dashed) still match upstream, and a workspace `styles` block overrides all three |
