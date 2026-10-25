@@ -342,6 +342,67 @@ comes from its name and nothing ties the two together; when a removal and
 an addition share a name, the pair is flagged as a **possible** rename
 rather than assumed. A diff that invents a rename hides a deletion.
 
+### On every pull request
+
+`c4 diff` needs no Node, so a short workflow can post the answer on each
+pull request that touches the model, updating its own comment on every
+push rather than adding one per push:
+
+```yaml
+name: Architecture diff
+
+on:
+  pull_request:
+    paths:
+      - "architecture/**"
+
+permissions:
+  contents: read
+  pull-requests: write # to comment
+
+jobs:
+  diff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # c4 diff reads the base revision from git history
+
+      - run: pipx install c4studio # no Node needed: diff compares models
+
+      - name: Diff the model against the target branch
+        env:
+          BASE: origin/${{ github.base_ref }}
+        run: |
+          {
+            echo "### Architecture changes"
+            echo
+            echo '```text'
+            # A failure is shown rather than failing the job: a workspace
+            # the base branch does not have yet cannot be compared.
+            c4 diff architecture/workspace.dsl --from "$BASE" --to HEAD 2>&1 \
+              || echo "c4 diff could not compare these revisions (exit $?)"
+            echo '```'
+          } > architecture-diff.md
+          # The job summary works where a comment cannot: a pull request
+          # from a fork gets a read-only token.
+          cat architecture-diff.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Comment on the pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: gh pr comment "$PR" --body-file architecture-diff.md --edit-last --create-if-none
+```
+
+It reads the base branch from git history, hence `fetch-depth: 0`. A
+workspace the base branch does not have yet cannot be compared, and the
+comment says so instead of failing the job. `--edit-last` edits the
+latest comment made with the workflow's token, so keep this the only
+step that comments with it — or give it a token of its own. Diagrams are
+the action's job (`mode: comment`); this posts the model change, which is
+what a reviewer needs before looking at any of them.
+
 ## Impact analysis
 What else is involved when one element changes — asked of the model
 rather than of whoever remembers:
