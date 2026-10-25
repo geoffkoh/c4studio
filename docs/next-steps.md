@@ -74,6 +74,17 @@ the node rather than through it when it has to double back. The stub is
 recomputed and never stored, which is why `routeBends` drops it by index
 and `insertStep` keeps a new step off it.
 
+### The model diff as a PR comment (PP-194)
+
+A README workflow snippet, not a new `action.yml` mode, as PP-188 did for
+Pages. It runs `c4 diff --from origin/<base> --to HEAD` (no Node needed,
+`fetch-depth: 0`), writes the job summary (which works for fork PRs) and
+updates one comment with `gh pr comment --edit-last --create-if-none`.
+A workspace the base branch lacks is reported in the comment rather
+than failing the job. The shell step was run from the README's text
+against scratch repos for both cases; the `gh pr comment` step was not
+exercised, since that needs a real PR.
+
 ### Impact analysis in the Studio (PP-193)
 
 The details card's **Show impact** calls `GET /api/impact/{id}` (the
@@ -218,8 +229,8 @@ expected, not a failure.
 
 ## Open now
 
-- **PP-194:** the diagram diff as a PR comment, through a documented
-  workflow snippet. The visual overlay is split out to PP-211 and parked.
+- **PP-211 (parked):** the diagram diff's visual overlay, split from
+  PP-194. Worth it once a team reviews diagrams in PRs.
 
 ---
 
