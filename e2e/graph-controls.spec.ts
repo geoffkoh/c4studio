@@ -84,14 +84,37 @@ test.describe("canvas controls", () => {
 
   test("selection tools sit under the toolbar", async ({ page }) => {
     await open(page);
-    // Shift+drag a selection box over the whole canvas, below the controls.
+    // Shift+drag a selection box round the whole diagram. Zoomed out
+    // first, so the box starts on bare canvas rather than on a boundary
+    // (where a drag would move it) and ends clear of the MiniMap.
+    for (let i = 0; i < 4; i++) await page.locator(".react-flow__controls-zoomout").click();
+    // The zoom animates; draw the box once the diagram has stopped moving.
+    const transform = () =>
+      page.locator(".react-flow__viewport").evaluate((el) => getComputedStyle(el).transform);
+    let last = "";
+    await expect
+      .poll(async () => {
+        const now = await transform();
+        const settled = now === last;
+        last = now;
+        return settled;
+      }, { intervals: [250] })
+      .toBe(true);
     const pane = (await page.locator(".react-flow__pane").boundingBox())!;
+    const start = { x: pane.x + 20, y: pane.y + pane.height * 0.3 };
+    const end = { x: pane.x + pane.width - 240, y: pane.y + pane.height - 20 };
+    const onPane = await page.evaluate(
+      ({ x, y }) => !!document.elementFromPoint(x, y)?.classList.contains("react-flow__pane"),
+      start,
+    );
+    expect(onPane, "the drag would start on a node").toBe(true);
     await page.keyboard.down("Shift");
-    await page.mouse.move(pane.x + 20, pane.y + 160);
+    await page.mouse.move(start.x, start.y);
     await page.mouse.down();
-    await page.mouse.move(pane.x + pane.width - 20, pane.y + pane.height - 20, { steps: 10 });
+    await page.mouse.move(end.x, end.y, { steps: 10 });
     await page.mouse.up();
     await page.keyboard.up("Shift");
+    expect(await page.locator(".react-flow__node-element.selected").count()).toBeGreaterThan(1);
     const tools = page.locator(".selection-tools");
     await expect(tools).toBeVisible();
     const toolbar = (await page.locator(".edge-style").boundingBox())!;
