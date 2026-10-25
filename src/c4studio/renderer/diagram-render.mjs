@@ -10239,7 +10239,7 @@ function paintEdge(edge, placed) {
 	const source = placed.get(edge.source);
 	const target = placed.get(edge.target);
 	if (!source || !target) return "";
-	const orthogonal = edge.routing === "orthogonal";
+	const orthogonal = edge.routing === "orthogonal" || edge.styleRouting === "orthogonal";
 	let points;
 	if (orthogonal) points = orthogonalRoute(source, target, edge.waypoints ?? [], 0, edge.sides ?? {}).map((p) => ({
 		x: round(p.x),

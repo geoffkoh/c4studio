@@ -81,6 +81,12 @@ export interface FloatingEdgeData {
    */
   routing?: "orthogonal";
   /**
+   * A relationship style's `routing Orthogonal` (PP-209): drawn as a
+   * re-routed edge is, but kept apart from `routing` so it is never saved
+   * to the sidecar or cleared by Reset route.
+   */
+  styleRouting?: "orthogonal";
+  /**
    * Live segment-drag updates: the bends the dragged route now has.
    * Absent where routes are not editable (the Explorer).
    */
@@ -467,6 +473,7 @@ export function FloatingEdge({
   // segments can be grabbed and moved.
   const orthogonal =
     data?.routing === "orthogonal" ||
+    data?.styleRouting === "orthogonal" ||
     pathStyle === "step" ||
     pathStyle === "smoothstep";
   const pins: Pins = data?.sides ?? {};

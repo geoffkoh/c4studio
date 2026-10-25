@@ -109,6 +109,8 @@ export interface GraphPayloadEdge {
   /** Set when the edge was re-routed orthogonally, from the sidecar's
       `routing` section (PP-196): `waypoints` are then the route's corners. */
   routing?: "orthogonal";
+  /** A relationship style's `routing Orthogonal` (PP-209). */
+  styleRouting?: "orthogonal";
   /** Sides a re-routed edge's ends are pinned to, from the sidecar's
       `sides` section (PP-201). */
   sides?: Pins;
@@ -576,7 +578,8 @@ function paintEdge(
   const target = placed.get(edge.target);
   if (!source || !target) return "";
 
-  const orthogonal = edge.routing === "orthogonal";
+  const orthogonal =
+    edge.routing === "orthogonal" || edge.styleRouting === "orthogonal";
   let points: { x: number; y: number }[];
   if (orthogonal) {
     // The same route the canvas draws for a re-routed edge, sharp-cornered

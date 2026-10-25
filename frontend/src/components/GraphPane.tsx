@@ -303,6 +303,7 @@ async function toFlow(
         curveOffset,
         waypoints: e.waypoints,
         routing: e.routing,
+        styleRouting: e.styleRouting,
         sides: e.sides,
         labelOffset: e.labelOffset,
         perspectives: e.perspectives,
@@ -1072,6 +1073,7 @@ export function GraphPane({
   const isOrthogonal = useCallback(
     (edge: Edge | undefined) =>
       (edge?.data as FloatingEdgeData | undefined)?.routing === "orthogonal" ||
+      (edge?.data as FloatingEdgeData | undefined)?.styleRouting === "orthogonal" ||
       edgeStyle === "step" ||
       edgeStyle === "smoothstep",
     [edgeStyle],
