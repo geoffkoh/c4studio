@@ -12,7 +12,8 @@ Last updated: **24 October 2026**, after the interface run
 (PP-195 … PP-201): animated relationships, segment re-routing with steps
 and pinned sides, named layouts, and file-based themes; then multi-line
 strings in the parser (PP-202), properties on screen (PP-203, PP-204),
-and a details card on the Diagrams page (PP-205).
+a details card on the Diagrams page (PP-205), and a badge on elements
+that have properties (PP-207).
 
 ---
 
@@ -70,6 +71,16 @@ route leaves a pinned side square-on along a 20px stub, and goes round
 the node rather than through it when it has to double back. The stub is
 recomputed and never stored, which is why `routeBends` drops it by index
 and `insertStep` keeps a new step off it.
+
+### A properties badge on elements (PP-207)
+
+An element with properties shows a small ⓘ in its bottom-right corner,
+the one corner nothing else uses. Hovering gives the count; clicking
+selects the element and opens the details card. Only a surface with a
+card wires `onShowDetails`, so the Source page, the Explorer, embeds and
+`c4 render` show no badge. PNG/SVG export drops anything marked
+`export-hidden` through `html-to-image`'s `filter`, and an e2e test
+reads the exported file to check that.
 
 ### A details card on the Diagrams page (PP-205)
 

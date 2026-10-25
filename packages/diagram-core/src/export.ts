@@ -39,6 +39,9 @@ export async function exportDiagram(
 
   const options = {
     backgroundColor: BACKGROUND,
+    // Controls drawn on the canvas for the person using it — a node's
+    // properties badge (PP-207) — are not part of the diagram.
+    filter: (node: HTMLElement) => !node.classList?.contains("export-hidden"),
     width,
     height,
     style: {
