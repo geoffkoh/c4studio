@@ -219,6 +219,7 @@ async function toFlow(
   workspace: Workspace | null,
   onToggleExpand: (id: string, expand: boolean) => void,
   onGeometryChange: () => void,
+  onShowDetails?: (id: string) => void,
 ): Promise<{ nodes: Node[]; edges: Edge[] }> {
   const anyMissingPosition = data.nodes.some((n) => n.position === undefined);
   const trail = buildTrail(view, views, workspace);
@@ -258,6 +259,7 @@ async function toFlow(
         drillLabel: target ? crumbLabel(target, workspace) : undefined,
         onToggleExpand,
         onGeometryChange,
+        onShowDetails,
       },
     };
   });
@@ -563,6 +565,19 @@ export function GraphPane({
     },
     [setNodes, setEdges],
   );
+
+  /** A node's properties badge (PP-207): select it, and show the card. */
+  const handleShowDetails = useCallback(
+    (id: string) => {
+      selectOnly(id);
+      setDetailsOpen(true);
+      window.localStorage.setItem(DETAILS_STORAGE_KEY, "open");
+      setDetailsHint(false);
+    },
+    [selectOnly],
+  );
+  // Only where there is a card to show: no badge on the Source page.
+  const showDetails = details ? handleShowDetails : undefined;
 
   const handleInteraction = useCallback((mode: Interaction) => {
     setInteraction(mode);
@@ -1551,6 +1566,7 @@ export function GraphPane({
           workspace,
           handleToggleExpand,
           saveCurrentLayout,
+          showDetails,
         );
         if (cancelled) return;
         const sameView =
@@ -1589,6 +1605,7 @@ export function GraphPane({
     layoutEpoch,
     handleToggleExpand,
     saveCurrentLayout,
+    showDetails,
     animateToNodes,
     setNodes,
     setEdges,

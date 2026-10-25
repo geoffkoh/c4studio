@@ -32,8 +32,8 @@ type Payload = {
 async function open(
   page: Page,
   { width = 1440, height = 900, details = "closed" } = {},
-): Promise<{ element: { id: string; label: string }; edgeIds: string[] }> {
-  const found = { element: { id: "", label: "" }, edgeIds: [] as string[] };
+): Promise<{ element: { id: string; label: string }; edgeIds: string[]; withProperties: number }> {
+  const found = { element: { id: "", label: "" }, edgeIds: [] as string[], withProperties: 0 };
   await page.route(/\/api\/views\/[^/]+\/(expansion|layout)$/, async (route) => {
     if (route.request().method() === "GET") return route.fallback();
     return route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
@@ -50,6 +50,9 @@ async function open(
     node.data.properties = PROPS;
     found.element = { id: node.id, label: node.data.label };
     found.edgeIds = edges.map((e) => e.id);
+    found.withProperties = data.nodes.filter(
+      (n) => n.data.kind !== "boundary" && Object.keys(n.data.properties ?? {}).length > 0,
+    ).length;
     return route.fulfill({ response, json: data });
   });
   await page.addInitScript((state) => {
@@ -191,4 +194,39 @@ test.describe("diagram details card", () => {
       ).toBe(true);
     });
   }
+
+  test("an element with properties shows a badge that opens the card (PP-207)", async ({
+    page,
+  }) => {
+    const { element, withProperties } = await open(page);
+    const node = page.locator(`.react-flow__node[data-id="${element.id}"]`);
+    const badge = node.getByRole("button", { name: /Show 2 properties of/ });
+    await expect(badge).toBeVisible();
+    await expect(badge).toHaveAttribute("title", "2 properties — show details");
+
+    // Only where there is something to show: one per element that has
+    // properties, and that is not every element.
+    await expect(page.locator(".node__properties")).toHaveCount(withProperties);
+    expect(withProperties).toBeLessThan(await page.locator(".react-flow__node-element").count());
+
+    await badge.click();
+    await expect(card(page)).toBeVisible();
+    await expect(card(page).getByRole("heading", { level: 3 })).toHaveText(element.label);
+    expect(await page.evaluate(() => localStorage.getItem("c4studio.details"))).toBe("open");
+  });
+
+  test("an exported SVG leaves the badge out", async ({ page }) => {
+    const { element } = await open(page);
+    await expect(
+      page.locator(`.react-flow__node[data-id="${element.id}"] .node__properties`),
+    ).toBeVisible();
+    const download = page.waitForEvent("download");
+    await page.getByRole("button", { name: "SVG", exact: true }).click();
+    const file = await (await download).path();
+    const svg = (await import("node:fs")).readFileSync(file!, "utf-8");
+    // The export did capture the nodes — the check below is not passing
+    // on an empty file — and not the badge.
+    expect(svg).toContain(element.label);
+    expect(svg).not.toContain("node__properties");
+  });
 });

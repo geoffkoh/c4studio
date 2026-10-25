@@ -43,6 +43,12 @@ export interface ElementNodeData {
   onToggleExpand?: (id: string, expand: boolean) => void;
   /** Set while a perspective is shown and this element carries it. */
   perspective?: PerspectiveBadge;
+  /** The element's own properties, without `c4studio.*` settings. */
+  properties?: Record<string, string>;
+  /** Wired by a surface with a details card: the node then shows a
+      properties badge that opens it (PP-207). Absent in exports and the
+      headless renderer, which draw the diagram and nothing to click. */
+  onShowDetails?: (id: string) => void;
 }
 
 /** Hover text for a perspective badge: its name, description and value. */
@@ -114,6 +120,13 @@ function ElementNodeComponent({ id, data }: NodeProps<ElementNodeData>) {
     data.onToggleExpand?.(id, true);
   };
 
+  const propertyCount = Object.keys(data.properties ?? {}).length;
+  const showBadge = propertyCount > 0 && Boolean(data.onShowDetails);
+  const handleDetails = (event: MouseEvent) => {
+    event.stopPropagation();
+    data.onShowDetails?.(id);
+  };
+
   const box = (
     <div
       className={
@@ -157,6 +170,19 @@ function ElementNodeComponent({ id, data }: NodeProps<ElementNodeData>) {
           onDoubleClick={(event) => event.stopPropagation()}
         >
           ＋
+        </button>
+      ) : null}
+      {showBadge ? (
+        // `nodrag` so a press here is a click, not the start of a drag;
+        // `export-hidden` so a PNG or SVG export leaves it out.
+        <button
+          className="node__properties nodrag export-hidden"
+          title={`${propertyCount} ${propertyCount === 1 ? "property" : "properties"} — show details`}
+          aria-label={`Show ${propertyCount} ${propertyCount === 1 ? "property" : "properties"} of ${data.label}`}
+          onClick={handleDetails}
+          onDoubleClick={(event) => event.stopPropagation()}
+        >
+          i
         </button>
       ) : null}
       <Handle type="source" position={Position.Bottom} />

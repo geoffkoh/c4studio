@@ -30,6 +30,7 @@ export const GESTURES: readonly { keys: string; action: string }[] = [
     keys: "Drag a line's end",
     action: "Attach it to another side of the element",
   },
+  { keys: "Click an element's ⓘ", action: "Show its properties in the details card" },
   { keys: "Scroll", action: "Zoom in pan mode, pan in select mode" },
   { keys: "Pinch", action: "Zoom" },
 ];
