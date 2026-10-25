@@ -37,6 +37,12 @@ async function openContainers(page: Page) {
 }
 
 /** Edge ids whose path is running the march keyframes right now. */
+/** The Animate toggle, which lives in the toolbar's View menu (PP-206). */
+async function animateToggle(page: Page) {
+  await page.getByRole("button", { name: "View ▾" }).click();
+  return page.getByRole("group", { name: "View" }).getByRole("button", { name: "Animate" });
+}
+
 async function marchingIds(page: Page): Promise<string[]> {
   return page.evaluate(() =>
     [...document.querySelectorAll<SVGPathElement>(".react-flow__edge-path")]
@@ -92,9 +98,11 @@ test.describe("marching ants", () => {
     expect(busiest.edges.length).toBeGreaterThan(0);
     expect(busiest.edges.length).toBeLessThan(busiest.total);
 
-    const toggle = page.getByRole("button", { name: "Animate" });
+    const toggle = await animateToggle(page);
     await toggle.click();
     await expect(toggle).toHaveAttribute("aria-pressed", "true");
+    // Closed again, so the menu cannot be what the pointer lands on.
+    await page.keyboard.press("Escape");
 
     await page.locator(`.react-flow__node[data-id="${busiest.id}"]`).hover();
     await expect.poll(() => marchingIds(page)).toEqual(busiest.edges);
@@ -110,7 +118,7 @@ test.describe("marching ants", () => {
     await openContainers(page);
     await page.locator(".react-flow__pane").click();
     await page.keyboard.press("a");
-    const toggle = page.getByRole("button", { name: "Animate" });
+    const toggle = await animateToggle(page);
     await expect(toggle).toHaveAttribute("aria-pressed", "true");
     expect(
       await page.evaluate(() => localStorage.getItem("c4studio.animateEdges")),
@@ -121,7 +129,8 @@ test.describe("marching ants", () => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await openContainers(page);
     const busiest = await busiestElement(page);
-    await page.getByRole("button", { name: "Animate" }).click();
+    await (await animateToggle(page)).click();
+    await page.keyboard.press("Escape");
     await page.locator(`.react-flow__node[data-id="${busiest.id}"]`).hover();
     // The class is applied (the hover registered) but nothing runs.
     await expect(page.locator(".react-flow__edge.edge--marching")).toHaveCount(

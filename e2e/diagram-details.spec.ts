@@ -174,20 +174,24 @@ test.describe("diagram details card", () => {
     [1024, 768],
     [700, 800],
   ]) {
-    test(`at ${width}px it clears the toolbar and the MiniMap`, async ({ page }) => {
+    test(`at ${width}px it clears the controls and the MiniMap`, async ({ page }) => {
       const { element } = await open(page, { width, height, details: "open" });
       await clickNode(page, element.id);
       await expect(card(page)).toBeVisible();
 
       const box = (await card(page).boundingBox())!;
-      const toolbar = (await page.locator(".edge-style").boundingBox())!;
-      // The toolbar stays inside the canvas too: it wraps rather than
-      // running off the left edge.
-      expect(toolbar.x).toBeGreaterThanOrEqual((await page.locator(".graph").boundingBox())!.x);
+      // The breadcrumb, toolbar and selection tools (PP-206): beside the
+      // card where there is room, above it where there is not — never
+      // under it, and never past the canvas's right edge.
+      const controls = (await page.locator(".graph-controls__column").boundingBox())!;
       const minimap = (await page.locator(".react-flow__minimap").boundingBox())!;
       const canvas = (await page.locator(".graph").boundingBox())!;
 
-      expect(box.y).toBeGreaterThanOrEqual(toolbar.y + toolbar.height);
+      const beside = box.x >= controls.x + controls.width;
+      const below = box.y >= controls.y + controls.height;
+      expect(beside || below, "the card overlaps the controls").toBe(true);
+      expect(controls.x + controls.width).toBeLessThanOrEqual(canvas.x + canvas.width);
+      if (canvas.width > 640) expect(beside).toBe(true);
       expect(box.y + box.height).toBeLessThanOrEqual(minimap.y);
       expect(box.x).toBeGreaterThanOrEqual(canvas.x);
       expect(box.x + box.width).toBeLessThanOrEqual(canvas.x + canvas.width);
@@ -227,6 +231,7 @@ test.describe("diagram details card", () => {
       page.locator(`.react-flow__node[data-id="${element.id}"] .node__properties`),
     ).toBeVisible();
     const download = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Export ▾" }).click();
     await page.getByRole("button", { name: "SVG", exact: true }).click();
     const file = await (await download).path();
     const svg = (await import("node:fs")).readFileSync(file!, "utf-8");

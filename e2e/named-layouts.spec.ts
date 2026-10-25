@@ -149,11 +149,13 @@ test.describe("named layouts", () => {
 
   test("typing a name does not trigger the diagram's shortcuts", async ({ page }) => {
     await open(page);
-    const animate = page.getByRole("button", { name: "Animate" });
-    const pressed = await animate.getAttribute("aria-pressed");
+    // `a` toggles Animate, which is remembered.
+    const animate = () => page.evaluate(() => localStorage.getItem("c4studio.animateEdges"));
+    const before = await animate();
     await menuButton(page).click();
     await dialog(page).getByRole("textbox", { name: "Layout name" }).pressSequentially("a plan");
-    await expect(animate).toHaveAttribute("aria-pressed", pressed ?? "false");
+    await expect(dialog(page).getByRole("textbox", { name: "Layout name" })).toHaveValue("a plan");
+    expect(await animate()).toBe(before);
   });
 
   test("Escape closes the menu", async ({ page }) => {

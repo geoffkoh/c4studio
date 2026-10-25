@@ -1,5 +1,3 @@
-import { Panel } from "reactflow";
-
 import type { AlignMode, DistributeMode } from "@c4studio/diagram-core";
 
 /**
@@ -10,11 +8,10 @@ import type { AlignMode, DistributeMode } from "@c4studio/diagram-core";
  * selection together, but offers nothing for tidying one up — which is the
  * main reason to select several nodes on a diagram.
  *
- * It sits directly below the mouse/edge toolbar, right-aligned to stack
- * with it: those two plus the breadcrumb already fill the top row on a
- * narrow window. Being contextual, this second row exists only while
- * something is selected. Grouped with titles and dividers to match the
- * toolbar above it.
+ * It sits directly below the toolbar, in the canvas's top-left column
+ * (PP-206). Being contextual, that row exists only while something is
+ * selected. Grouped with titles and dividers to match the toolbar above
+ * it.
  */
 
 interface SelectionToolsProps {
@@ -48,7 +45,7 @@ export function SelectionTools({
 }: SelectionToolsProps) {
   if (count < 2) return null;
   return (
-    <Panel position="top-right" className="selection-tools">
+    <div className="selection-tools">
       <span className="selection-tools__count">{count} selected</span>
       <span className="selection-tools__sep" />
       <span className="selection-tools__title">Align</span>
@@ -78,6 +75,6 @@ export function SelectionTools({
           {item.glyph}
         </button>
       ))}
-    </Panel>
+    </div>
   );
 }
