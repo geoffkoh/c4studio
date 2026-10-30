@@ -251,10 +251,11 @@ into "done" if nobody writes them down.
    unverified. Install the `.vsix` and use it.
 2. **The merged Diagrams page (PP-214) wants a human eye.** The source
    editor is now a panel beside the diagram. The `ux-reviewer` left three
-   questions only use can answer: whether the details card stacked over a
-   ~480px diagram at 1280px reads as an inspector or as clutter, whether
-   people who knew the Source tab find the right-edge rail, and how a
-   ~330px editor feels at 1280 with the sidebar open.
+   questions only use can answer — two still open: whether the details card stacked over a
+   ~480px diagram at 1280px reads as an inspector or as clutter, and how a
+   ~330px editor feels at 1280 with the sidebar open. (The third, whether
+   the right-edge rail would be found, was answered by use: it was not, and
+   PP-215 added a Source button to the top bar.)
 
 ---
 

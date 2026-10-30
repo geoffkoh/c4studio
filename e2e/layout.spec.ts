@@ -39,7 +39,7 @@ async function openSource(page: Page) {
   await page.getByRole("button", { name: "workspace.dsl", exact: true }).click();
   // The editor's rail only exists once something is loaded, and not at
   // all when an earlier call in the same test left the editor open.
-  const sourceRail = page.getByRole("button", { name: /^Source/ });
+  const sourceRail = page.locator(".topbar__source[aria-pressed=false]");
   await expect(sourceRail.or(page.locator(".editor__surface"))).toBeVisible();
   if (await sourceRail.isVisible()) await sourceRail.click();
   await expect(page.locator(".editor__surface .cm-editor")).toBeVisible();

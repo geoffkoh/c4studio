@@ -107,6 +107,36 @@ button {
   border-color: var(--accent);
 }
 
+/* The source editor's toggle (PP-215): pushed to the right, outlined so it
+   reads as a control rather than as a seventh tab. */
+.topbar__source {
+  margin-left: auto;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.topbar__source:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.topbar__source[aria-pressed="true"] {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.topbar__unsaved {
+  color: var(--accent);
+}
+
 .topbar__tabs {
   display: flex;
   gap: 2px;
