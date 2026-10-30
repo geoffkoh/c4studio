@@ -33,6 +33,7 @@ import type {
   Workspace,
 } from "./types";
 import { completionModel } from "./dslComplete";
+import { anyDirty } from "./sourceBuffers";
 import { buildTrail } from "./navigation";
 import { isTypingTarget } from "./shortcuts";
 import { DocsPane } from "./components/DocsPane";
@@ -63,6 +64,27 @@ const SIDEBAR_KEY = "c4studio.sidebarOpen";
 
 /** Below this the sidebar is worth more as width than as navigation. */
 const SIDEBAR_AUTO_HIDE_PX = 900;
+
+/** The source editor beside the diagram (PP-214). New keys rather than
+    the old Source page's `c4studio.splitOpen` / `splitRatio`: the panes
+    swapped sides, so an old "closed" meant the *diagram* was hidden and an
+    old ratio was the editor's share. */
+const EDITOR_KEY = "c4studio.editorOpen";
+const EDITOR_RATIO_KEY = "c4studio.diagramRatio";
+
+/** The diagram's share of the split. At 1440px with the sidebar open, 0.6
+    leaves the diagram wide enough (≥640px) for the details card to sit
+    beside the controls rather than over the canvas. */
+const DIAGRAM_RATIO = 0.6;
+
+/** Closed unless the user left it open: the page is the diagram first. */
+function storedEditorOpen(): boolean {
+  try {
+    return window.localStorage.getItem(EDITOR_KEY) === "open";
+  } catch {
+    return false;
+  }
+}
 
 function storedSidebarOpen(): boolean {
   let stored: string | null = null;
@@ -102,6 +124,7 @@ export default function App() {
   // quietly missing parts of itself.
   const [diagnostics, setDiagnostics] = useState<DslDiagnostic[]>([]);
   const [page, setPage] = useState<AppPage>("diagrams");
+  const [editorOpen, setEditorOpen] = useState(storedEditorOpen);
   const [codeFocus, setCodeFocus] = useState<CodeFocus | null>(null);
   const [openRequest, setOpenRequest] = useState<OpenRequest | null>(null);
   const [newWorkspaceOpen, setNewWorkspaceOpen] = useState(false);
@@ -130,8 +153,10 @@ export default function App() {
   currentPathRef.current = currentPath;
 
   // App-level keyboard shortcuts (diagrams page): j/k cycle views, u goes
-  // up a level, ? toggles the help overlay. Graph-scoped keys (f/p/s/h)
-  // live in KeyboardShortcuts inside the graph pane.
+  // up a level, e shows or hides the source editor, ? toggles the help
+  // overlay. Graph-scoped keys (f/p/s/h) live in KeyboardShortcuts inside
+  // the graph pane. None fire while typing in the editor: CodeMirror's
+  // surface is contentEditable, which isTypingTarget recognises.
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
       // The editor idiom, and it has to run before the guard below — this
@@ -151,6 +176,11 @@ export default function App() {
       if (page !== "diagrams") return;
       if (event.key === "?") {
         setHelpOpen((open) => !open);
+        event.preventDefault();
+        return;
+      }
+      if (event.key === "e" && currentPathRef.current) {
+        setEditorOpen((open) => !open);
         event.preventDefault();
         return;
       }
@@ -182,6 +212,14 @@ export default function App() {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [page, views, workspace]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(EDITOR_KEY, editorOpen ? "open" : "closed");
+    } catch {
+      // Nothing to do: the preference simply will not persist.
+    }
+  }, [editorOpen]);
 
   useEffect(() => {
     try {
@@ -283,10 +321,18 @@ export default function App() {
     return () => window.clearInterval(timer);
   }, [currentPath, refresh]);
 
-  // The editor's buffers live here, not in SourcePane: `main` unmounts the
-  // pane on every page switch, and while the pane owned them, leaving the
-  // Source page destroyed every unsaved edit without a prompt.
+  // The editor's buffers live here, not in SourcePane: the pane unmounts
+  // whenever the editor closes or the page changes, and while the pane
+  // owned them, leaving it destroyed every unsaved edit without a prompt.
   const source = useSourceBuffers(reloadTick, openRequest);
+  // Said on the editor's rail, so closing the editor does not hide work.
+  const unsaved = anyDirty(source.state);
+
+  /** Bring the editor into view, on the page that has it. */
+  const showEditor = useCallback(() => {
+    setPage("diagrams");
+    setEditorOpen(true);
+  }, []);
 
   /** Re-read the file list after something on disk moved. */
   const refreshFiles = useCallback(() => {
@@ -350,11 +396,15 @@ export default function App() {
     [refresh],
   );
 
-  /** Double-click in the Elements tree: open the definition in Source. */
-  const handleShowDefinition = useCallback((elementId: string) => {
-    setCodeFocus({ elementId, nonce: Date.now() });
-    setPage("source");
-  }, []);
+  /** Show definition, from the tree, the Explorer or the details card:
+      open the editor beside the diagram at the element's definition. */
+  const handleShowDefinition = useCallback(
+    (elementId: string) => {
+      setCodeFocus({ elementId, nonce: Date.now() });
+      showEditor();
+    },
+    [showEditor],
+  );
 
   // A stable object, so the pane's effects do not re-run on every render.
   const diagramDetails = useMemo(
@@ -369,9 +419,9 @@ export default function App() {
   const handleOpenFile = useCallback(
     (path: string, kind: "workspace" | "fragment") => {
       setOpenRequest({ path, kind, nonce: Date.now() });
-      if (kind === "fragment") setPage("source");
+      if (kind === "fragment") showEditor();
     },
-    [],
+    [showEditor],
   );
 
   /** "Appears in" link in the Explorer: jump to the view's diagram. */
@@ -421,9 +471,25 @@ export default function App() {
       refreshFiles();
       await handleSelectFile(path);
       setOpenRequest({ path, kind: "workspace", nonce: Date.now() });
-      setPage("source");
+      showEditor();
     },
-    [handleSelectFile, refreshFiles],
+    [handleSelectFile, refreshFiles, showEditor],
+  );
+
+  const diagram = (
+    <GraphPane
+      view={selectedView}
+      views={views}
+      workspace={workspace}
+      onNavigate={setSelectedView}
+      loadGraph={getViewGraph}
+      loadPerspectiveValues={perspectiveValuesLoader}
+      saveExpansion={saveExpansion}
+      saveLayout={saveLayout}
+      resetLayout={deleteLayout}
+      layouts={NAMED_LAYOUTS}
+      details={diagramDetails}
+    />
   );
 
   return (
@@ -510,19 +576,38 @@ export default function App() {
         </aside>
         <main className="main">
           {page === "diagrams" ? (
-            <GraphPane
-              view={selectedView}
-              views={views}
-              workspace={workspace}
-              onNavigate={setSelectedView}
-              loadGraph={getViewGraph}
-              loadPerspectiveValues={perspectiveValuesLoader}
-              saveExpansion={saveExpansion}
-              saveLayout={saveLayout}
-              resetLayout={deleteLayout}
-              layouts={NAMED_LAYOUTS}
-              details={diagramDetails}
-            />
+            // The diagram, with the source editor as a panel beside it
+            // (PP-214) — once its own page, which held a second copy of
+            // the diagram. Nothing wires the two together: a save reloads
+            // the workspace, `refresh` hands the view a new identity, and
+            // the graph refetches — the loop an external editor drives.
+            // Always the split, so opening the editor never remounts the
+            // diagram; with no file loaded there is nothing to edit.
+            currentPath ? (
+              <SplitPane
+                leftLabel="diagram"
+                rightLabel="Source"
+                open={editorOpen}
+                onOpenChange={setEditorOpen}
+                rightBadge={unsaved ? "Unsaved changes" : undefined}
+                rightTitle="Show the source  (e)"
+                ratioKey={EDITOR_RATIO_KEY}
+                defaultRatio={DIAGRAM_RATIO}
+                left={diagram}
+                right={
+                  <SourcePane
+                    source={source}
+                    focus={codeFocus}
+                    readOnly={readOnly}
+                    completions={completions}
+                    assistantEnabled={capabilities?.features?.assistant === true}
+                    onSaved={handleSaved}
+                  />
+                }
+              />
+            ) : (
+              diagram
+            )
           ) : page === "explorer" ? (
             <ExplorerPane
               views={views}
@@ -530,38 +615,6 @@ export default function App() {
               reloadTick={reloadTick}
               onOpenView={handleOpenView}
               onShowDefinition={handleShowDefinition}
-            />
-          ) : page === "source" ? (
-            // Editor left, the diagram it produces right. Nothing wires the
-            // two together: a save reloads the workspace, `refresh` hands
-            // the view a new identity, and the graph refetches — the same
-            // loop an external editor already drove.
-            <SplitPane
-              rightLabel="diagram"
-              left={
-                <SourcePane
-                  source={source}
-                  focus={codeFocus}
-                  readOnly={readOnly}
-                  completions={completions}
-                  assistantEnabled={capabilities?.features?.assistant === true}
-                  onSaved={handleSaved}
-                />
-              }
-              right={
-                <GraphPane
-                  view={selectedView}
-                  views={views}
-                  workspace={workspace}
-                  onNavigate={setSelectedView}
-                  loadGraph={getViewGraph}
-                  loadPerspectiveValues={perspectiveValuesLoader}
-                  saveExpansion={saveExpansion}
-                  saveLayout={saveLayout}
-                  resetLayout={deleteLayout}
-                  layouts={NAMED_LAYOUTS}
-                />
-              }
             />
           ) : (
             <DocsPane workspace={workspace} mode={page} />

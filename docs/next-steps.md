@@ -8,11 +8,12 @@ open right now, and what to do next.
 **Keep it current.** It is only worth reading if it is true, so update it
 when you finish a run of work, not when you remember.
 
-Last updated: **25 October 2026**, after the interface run
+Last updated: **30 October 2026**, after the interface run
 (PP-195 … PP-208, PP-206) and the October roadmap review: dynamic-view
 step ids (PP-198), `routing Orthogonal` (PP-209), `workspace extends`
 (PP-210), impact in the Studio (PP-193), the diff as a PR comment
-(PP-194), and a dependency security scan (PP-213, Python half merged).
+(PP-194), a dependency security scan (PP-213), and the Source page
+folded into Diagrams as an editor panel (PP-214).
 
 ---
 
@@ -157,7 +158,7 @@ and reported by the new `invalid-badge-colour` lint rule.
 An element with properties shows a small ⓘ in its bottom-right corner,
 the one corner nothing else uses. Hovering gives the count; clicking
 selects the element and opens the details card. Only a surface with a
-card wires `onShowDetails`, so the Source page, the Explorer, embeds and
+card wires `onShowDetails`, so the Explorer, embeds and
 `c4 render` show no badge. PNG/SVG export drops anything marked
 `export-hidden` through `html-to-image`'s `filter`, and an e2e test
 reads the exported file to check that.
@@ -226,12 +227,12 @@ expected, not a failure.
 
 ## Open now
 
-- **PP-213, npm half:** high advisories (none critical) in vite and
-  source-map-js at the root, and undici, fast-uri, markdown-it,
-  brace-expansion and @azure/msal-node in `editors/vscode`. All fixable
-  within range by `npm audit fix` in each install; then rebuild the
-  bundle, `npm run test:visual` and `c4 render` a sample, as for any
-  bundler bump (see CLAUDE.md on Dependabot).
+- **PP-213, one advisory left:** `@azure/msal-node` (high, none
+  critical) in `editors/vscode`, through `@vscode/vsce` →
+  `@azure/identity`, which pins `^6` in every release; the fix is 7.1.0.
+  Dev-only — `vsce publish` authenticates with it, `vsce package` does
+  not. Wait for `@azure/identity` to move rather than force an
+  `overrides` across a major. Everything else was fixed in PR #265.
 - **PP-211 (parked):** the diagram diff's visual overlay, split from
   PP-194. Worth it once a team reviews diagrams in PRs.
 
@@ -248,9 +249,12 @@ into "done" if nobody writes them down.
    an enforced CI step. Neither is the same as running it: the `vscode`
    host, dragging the panel, and the extension spawning the server are all
    unverified. Install the `.vsix` and use it.
-2. **Diagrams and Source are still two pages.** The larger coherence win
-   from the layout review, deliberately deferred to its own phase. See the
-   "After F1" section of `studio-editor-plan.md`.
+2. **The merged Diagrams page (PP-214) wants a human eye.** The source
+   editor is now a panel beside the diagram. The `ux-reviewer` left three
+   questions only use can answer: whether the details card stacked over a
+   ~480px diagram at 1280px reads as an inspector or as clutter, whether
+   people who knew the Source tab find the right-edge rail, and how a
+   ~330px editor feels at 1280 with the sidebar open.
 
 ---
 

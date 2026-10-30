@@ -66,8 +66,11 @@ uv run c4 webapp samples/ --viewer # read-only, for a kiosk or an embed
 
 ### Editing
 
-The **Source** tab is a [CodeMirror 6](https://codemirror.net/) editor with
-the diagram beside it:
+The source editor is a [CodeMirror 6](https://codemirror.net/) panel that
+opens beside the diagram — from the **Source** rail on the diagram's right
+edge, the `e` key, or *Open in Source* on any element. The diagram stays
+put while it opens, and a ● on the rail marks unsaved work behind a closed
+editor.
 
 - **Syntax highlighting and autocomplete** for DSL keywords, your own element
   identifiers, and view keys — drawn from the loaded workspace, so it knows
@@ -103,7 +106,7 @@ independent of any curated view — at a selectable abstraction level
 (systems / containers / components), with search across every element
 (press `/`), and a details panel showing an element's metadata,
 relationships, the views it appears in (click to jump) and a
-show-definition link into the Source pane.
+show-definition link that opens the source editor.
 
 The built SPA ships inside the package (`c4studio/webapp/static/`),
 so end users need no Node toolchain. To rebuild the frontend after
