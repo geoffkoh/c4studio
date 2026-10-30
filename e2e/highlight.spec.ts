@@ -36,7 +36,7 @@ async function openSource(
   await page.getByRole("searchbox", { name: "Search files" }).fill(path);
   const file = path.split("/").pop() as string;
   await page.getByRole("button", { name: file, exact: true }).click();
-  await page.getByRole("button", { name: /^Source/ }).click();
+  await page.locator(".topbar__source").click();
   await expect(page.locator(".editor__surface .cm-editor")).toBeVisible();
   // Switching files while another workspace is loaded swaps the buffer
   // under the same editor, and the first paint can be the new text with

@@ -41,14 +41,16 @@ async function open(page: Page, width = 1440) {
 }
 
 const editor = (page: Page) => page.locator(".editor__surface .cm-editor");
-const sourceRail = (page: Page) => page.getByRole("button", { name: /^Source/ });
+const sourceRail = (page: Page) => page.locator(".rail--right");
+const sourceButton = (page: Page) => page.locator(".topbar__source");
 
 test.describe("source editor panel", () => {
   test("closed at first; the rail opens it beside the diagram, which survives", async ({
     page,
   }) => {
     await open(page);
-    await expect(page.getByRole("button", { name: "Source", exact: true })).toBeVisible();
+    await expect(sourceRail(page)).toBeVisible();
+    await expect(sourceButton(page)).toHaveAttribute("aria-pressed", "false");
     await expect(editor(page)).toHaveCount(0);
     // No Source page any more: the tab is gone.
     await expect(page.locator(".topbar__tab", { hasText: "Source" })).toHaveCount(0);
@@ -109,8 +111,29 @@ test.describe("source editor panel", () => {
     await page.locator(".cm-content").click();
     await page.keyboard.type("// PP-214 was here\n");
     await page.getByRole("button", { name: "Hide the Source" }).click();
-    await expect(page.getByLabel("Unsaved changes")).toBeVisible();
+    // On the rail and on the top bar's button alike.
+    await expect(sourceRail(page).getByLabel("Unsaved changes")).toBeVisible();
+    await expect(sourceButton(page).getByLabel("Unsaved changes")).toBeVisible();
     await sourceRail(page).click();
     await expect(page.locator(".cm-content")).toContainText("PP-214 was here");
+  });
+
+  test("the top bar's Source button toggles it, from any page (PP-215)", async ({
+    page,
+  }) => {
+    await open(page);
+    await sourceButton(page).click();
+    await expect(editor(page)).toBeVisible();
+    await expect(sourceButton(page)).toHaveAttribute("aria-pressed", "true");
+    await sourceButton(page).click();
+    await expect(editor(page)).toHaveCount(0);
+    await expect(sourceButton(page)).toHaveAttribute("aria-pressed", "false");
+
+    // From another page it brings the editor into view, not closes it.
+    await page.getByRole("button", { name: "Explorer" }).click();
+    await expect(sourceButton(page)).toHaveAttribute("aria-pressed", "false");
+    await sourceButton(page).click();
+    await expect(editor(page)).toBeVisible();
+    await expect(page.locator(".topbar__tab--active")).toHaveText("Diagrams");
   });
 });

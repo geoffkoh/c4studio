@@ -17,6 +17,14 @@ interface TopBarProps {
   /** Sidebar visibility, owned by App and persisted. */
   sidebarOpen: boolean;
   onToggleSidebar: () => void;
+  /** The source editor's toggle (PP-215); absent with nothing loaded. The
+      right-edge rail alone proved too easy to miss. */
+  source?: {
+    /** Shown beside the diagram right now. */
+    open: boolean;
+    unsaved: boolean;
+    onToggle: () => void;
+  };
 }
 
 /**
@@ -34,6 +42,7 @@ export function TopBar({
   sectionCount,
   decisionCount,
   readOnly,
+  source,
 }: TopBarProps) {
   const tabs: { id: AppPage; label: string }[] = [
     { id: "diagrams", label: "Diagrams" },
@@ -91,6 +100,24 @@ export function TopBar({
           "No file loaded"
         )}
       </span>
+      {/* Apart from the tabs, on the right: it shows or hides a panel on
+          the diagram rather than changing page, and a pressed button among
+          page tabs would read as a page. */}
+      {source ? (
+        <button
+          className="topbar__source"
+          onClick={source.onToggle}
+          aria-pressed={source.open}
+          title={`${source.open ? "Hide" : "Show"} the source editor  (e)`}
+        >
+          Source
+          {source.unsaved ? (
+            <span className="topbar__unsaved" aria-label="Unsaved changes" title="Unsaved changes">
+              {" "}●
+            </span>
+          ) : null}
+        </button>
+      ) : null}
     </header>
   );
 }

@@ -67,10 +67,10 @@ uv run c4 webapp samples/ --viewer # read-only, for a kiosk or an embed
 ### Editing
 
 The source editor is a [CodeMirror 6](https://codemirror.net/) panel that
-opens beside the diagram — from the **Source** rail on the diagram's right
-edge, the `e` key, or *Open in Source* on any element. The diagram stays
-put while it opens, and a ● on the rail marks unsaved work behind a closed
-editor.
+opens beside the diagram — from the **Source** button at the right of the
+top bar, the `e` key, the rail on the diagram's right edge, or *Open in
+Source* on any element. The diagram stays put while it opens, and a ● on
+the button marks unsaved work behind a closed editor.
 
 - **Syntax highlighting and autocomplete** for DSL keywords, your own element
   identifiers, and view keys — drawn from the loaded workspace, so it knows

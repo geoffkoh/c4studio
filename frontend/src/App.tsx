@@ -396,6 +396,13 @@ export default function App() {
     [refresh],
   );
 
+  /** The top bar's Source button: from another page it brings the editor
+      into view rather than closing one the user cannot see. */
+  const handleToggleEditor = useCallback(() => {
+    if (page !== "diagrams") showEditor();
+    else setEditorOpen((open) => !open);
+  }, [page, showEditor]);
+
   /** Show definition, from the tree, the Explorer or the details card:
       open the editor beside the diagram at the element's definition. */
   const handleShowDefinition = useCallback(
@@ -504,6 +511,15 @@ export default function App() {
         readOnly={readOnly}
         sidebarOpen={sidebarOpen}
         onToggleSidebar={() => setSidebarOpen((open) => !open)}
+        source={
+          currentPath
+            ? {
+                open: page === "diagrams" && editorOpen,
+                unsaved,
+                onToggle: handleToggleEditor,
+              }
+            : undefined
+        }
       />
       {/* The errors used to live inside the sidebar, which auto-collapses
           below 900px — so a failed reload showed a stale diagram and said
