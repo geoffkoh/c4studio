@@ -8,9 +8,6 @@ import {
   type ReactNode,
 } from "react";
 
-const RATIO_STORAGE_KEY = "c4studio.splitRatio";
-const OPEN_STORAGE_KEY = "c4studio.splitOpen";
-
 /** Neither half may be squeezed below this fraction of the container. */
 const MIN_RATIO = 0.2;
 const MAX_RATIO = 0.8;
@@ -21,7 +18,9 @@ const MAX_RATIO = 0.8;
     whole SPA lives in a panel around 500px wide, where 0.2 is a 100px pane
     — narrower than the editor's own gutter. Below twice this (plus the
     divider) there is no honest split to draw, so one pane takes the width
-    and the other becomes the rail it already knows how to be. */
+    and the other becomes the rail it already knows how to be. The VS Code
+    preview no longer loads the SPA (PP-170), so this is now a narrow
+    browser window's path. */
 const MIN_PANE = 320;
 
 function clamp(ratio: number, width = 0): number {
@@ -39,48 +38,74 @@ function fits(width: number): boolean {
 
 const DIVIDER_PX = 6;
 
-function storedRatio(): number {
-  const raw = Number(window.localStorage.getItem(RATIO_STORAGE_KEY));
-  return Number.isFinite(raw) && raw >= MIN_RATIO && raw <= MAX_RATIO ? raw : 0.5;
-}
-
-/** Open unless explicitly collapsed: side by side is the point of the page. */
-function storedOpen(): boolean {
-  return window.localStorage.getItem(OPEN_STORAGE_KEY) !== "closed";
+function storedRatio(key: string, fallback: number): number {
+  let raw = Number.NaN;
+  try {
+    raw = Number(window.localStorage.getItem(key) ?? Number.NaN);
+  } catch {
+    // Private windows and blocked site data throw rather than return null.
+  }
+  return Number.isFinite(raw) && raw >= MIN_RATIO && raw <= MAX_RATIO
+    ? raw
+    : fallback;
 }
 
 interface SplitPaneProps {
   left: ReactNode;
   right: ReactNode;
-  /** Lower-case name of the right pane, for the collapse control. */
+  /** Lower-case names of the panes, for the rails and the collapse control. */
+  leftLabel: string;
   rightLabel: string;
+  /** Whether the right pane is shown. Owned by the caller, because
+      something outside the split — "Show definition" — opens it, and an
+      open request that only the split knew about could not reach it. */
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** Marks the right pane's rail, e.g. unsaved work behind it. */
+  rightBadge?: string;
+  /** Title for the right pane's rail, which says how else to open it. */
+  rightTitle?: string;
+  /** Where the left pane's share of the width is remembered. */
+  ratioKey: string;
+  defaultRatio: number;
 }
 
 /**
  * Two panes side by side with a draggable divider, the right one
- * collapsible.
+ * collapsible to a rail.
  *
  * Deliberately knows nothing about either child: the editor and the
  * diagram are passed in as nodes, so neither learns about the other and
  * `GraphPane` stays reusable outside this page.
  *
- * The drag listens on `window`, not on the handle, so moving fast — or off
- * the edge of the window — does not drop the gesture. Ratio and collapsed
- * state are per-user UI state in `localStorage`, where the diagram's own
- * toggles already live.
+ * The left pane keeps one position in the tree whether or not the right
+ * one is open, so opening the editor beside the diagram does not remount
+ * it and lose the viewport, the selection and the fetched graph (PP-214).
+ *
+ * At a width with room for one pane, `open` decides which: the right one
+ * with the left as a rail, or the reverse. The drag listens on `window`,
+ * not on the handle, so moving fast — or off the edge of the window —
+ * does not drop the gesture. The ratio is per-user UI state in
+ * `localStorage`, where the diagram's own toggles already live.
  */
-export function SplitPane({ left, right, rightLabel }: SplitPaneProps) {
+export function SplitPane({
+  left,
+  right,
+  leftLabel,
+  rightLabel,
+  open,
+  onOpenChange,
+  rightBadge,
+  rightTitle,
+  ratioKey,
+  defaultRatio,
+}: SplitPaneProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [ratio, setRatio] = useState(storedRatio);
-  const [open, setOpen] = useState(storedOpen);
+  const [ratio, setRatio] = useState(() => storedRatio(ratioKey, defaultRatio));
   const [dragging, setDragging] = useState(false);
-  // The container, not the viewport. The VS Code panel is dragged
-  // independently of the window, so a media query would miss it entirely.
+  // The container, not the viewport: the sidebar takes width from it
+  // without the window changing, which a media query would miss.
   const [width, setWidth] = useState(0);
-  // Which pane has the width when there is only room for one. Not
-  // persisted: it is a momentary answer to "which am I looking at now",
-  // not a preference, and it must not survive back to a wide window.
-  const [narrowPane, setNarrowPane] = useState<"left" | "right">("left");
 
   useEffect(() => {
     const element = containerRef.current;
@@ -94,12 +119,12 @@ export function SplitPane({ left, right, rightLabel }: SplitPaneProps) {
   }, []);
 
   useEffect(() => {
-    window.localStorage.setItem(RATIO_STORAGE_KEY, String(ratio));
-  }, [ratio]);
-
-  useEffect(() => {
-    window.localStorage.setItem(OPEN_STORAGE_KEY, open ? "open" : "closed");
-  }, [open]);
+    try {
+      window.localStorage.setItem(ratioKey, String(ratio));
+    } catch {
+      // Nothing to do: the ratio simply will not persist.
+    }
+  }, [ratioKey, ratio]);
 
   useEffect(() => {
     if (!dragging) return;
@@ -129,32 +154,36 @@ export function SplitPane({ left, right, rightLabel }: SplitPaneProps) {
     const step = event.key === "ArrowLeft" ? -0.02 : 0.02;
     setRatio((value) => clamp(value + step, width));
     event.preventDefault();
-  }, []);
+  }, [width]);
 
   /** Collapse without the mousedown also starting a drag. */
-  const onCollapse = useCallback((event: ReactMouseEvent) => {
-    event.stopPropagation();
-    setOpen(false);
-  }, []);
+  const onCollapse = useCallback(
+    (event: ReactMouseEvent) => {
+      event.stopPropagation();
+      onOpenChange(false);
+    },
+    [onOpenChange],
+  );
 
   // The user's choice is honoured only when it is drawable. It is never
   // rewritten, so widening the panel restores the split they asked for.
   const roomy = fits(width);
   const showBoth = open && roomy;
+  const rightOnly = open && !roomy;
   const effectiveRatio = clamp(ratio, width);
 
   return (
     <div className="split" ref={containerRef}>
       {/* Narrow: one pane at a time, with the other as a rail to swap to.
-          The rail is the same affordance as the collapsed diagram, so
-          there is one thing to learn rather than two. */}
-      {!roomy && narrowPane === "right" ? (
+          The rail is the same affordance as the collapsed pane, so there
+          is one thing to learn rather than two. */}
+      {rightOnly ? (
         <button
           className="rail rail--left"
-          onClick={() => setNarrowPane("left")}
-          title="Back to the editor"
+          onClick={() => onOpenChange(false)}
+          title={`Back to the ${leftLabel}`}
         >
-          <span className="rail__label">editor</span>
+          <span className="rail__label">{leftLabel}</span>
         </button>
       ) : (
         <div
@@ -192,19 +221,26 @@ export function SplitPane({ left, right, rightLabel }: SplitPaneProps) {
           </div>
           <div className="split__pane split__pane--right">{right}</div>
         </>
-      ) : !roomy && narrowPane === "right" ? (
+      ) : rightOnly ? (
         <div className="split__pane split__pane--right">{right}</div>
       ) : (
         <button
           className="rail rail--right"
-          onClick={() => (roomy ? setOpen(true) : setNarrowPane("right"))}
+          onClick={() => onOpenChange(true)}
+          aria-expanded={false}
           title={
-            roomy
-              ? `Show the ${rightLabel}`
-              : `Show the ${rightLabel} — only one fits at this width`
+            (rightTitle ?? `Show the ${rightLabel}`) +
+            (roomy ? "" : " — only one fits at this width")
           }
         >
-          <span className="rail__label">{rightLabel}</span>
+          <span className="rail__label">
+            {rightLabel}
+            {rightBadge ? (
+              <span className="rail__badge" aria-label={rightBadge} title={rightBadge}>
+                {" "}●
+              </span>
+            ) : null}
+          </span>
         </button>
       )}
     </div>

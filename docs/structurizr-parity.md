@@ -86,7 +86,7 @@ inferring behaviour from this document when the two might disagree.
 | Unknown `!directives` | ✅ (executed or errors) | ⚠ skipped with an `UnsupportedFeatureWarning` recorded in `Workspace.parse_warnings` |
 | `deploymentEnvironment`, instances | ✅ | ✅ incl. instance counts, `deploymentGroup` declarations + instance membership, positional/nested instance tags, `healthCheck` |
 | Live reload on DSL edits | ✅ | ✅ mtime heartbeat over source + `!include` fragments + docs; parse errors keep the last good workspace |
-| In-browser DSL editor | ✅ (behind a feature flag, default off; Lite has none) | ✅ CodeMirror 6 editor on the Source page (PP-125): shared-vocabulary highlighting, `POST /api/check` diagnostics as you type, ⌘S save through `PUT /api/source` with conflict detection. Read-only in Viewer mode (`--viewer`) and for files that are not valid UTF-8 |
+| In-browser DSL editor | ✅ (behind a feature flag, default off; Lite has none) | ✅ CodeMirror 6 editor, a panel beside the diagram since PP-214 (PP-125): shared-vocabulary highlighting, `POST /api/check` diagnostics as you type, ⌘S save through `PUT /api/source` with conflict detection. Read-only in Viewer mode (`--viewer`) and for files that are not valid UTF-8 |
 | Documentation / ADR rendering | ✅ | ✅ `!docs`/`!adrs` directives, TOC reader, ADR status badges |
 | `!const` / `!var` + `${NAME}` substitution | ✅ | ✅ preprocessing pass; const redefinition errors, unknown placeholders left intact |
 | `!impliedRelationships` | ✅ (default on) | ✅ opt-in via `!impliedRelationships true`; implied relationships carry `linkedRelationshipId` and are deduped in the webapp |

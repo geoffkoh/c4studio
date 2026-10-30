@@ -214,9 +214,9 @@ interface GraphPaneProps {
   resetLayout: (key: string) => Promise<unknown>;
   /** Named layouts (PP-197); the Layouts menu is shown only when given. */
   layouts?: LayoutsApi;
-  /** The details card (PP-205); offered only when given. Not on the
-      Source page, where the pane is half the width and the editor is
-      already beside it. */
+  /** The details card (PP-205); offered only when given. Kept when the
+      source editor is open beside the diagram (PP-214): it is the way
+      into the source, and below 640px it stacks under the controls. */
   details?: {
     onShowDefinition: (elementId: string) => void;
     /** What else a change to the element involves (PP-193); the card
@@ -640,7 +640,7 @@ export function GraphPane({
     },
     [selectOnly],
   );
-  // Only where there is a card to show: no badge on the Source page.
+  // Only where there is a card to show.
   const showDetails = details ? handleShowDetails : undefined;
 
   const handleInteraction = useCallback((mode: Interaction) => {

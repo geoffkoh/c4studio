@@ -12,7 +12,8 @@ import { expect, test, type Page } from "@playwright/test";
  */
 
 /**
- * Load hedge_fund and land on the Source page.
+ * Load hedge_fund and open the source editor beside the diagram (PP-214;
+ * once the Source page).
  *
  * Via the search box rather than by expanding folders, because **these
  * tests are not independent of each other**: the backend holds the loaded
@@ -28,14 +29,19 @@ async function openSource(page: Page) {
   await page.goto("/");
   // At narrow widths the sidebar starts collapsed, so the tree is behind
   // the rail. Reveal it before reaching for the search box.
-  const rail = page.locator(".rail--left");
+  // The sidebar's rail, not the split's: with the editor left open at a
+  // narrow width, the diagram is a left rail too.
+  const rail = page.locator(".body > .rail--left");
   if (await rail.isVisible()) await rail.click();
   await page
     .getByRole("searchbox", { name: "Search files" })
     .fill("hedge_fund/workspace.dsl");
   await page.getByRole("button", { name: "workspace.dsl", exact: true }).click();
-  // The Source tab only exists once something is loaded.
-  await page.getByRole("button", { name: "Source" }).click();
+  // The editor's rail only exists once something is loaded, and not at
+  // all when an earlier call in the same test left the editor open.
+  const sourceRail = page.getByRole("button", { name: /^Source/ });
+  await expect(sourceRail.or(page.locator(".editor__surface"))).toBeVisible();
+  if (await sourceRail.isVisible()) await sourceRail.click();
   await expect(page.locator(".editor__surface .cm-editor")).toBeVisible();
   // Leave the tree as a user would find it, not filtered by the helper.
   await page.getByRole("searchbox", { name: "Search files" }).fill("");
@@ -53,7 +59,7 @@ async function widthOf(page: Page, selector: string): Promise<number> {
   return box?.width ?? 0;
 }
 
-test.describe("Source page", () => {
+test.describe("source editor", () => {
   test("both panes have height — the failure every flex change risks", async ({
     page,
   }) => {
@@ -61,7 +67,7 @@ test.describe("Source page", () => {
     await openSource(page);
 
     const editor = await page.locator(".editor__surface").boundingBox();
-    const diagram = await page.locator(".split__pane--right").boundingBox();
+    const diagram = await page.locator(".graph").boundingBox();
 
     // A zero-height pane is the specific way a percentage-inside-flex
     // mistake shows up, and it type-checks perfectly.
@@ -96,6 +102,8 @@ test.describe("Source page", () => {
   });
 
   test("a dirty buffer survives leaving the page", async ({ page }) => {
+    // Leaving the diagram page unmounts the editor as closing it does;
+    // editor-panel.spec.ts covers closing it.
     await page.setViewportSize({ width: 1440, height: 900 });
     await openSource(page);
 
@@ -104,9 +112,9 @@ test.describe("Source page", () => {
     await page.keyboard.type("// PP-147 was here\n");
     await expect(page.locator(".editor__badge", { hasText: "Unsaved" })).toBeVisible();
 
-    await page.getByRole("button", { name: "Diagrams" }).click();
+    await page.getByRole("button", { name: "Explorer" }).click();
     await expect(page.locator(".editor__surface")).toHaveCount(0);
-    await page.getByRole("button", { name: "Source" }).click();
+    await page.getByRole("button", { name: "Diagrams" }).click();
 
     // The bug this whole series started from: the edit used to be gone.
     await expect(page.locator(".cm-content")).toContainText("PP-147 was here");
@@ -170,9 +178,9 @@ test.describe("narrow surfaces", () => {
 
     // The other pane is reachable, which my first attempt at this got
     // wrong — the rail called setOpen on something already open.
-    await page.locator(".rail--right").click();
-    await expect(page.locator(".split__pane--right")).toBeVisible();
-    await expect(page.locator(".rail--left")).toBeVisible();
+    await page.getByRole("button", { name: "diagram", exact: true }).click();
+    await expect(page.locator(".graph")).toBeVisible();
+    await expect(page.locator(".rail--right")).toBeVisible();
   });
 
   test("the sidebar starts collapsed where there is no room", async ({
@@ -271,7 +279,7 @@ test.describe("appearance", () => {
     ["wide", 1440],
     ["narrow", 500],
   ] as const) {
-    test(`source page looks right at ${width}px`, async ({ page }) => {
+    test(`source editor looks right at ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });
       await openSource(page);
       // openSource reveals the sidebar to reach the tree. At narrow widths
@@ -283,9 +291,10 @@ test.describe("appearance", () => {
       }
       await settled(page);
       // The diagram lays out asynchronously and its node positions are not
-      // what this test is about.
+      // what this test is about. By class, not by side: the sides swapped
+      // in PP-214, and masking `--right` would now hide the editor.
       await expect(page).toHaveScreenshot(`source-${name}.png`, {
-        mask: [page.locator(".split__pane--right"), page.locator(".graph")],
+        mask: [page.locator(".graph")],
       });
     });
   }

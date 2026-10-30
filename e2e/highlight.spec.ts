@@ -19,7 +19,7 @@ import { expect, test, type Page } from "@playwright/test";
  * this repo and adding one is a dependency decision.
  */
 
-/** Open samples/c4studio/workspace.dsl on the Source page.
+/** Open samples/c4studio/workspace.dsl in the source editor.
  *
  * That file rather than hedge_fund because it carries both cases in one
  * buffer — a `#` comment in `model` and `#08427b` in `styles`. Via the
@@ -36,7 +36,7 @@ async function openSource(
   await page.getByRole("searchbox", { name: "Search files" }).fill(path);
   const file = path.split("/").pop() as string;
   await page.getByRole("button", { name: file, exact: true }).click();
-  await page.getByRole("button", { name: "Source" }).click();
+  await page.getByRole("button", { name: /^Source/ }).click();
   await expect(page.locator(".editor__surface .cm-editor")).toBeVisible();
   // Switching files while another workspace is loaded swaps the buffer
   // under the same editor, and the first paint can be the new text with

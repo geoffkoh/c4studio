@@ -3,7 +3,7 @@ import type { Container, SoftwareSystem, Workspace } from "../types";
 
 interface ElementTreeProps {
   workspace: Workspace | null;
-  /** Double-click on any element opens its definition in the Source tab. */
+  /** Double-click on any element opens its definition in the source editor. */
   onShowDefinition: (elementId: string) => void;
 }
 

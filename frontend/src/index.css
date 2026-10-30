@@ -1927,10 +1927,14 @@ button {
   border-left: 1px solid var(--border);
 }
 
-/* ---- DSL editor (Source page) ---- */
-/* The Source page is now the editor alone; the file list that used to sit
-   beside it in its own 200px column is the sidebar tree, and what is open
-   is the tab strip.
+/* Unsaved work behind a collapsed editor (PP-214). */
+.rail__badge {
+  color: var(--accent);
+}
+
+/* ---- DSL editor (beside the diagram since PP-214) ---- */
+/* The editor alone; the file list that used to sit beside it in its own
+   200px column is the sidebar tree, and what is open is the tab strip.
 
    Named `source-page`, not `source`: React Flow puts a bare `source` class
    on every source handle, so a `.source { height: 100% }` rule here

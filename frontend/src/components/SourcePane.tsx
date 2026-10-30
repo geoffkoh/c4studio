@@ -37,9 +37,9 @@ interface SourcePaneProps {
 }
 
 /**
- * The DSL source page: the workspace's files (root plus `!include`
- * fragments) listed on the left, the selected one open in a CodeMirror
- * editor on the right.
+ * The DSL source editor, beside the diagram (PP-214): the workspace's
+ * open files (root plus `!include` fragments) as tabs, the selected one in
+ * a CodeMirror editor.
  *
  * Editing is text-first — saving writes the buffer verbatim and the live
  * reload re-renders the diagram from it, so the diagram is a preview of

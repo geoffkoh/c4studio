@@ -774,8 +774,12 @@ quietly dropped:
   narrowed the gap — the iframe, the CSP and panel width are covered — but
   the real `vscode` host, the panel being dragged, and the extension
   spawning the server are not, and cannot be without a human.
-- **Merging Diagrams and Source into one workspace page**, the larger
-  coherence win, deliberately left as its own phase.
+- ~~**Merging Diagrams and Source into one workspace page**~~ — done in
+  PP-214 (October 2026). The editor is a panel on the diagram's right,
+  closed by default, opened by a rail, `e` or show-definition. Right, not
+  left, so opening it does not move the canvas's top-left controls; the
+  diagram's default share is 0.6 so the details card still fits beside
+  them at 1440px.
 
 Update this table as tickets land, and file the next phase's tickets when
 the current one is done rather than all at once.
