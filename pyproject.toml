@@ -178,5 +178,5 @@ dev = [
     # symptom: the rules were coming from ruff's defaults, so the *version*
     # was the contract. [tool.ruff.lint] now states the rules outright, and
     # the upgrade is just an upgrade — hence the wider bound.
-    "ruff>=0.15.22,<0.17",
+    "ruff>=0.15.22,<0.18",
 ]
