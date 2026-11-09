@@ -5,6 +5,15 @@ compatibility work (PP-31 → PP-35) and how to adapt existing code.
 
 ---
 
+## Unreleased: text wraps where the canvas wraps it (PP-223)
+
+Nothing needs action. `c4 render`, `c4 publish` and the VS Code preview
+used to break a box's text sooner than the Studio, so rendered
+descriptions often took an extra line. They now break where the canvas
+does. Box heights are measured the same way, so a box whose text needed
+fewer lines than was estimated is a little shorter, in the Studio and in
+renders, and an automatic layout can shift slightly.
+
 ## Unreleased: `c4 render` draws the Studio's line style (PP-222)
 
 Nothing needs action, but rendered SVGs change:

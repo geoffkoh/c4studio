@@ -63,8 +63,8 @@ discussion.
 
 ### Image parity: `c4 render` against the Studio export
 
-A side-by-side check on hedge_fund found these differences. The first
-three have been fixed:
+A side-by-side check on hedge_fund found these differences. All but the
+last have been fixed:
 
 - The export drew connection handles as black dots (PP-219 and PP-221,
   fixed).
@@ -75,7 +75,12 @@ three have been fixed:
   long labels to one line (PP-222, fixed). The toolbar's line style is
   now saved per view in the sidecar's `lineStyle` section, and the
   render default is Bezier, matching the Studio.
-- Text in a box wraps narrower in `c4 render`.
+- Text in a box wrapped narrower in `c4 render` (PP-223, fixed). The
+  renderer guessed 0.55em per character, 8–26% wide. It now sums widths
+  from `diagram-core/src/glyphWidths.ts`, measured in Chromium by
+  `scripts/measure-glyphs.mjs` at each drawn size, and breaks after
+  hyphens as the browser does. `e2e/text-wrap.spec.ts` checks every box
+  against the canvas, on macOS only: the table is SF Pro.
 - The export still carries the Studio's ⊕ drill mark, ＋ expand and
   − collapse controls.
 
