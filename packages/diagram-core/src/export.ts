@@ -54,9 +54,24 @@ export async function exportDiagram(
     },
   };
 
-  const dataUrl =
-    format === "png"
-      ? await toPng(viewport, { ...options, pixelRatio: PNG_SCALE })
-      : await toSvg(viewport, options);
+  // The filter never sees inside an <svg>: html-to-image copies one whole,
+  // without the stylesheet. So a line's bend, end and run handles (PP-221)
+  // — drawn in the edges' <svg>, and hidden on screen only by CSS — came
+  // out as black circles. An inline style is copied with the element, so
+  // hide them that way for the length of the export.
+  const hidden = [...viewport.querySelectorAll<SVGElement | HTMLElement>(".export-hidden")];
+  const previous = hidden.map((element) => element.style.display);
+  for (const element of hidden) element.style.display = "none";
+  let dataUrl: string;
+  try {
+    dataUrl =
+      format === "png"
+        ? await toPng(viewport, { ...options, pixelRatio: PNG_SCALE })
+        : await toSvg(viewport, options);
+  } finally {
+    hidden.forEach((element, index) => {
+      element.style.display = previous[index];
+    });
+  }
   download(dataUrl, `${viewKey}.${format}`);
 }
