@@ -187,8 +187,8 @@ def react_flow_graph(
         A dict with ``nodes`` and ``edges`` lists in React Flow shape.
     """
     graph_data = build_view_graph(workspace, view, expand, collapse)
-    # Element sizes come only from a JSON layout (PP-220): the Studio saves
-    # boundary sizes alone, and those already reach the graph's style.
+    # Element sizes come from a JSON layout (PP-220) or from resizing a box
+    # in the Studio (PP-224); boundary sizes already reach the graph's style.
     element_sizes = {
         ve.id: (ve.width, ve.height)
         for ve in view.element_views

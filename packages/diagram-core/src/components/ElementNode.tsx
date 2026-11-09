@@ -1,7 +1,14 @@
-import { memo, type CSSProperties, type MouseEvent } from "react";
-import { Handle, Position, type NodeProps } from "reactflow";
+import { memo, useCallback, type CSSProperties, type MouseEvent } from "react";
+import {
+  Handle,
+  NodeResizer,
+  Position,
+  useStore,
+  useStoreApi,
+  type NodeProps,
+} from "reactflow";
 
-import { metaLine, nodeTooltip } from "../nodeMetrics";
+import { NODE_WIDTH, metaLine, nodeContentHeight, nodeTooltip } from "../nodeMetrics";
 
 /** The active perspective as it applies to one item (PP-173). */
 export interface PerspectiveBadge {
@@ -55,7 +62,13 @@ export interface ElementNodeData {
   /** The size a Structurizr JSON layout placed this element at (PP-220);
       absent, the box is sized by its text. */
   boxSize?: { width: number; height: number };
+  /** Wired by a surface that saves layouts: the node can then be resized
+      (PP-224), and this is called when a resize ends. */
+  onGeometryChange?: () => void;
 }
+
+/** Narrowest a box can be resized to; its height floor is its text's. */
+const MIN_ELEMENT_WIDTH = 100;
 
 /** How far a person's body starts below the top of its node: the head is
     38px and overlaps the body by 16, as `svg.ts` draws it. */
@@ -110,7 +123,24 @@ const SHAPE_CLASSES: Record<string, string> = {
  * drill target open it on double-click; expandable containers show a ＋
  * control that expands them in place.
  */
-function ElementNodeComponent({ id, data }: NodeProps<ElementNodeData>) {
+function ElementNodeComponent({ id, data, selected }: NodeProps<ElementNodeData>) {
+  const store = useStoreApi();
+  // The node's own size when it has one — resized here, or placed by a
+  // JSON layout — read from the store so the box follows a resize as it
+  // happens. A string, so the selector's result compares by value.
+  const sizeKey = useStore(
+    useCallback(
+      (state) => {
+        const style = state.nodeInternals.get(id)?.style;
+        const width = Number(style?.width);
+        const height = Number(style?.height);
+        return width > 0 && height > 0 ? `${width}x${height}` : "";
+      },
+      [id],
+    ),
+  );
+  const [liveWidth, liveHeight] = sizeKey.split("x").map(Number);
+  const size = sizeKey ? { width: liveWidth, height: liveHeight } : data.boxSize;
   const background = data.color ?? FALLBACK_COLOR;
   const isPerson =
     data.shape === "Person" ||
@@ -172,10 +202,10 @@ function ElementNodeComponent({ id, data }: NodeProps<ElementNodeData>) {
         ...(data.opacity !== undefined && data.opacity < 100
           ? { opacity: Math.max(0, data.opacity) / 100 }
           : {}),
-        ...(data.boxSize
+        ...(size
           ? {
-              width: data.boxSize.width,
-              height: data.boxSize.height - (isPerson ? PERSON_HEAD_DROP : 0),
+              width: size.width,
+              height: size.height - (isPerson ? PERSON_HEAD_DROP : 0),
               boxSizing: "border-box" as const,
             }
           : {}),
@@ -227,13 +257,75 @@ function ElementNodeComponent({ id, data }: NodeProps<ElementNodeData>) {
     </div>
   );
 
-  if (!isPerson) return box;
+  // Never smaller than its own text at the width it is being given, so a
+  // narrower box wraps tighter rather than clipping (PP-224). The floor
+  // depends on the width, and `minHeight` is only the floor of the width
+  // the drag started at: a corner dragged in both directions at once got
+  // under it. So each step is clamped to its own width's floor, keeping
+  // the edge opposite the one being dragged where it is. React Flow calls
+  // `onResize` before it applies the step, so the clamp is queued after.
+  const textFloor = (width: number) =>
+    nodeContentHeight(data, width) + (isPerson ? PERSON_HEAD_DROP : 0);
+  const resizable = Boolean(data.onGeometryChange);
+  const handleResize = (
+    _event: unknown,
+    params: { x: number; y: number; width: number; height: number; direction: number[] },
+  ) => {
+    const floor = textFloor(params.width);
+    if (params.height >= floor) return;
+    // The top edge is moving when the step moves the node's position.
+    const before = store.getState().nodeInternals.get(id)?.position;
+    const fromTop = before !== undefined && params.y !== before.y;
+    queueMicrotask(() =>
+    store.getState().triggerNodeChanges([
+      {
+        id,
+        type: "dimensions",
+        dimensions: { width: params.width, height: floor },
+        updateStyle: true,
+        resizing: true,
+      },
+      ...(fromTop
+        ? [
+            {
+              id,
+              type: "position" as const,
+              position: { x: params.x, y: params.y - (floor - params.height) },
+            },
+          ]
+        : []),
+    ]),
+    );
+  };
+  const resizer = resizable ? (
+    <NodeResizer
+      isVisible={selected}
+      minWidth={MIN_ELEMENT_WIDTH}
+      minHeight={textFloor(size?.width ?? NODE_WIDTH)}
+      onResize={handleResize}
+      lineClassName="node-resize__line"
+      handleClassName="node-resize__handle"
+      onResizeEnd={() => data.onGeometryChange?.()}
+    />
+  ) : null;
+
+  if (!isPerson) {
+    return (
+      <>
+        {resizer}
+        {box}
+      </>
+    );
+  }
 
   return (
-    <div className="person">
-      <div className="person__head" style={{ background }} />
-      {box}
-    </div>
+    <>
+      {resizer}
+      <div className="person">
+        <div className="person__head" style={{ background }} />
+        {box}
+      </div>
+    </>
   );
 }
 

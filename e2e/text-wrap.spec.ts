@@ -74,6 +74,8 @@ async function open(page: Page, file: string, view: RegExp) {
   await expect(page.locator(".react-flow__node-element").first()).toBeVisible({
     timeout: 20_000,
   });
+  // Let a same-view tween settle: mid-tween, boxes are between sizes.
+  await page.waitForTimeout(800);
 }
 
 for (const [file, view] of [

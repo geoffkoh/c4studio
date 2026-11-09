@@ -44,7 +44,8 @@ export async function exportDiagram(
     // (PP-219) — are not part of the diagram.
     filter: (node: HTMLElement) =>
       !node.classList?.contains("export-hidden") &&
-      !node.classList?.contains("react-flow__handle"),
+      !node.classList?.contains("react-flow__handle") &&
+      !node.classList?.contains("react-flow__resize-control"),
     width,
     height,
     style: {

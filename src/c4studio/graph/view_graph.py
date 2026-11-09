@@ -1656,8 +1656,9 @@ def _insert_group_boundaries(
 def apply_sizes(view: View, sizes: dict[str, tuple[int, int]]) -> None:
     """Update view.element_views with the given id → (width, height) sizes.
 
-    Adds a ViewElement for any id not already present; used for resizable
-    boundary nodes whose dimensions are persisted alongside positions.
+    Adds a ViewElement for any id not already present; used for resized
+    boundaries and elements, whose dimensions are persisted alongside
+    positions.
     """
     existing = {ve.id: ve for ve in view.element_views}
     for eid, (width, height) in sizes.items():

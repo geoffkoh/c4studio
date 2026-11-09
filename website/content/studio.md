@@ -37,7 +37,7 @@ The diagram is a preview of the text, never the other way round. c4studio never 
 
 Every `systemLandscape`, `systemContext`, `container`, `component`, `dynamic` and `deployment` view renders as an interactive graph. The breadcrumb at the top left shows where you are. Double-click an element that has its own view to drill into it, and press `u` to go back up. `j` and `k` step through the views.
 
-**Arranging.** Drag elements to place them. Shift-drag, or ⌘/Ctrl-click, selects several, and a toolbar appears to align or distribute them. The arrow keys nudge a selection by 1px, or 10px with Shift. **View ▾ › Snap** snaps to a grid. **Reset layout** returns a view to the automatic layout.
+**Arranging.** Drag elements to place them. Shift-drag, or ⌘/Ctrl-click, selects several, and a toolbar appears to align or distribute them. The arrow keys nudge a selection by 1px, or 10px with Shift. **View ▾ › Snap** snaps to a grid. Select an element or a boundary to resize it by its handles. A box cannot be made smaller than its own text, so a narrower box wraps its text more tightly. **Reset layout** returns a view to the automatic layout, sizes included.
 
 **Lines.** The toolbar switches every line between Bezier, Straight, Step and Smooth step. The choice is saved per view in the layout file, so `c4 render`, `c4 publish` and the VS Code preview draw the same lines. A view you have not chosen for uses the style you picked last. A Step or Smooth step line can be re-routed like a whiteboard elbow connector:
 

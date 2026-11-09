@@ -61,6 +61,20 @@ theme are not applied, since the parser never fetches. `c4 render` has
 no way to pick a named layout yet; options A–D are in the PP-220
 discussion.
 
+### Resizable element boxes (PP-224)
+
+A selected element now has resize handles, like a boundary. Its size is
+saved in the sidecar's `views` entry as `[x, y, w, h]`, the shape a
+boundary's always had, so nothing new is threaded through the writers.
+Only boxes with a size of their own are saved; the rest keep growing to
+fit their text. A box cannot be made shorter than its own text at the
+width it is given: each step of a drag is clamped to that width's floor.
+React Flow calls `onResize` *before* applying a step, so the clamp is
+queued in a microtask after it, and a corner dragged in both directions
+at once no longer slips under the floor. A layout save that sends a
+placed element without a size now clears the size in memory too, which
+previously survived until a reload.
+
 ### Image parity: `c4 render` against the Studio export
 
 A side-by-side check on hedge_fund found these differences. All but the

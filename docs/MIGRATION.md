@@ -5,6 +5,14 @@ compatibility work (PP-31 → PP-35) and how to adapt existing code.
 
 ---
 
+## Unreleased: resizable element boxes (PP-224)
+
+Nothing needs action. Elements can now be resized in the Studio, as
+boundaries could. A resized box's size is saved in the layout sidecar's
+`views` entry as `[x, y, width, height]`, the form boundaries already
+used, so older sidecars load unchanged and older versions of c4studio
+read the position and ignore the size.
+
 ## Unreleased: text wraps where the canvas wraps it (PP-223)
 
 Nothing needs action. `c4 render`, `c4 publish` and the VS Code preview

@@ -217,7 +217,7 @@ class LayoutRequest(BaseModel):
     """Body for ``POST /api/views/{key}/layout``."""
 
     positions: dict[str, tuple[int, int]]
-    # Boundary node dimensions, persisted alongside positions.
+    # Boundary and resized element dimensions, persisted alongside positions.
     sizes: dict[str, tuple[int, int]] = {}
     # Relationship bend points, keyed by edge id. An edge present with an
     # empty list has had its waypoints cleared.
@@ -1654,6 +1654,12 @@ def create_app(
         view = _find_view(workspace, key)
         apply_positions(view, dict(body.positions))
         apply_sizes(view, dict(body.sizes))
+        # The save is the whole view: a placed element sent without a size
+        # is drawn at its text's size again (PP-224), as the sidecar it is
+        # about to be written to says.
+        for element_view in view.element_views:
+            if element_view.id in body.positions and element_view.id not in body.sizes:
+                element_view.width = element_view.height = None
         _invalidate_view_cache(state, key)
 
         saved = _read_layout_sidecar(state.current_path)
