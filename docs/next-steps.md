@@ -63,15 +63,18 @@ discussion.
 
 ### Image parity: `c4 render` against the Studio export
 
-A side-by-side check on hedge_fund found these differences. Only the
-first has been fixed:
+A side-by-side check on hedge_fund found these differences. The first
+three have been fixed:
 
-- The export drew connection handles as black dots (PP-219, fixed).
-- `c4 render` draws two relationships between the same pair on one
-  straight line. The dashes overlap into a solid line, and one label is
-  hidden. The Studio separates them.
-- `c4 render` draws straight lines and cuts long labels to one line
-  ending in "…". The Studio defaults to Bezier curves and wraps labels.
+- The export drew connection handles as black dots (PP-219 and PP-221,
+  fixed).
+- `c4 render` drew two relationships between the same pair on one
+  straight line (PP-222, fixed: both renderers now share
+  `diagram-core/src/edgePath.ts`).
+- `c4 render` drew straight lines whatever the Studio showed, and cut
+  long labels to one line (PP-222, fixed). The toolbar's line style is
+  now saved per view in the sidecar's `lineStyle` section, and the
+  render default is Bezier, matching the Studio.
 - Text in a box wraps narrower in `c4 render`.
 - The export still carries the Studio's ⊕ drill mark, ＋ expand and
   − collapse controls.

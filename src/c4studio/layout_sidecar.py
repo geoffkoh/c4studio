@@ -92,6 +92,28 @@ def read_waypoints(source: Path) -> dict[str, dict[str, list[list[int]]]]:
 ROUTING_MODES = frozenset({"orthogonal"})
 
 
+#: The toolbar's line styles (PP-222), as the ``lineStyle`` section stores
+#: them. ``diagram-core``'s ``LINE_STYLES`` is the same list.
+LINE_STYLES = frozenset({"bezier", "straight", "step", "smoothstep"})
+
+
+def read_line_styles(source: Path) -> dict[str, str]:
+    """Read ``{view_key: style}``: the line style chosen for each view.
+
+    Chosen in the Studio's toolbar (PP-222) and drawn by every renderer, so
+    ``c4 render`` matches the canvas. A view without one is drawn in the
+    viewer's own default. Unknown styles are dropped.
+    """
+    raw = read_document(source).get("lineStyle")
+    if not isinstance(raw, dict):
+        return {}
+    return {
+        key: style
+        for key, style in raw.items()
+        if isinstance(key, str) and style in LINE_STYLES
+    }
+
+
 def read_routing(source: Path) -> dict[str, dict[str, str]]:
     """Read ``{view_key: {edge_id: "orthogonal"}}`` re-routed edges.
 
@@ -304,6 +326,7 @@ SNAPSHOT_SECTIONS = (
     "chrome",
     "routing",
     "sides",
+    "lineStyle",
 )
 
 

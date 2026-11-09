@@ -39,7 +39,7 @@ async function open(
   }: { width?: number; height?: number; details?: string; badgeColor?: string } = {},
 ): Promise<{ element: { id: string; label: string }; edgeIds: string[]; withProperties: number }> {
   const found = { element: { id: "", label: "" }, edgeIds: [] as string[], withProperties: 0 };
-  await page.route(/\/api\/views\/[^/]+\/(expansion|layout)$/, async (route) => {
+  await page.route(/\/api\/views\/[^/]+\/(expansion|layout|line-style)$/, async (route) => {
     if (route.request().method() === "GET") return route.fallback();
     return route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
   });

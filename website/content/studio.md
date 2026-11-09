@@ -39,7 +39,7 @@ Every `systemLandscape`, `systemContext`, `container`, `component`, `dynamic` an
 
 **Arranging.** Drag elements to place them. Shift-drag, or ⌘/Ctrl-click, selects several, and a toolbar appears to align or distribute them. The arrow keys nudge a selection by 1px, or 10px with Shift. **View ▾ › Snap** snaps to a grid. **Reset layout** returns a view to the automatic layout.
 
-**Lines.** The toolbar switches every line between Bezier, Straight, Step and Smooth step. A Step or Smooth step line can be re-routed like a whiteboard elbow connector:
+**Lines.** The toolbar switches every line between Bezier, Straight, Step and Smooth step. The choice is saved per view in the layout file, so `c4 render`, `c4 publish` and the VS Code preview draw the same lines. A view you have not chosen for uses the style you picked last. A Step or Smooth step line can be re-routed like a whiteboard elbow connector:
 
 - drag the handle on a straight run to slide it sideways;
 - double-click a run, or choose *Add step here* from the right-click menu, to add a jog;

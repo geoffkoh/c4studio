@@ -31,16 +31,14 @@ import {
   normalizeStoredPositions,
   type RankDirection,
 } from "./layout";
-import {
-  orthogonalPath,
-  orthogonalRoute,
-  routeLabelPoint,
-  type Pins,
-} from "./orthogonal";
+import { type Pins } from "./orthogonal";
+import { asLineStyle, curveOffsets, edgeGeometry, type LineStyle } from "./edgePath";
 import { applyPerspective, type Perspective } from "./perspective";
 import {
   CHAR_RATIO,
   DESC_GAP,
+  EDGE_LABEL_INSET_X,
+  EDGE_LABEL_MAX_WIDTH,
   DESC_MAX_LINES,
   ICON_MARGIN_BOTTOM,
   ICON_MARGIN_TOP,
@@ -154,6 +152,9 @@ export interface GraphPayload {
       coordinates, keyed "title" / "legend". Absent chrome keeps the
       placement this renderer computes (PP-180). */
   chrome?: Record<string, [number, number]>;
+  /** The view's line style from the layout sidecar (PP-222); Bezier when
+      absent, as in the Studio. */
+  lineStyle?: string;
 }
 
 export interface RenderOptions {
@@ -219,6 +220,8 @@ const LEGEND_MAX_LABEL_LINES = 2;
 // headless path can share it. They used to be separate copies.
 const ARROW = 10;
 const EDGE_LABEL_SIZE = 10;
+/** `normal` line height at 10px, as the canvas lays a wrapped label out. */
+const EDGE_LABEL_LEADING = 12;
 const EDGE_LABEL_COLOUR = "#6b7684"; // --muted
 const EDGE_LABEL_BG = "rgba(255,255,255,0.92)";
 const EDGE_LABEL_BORDER = "#e2e5ea"; // --border
@@ -274,18 +277,6 @@ const round = (n: number): number => Math.round(n * 100) / 100;
 // ---------------------------------------------------------------------------
 // Geometry
 // ---------------------------------------------------------------------------
-
-/** Where the line from a node's centre towards `aimAt` leaves its box. */
-function borderIntersection(node: Placed, aimAt: Point): Point {
-  const w = node.width / 2;
-  const h = node.height / 2;
-  const cx = node.x + w;
-  const cy = node.y + h;
-  const dx = (aimAt.x - cx) / (2 * w) || 0;
-  const dy = (aimAt.y - cy) / (2 * h) || 0;
-  const scale = 1 / Math.max(Math.abs(dx), Math.abs(dy)) || 1;
-  return { x: cx + dx * scale * w, y: cy + dy * scale * h };
-}
 
 /** Absolute positions: React Flow nests children inside their parent. */
 function place(nodes: Node[]): Map<string, Placed> {
@@ -574,49 +565,30 @@ function arrowMarkerDefs(edges: GraphPayloadEdge[]): string {
 function paintEdge(
   edge: GraphPayloadEdge,
   placed: Map<string, Placed>,
+  lineStyle: LineStyle | undefined,
+  curveOffset: number | undefined,
 ): string {
   const source = placed.get(edge.source);
   const target = placed.get(edge.target);
   if (!source || !target) return "";
 
-  const orthogonal =
-    edge.routing === "orthogonal" || edge.styleRouting === "orthogonal";
-  let points: { x: number; y: number }[];
-  if (orthogonal) {
-    // The same route the canvas draws for a re-routed edge, sharp-cornered
-    // as upstream draws orthogonal routing.
-    points = orthogonalRoute(
-      source,
-      target,
-      edge.waypoints ?? [],
-      0,
-      edge.sides ?? {},
-    ).map(
-      (p) => ({ x: round(p.x), y: round(p.y) }),
-    );
-  } else {
-    const waypoints = (edge.waypoints ?? []).map(([x, y]) => ({ x, y }));
-    const firstAim = waypoints[0] ?? {
-      x: target.x + target.width / 2,
-      y: target.y + target.height / 2,
-    };
-    const lastAim = waypoints[waypoints.length - 1] ?? {
-      x: source.x + source.width / 2,
-      y: source.y + source.height / 2,
-    };
-    const start = borderIntersection(source, firstAim);
-    const end = borderIntersection(target, lastAim);
-    points = [start, ...waypoints, end];
-  }
-  const d = orthogonal
-    ? orthogonalPath(points)
-    : points
-        .map((p, i) => `${i === 0 ? "M" : "L"} ${round(p.x)} ${round(p.y)}`)
-        .join(" ");
+  // The canvas's own geometry (PP-222): the same line style, the same
+  // offset between parallel lines, the same label point.
+  const geometry = edgeGeometry({
+    source,
+    target,
+    lineStyle,
+    waypoints: edge.waypoints,
+    curveOffset,
+    routing: edge.routing,
+    styleRouting: edge.styleRouting,
+    sides: edge.sides,
+  });
+  const d = roundPath(geometry.path);
 
   const colour = edge.color || EDGE_COLOUR;
   const strokeWidth = edge.thickness ?? EDGE_WIDTH;
-  const lineStyle =
+  const lineStyleOfStroke =
     edge.lineStyle === "solid" ||
     edge.lineStyle === "dashed" ||
     edge.lineStyle === "dotted"
@@ -625,9 +597,9 @@ function paintEdge(
   // Same width-scaled ratios as element borders, so dashes look alike
   // everywhere (and match edgePaint.ts's edgeDashArray).
   const dash =
-    lineStyle === "dashed"
+    lineStyleOfStroke === "dashed"
       ? ` stroke-dasharray="${round(strokeWidth * 5)} ${round(strokeWidth * 3)}"`
-      : lineStyle === "dotted"
+      : lineStyleOfStroke === "dotted"
         ? ` stroke-dasharray="${round(strokeWidth)} ${round(strokeWidth * 2.5)}"`
         : "";
   const opacity =
@@ -639,29 +611,51 @@ function paintEdge(
 
   if (!edge.label) return path;
 
-  // Label sits at the middle of the routed line, in a small plate — on an
-  // orthogonal route, the middle of its longest run, where the canvas
-  // puts it too.
-  const mid = points[Math.floor((points.length - 1) / 2)];
-  const next = points[Math.floor((points.length - 1) / 2) + 1] ?? mid;
-  const at = orthogonal
-    ? routeLabelPoint(points)
-    : { x: (mid.x + next.x) / 2, y: (mid.y + next.y) / 2 };
   // The offset is stored relative to the computed point, not absolutely,
   // so a label dragged clear of a crossing line stays clear of it after a
   // re-layout (PP-180).
-  const cx = at.x + (edge.labelOffset?.[0] ?? 0);
-  const cy = at.y + (edge.labelOffset?.[1] ?? 0);
-  const [line] = wrap(edge.label, 220, EDGE_LABEL_SIZE, 1);
-  const width = line.length * EDGE_LABEL_SIZE * CHAR_RATIO + 10;
+  const cx = geometry.labelX + (edge.labelOffset?.[0] ?? 0);
+  const cy = geometry.labelY + (edge.labelOffset?.[1] ?? 0);
+  // Wrapped as the canvas wraps it, never cut (PP-222).
+  const lines = wrap(
+    edge.label,
+    EDGE_LABEL_MAX_WIDTH - 2 * EDGE_LABEL_INSET_X,
+    EDGE_LABEL_SIZE,
+    Number.POSITIVE_INFINITY,
+  );
+  const widest = Math.max(...lines.map((line) => line.length));
+  const width = widest * EDGE_LABEL_SIZE * CHAR_RATIO + 2 * EDGE_LABEL_INSET_X;
+  const height = lines.length * EDGE_LABEL_LEADING + 4;
+  const top = cy - height / 2;
   // The plate fades with its line: a crisp label over a faded
   // relationship reads as the label belonging to something else, which is
   // exactly what a perspective is trying to say it does not.
   const label =
-    `<rect x="${round(cx - width / 2)}" y="${round(cy - 8)}" width="${round(width)}" ` +
-    `height="16" rx="4" ry="4" fill="${EDGE_LABEL_BG}" stroke="${EDGE_LABEL_BORDER}"/>` +
-    textLine(line, cx, cy + 3.5, EDGE_LABEL_SIZE, EDGE_LABEL_COLOUR);
+    `<rect x="${round(cx - width / 2)}" y="${round(top)}" width="${round(width)}" ` +
+    `height="${round(height)}" rx="4" ry="4" fill="${EDGE_LABEL_BG}" stroke="${EDGE_LABEL_BORDER}"/>` +
+    lines
+      .map((line, i) =>
+        textLine(
+          line,
+          cx,
+          top + 2 + EDGE_LABEL_LEADING * i + EDGE_LABEL_LEADING / 2 + 3.5,
+          EDGE_LABEL_SIZE,
+          EDGE_LABEL_COLOUR,
+        ),
+      )
+      .join("");
   return path + (opacity ? `<g${opacity}>${label}</g>` : label);
+}
+
+/** Path data with every number rounded, as the rest of this file writes. */
+/** Path data with rounded numbers, in one spelling — `M 1 2 L 3 4` — so
+    what a style draws reads the same whichever builder made it. */
+function roundPath(d: string): string {
+  return d
+    .replace(/-?\d+(?:\.\d+)?(?:e-?\d+)?/g, (n) => String(round(Number(n))))
+    .replace(/,/g, " ")
+    .replace(/\s*([MLCQ])\s*/g, " $1 ")
+    .trim();
 }
 
 /** Widest line a 14px swatch can show and still read as a line. */
@@ -931,10 +925,14 @@ export async function renderSvg(
   // the leaf nodes — the SPA's stacking order.
   const boundaries = boxes.filter((b) => b.isBoundary);
   const leaves = boxes.filter((b) => !b.isBoundary);
+  const lineStyle = asLineStyle(payload.lineStyle);
+  const offsets = curveOffsets(payload.edges);
 
   const body = [
     ...boundaries.map(paintBoundary),
-    ...payload.edges.map((edge) => paintEdge(edge, placed)),
+    ...payload.edges.map((edge) =>
+      paintEdge(edge, placed, lineStyle, offsets.get(edge.id)),
+    ),
     ...leaves.map(paintNode),
     // Dragged chrome rides inside the diagram's own transform, which is
     // what makes its stored coordinates mean the same thing here as on

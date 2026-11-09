@@ -16,7 +16,7 @@ type Saved = { waypoints?: Record<string, unknown>; routing?: Record<string, str
 
 async function open(page: Page): Promise<Saved[]> {
   const saves: Saved[] = [];
-  await page.route(/\/api\/views\/[^/]+\/(expansion|layout)$/, async (route) => {
+  await page.route(/\/api\/views\/[^/]+\/(expansion|layout|line-style)$/, async (route) => {
     if (route.request().method() === "GET") return route.fallback();
     if (route.request().url().endsWith("/layout")) {
       saves.push(route.request().postDataJSON() as Saved);

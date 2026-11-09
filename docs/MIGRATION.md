@@ -5,6 +5,22 @@ compatibility work (PP-31 → PP-35) and how to adapt existing code.
 
 ---
 
+## Unreleased: `c4 render` draws the Studio's line style (PP-222)
+
+Nothing needs action, but rendered SVGs change:
+
+- **The default line is now a Bezier curve**, as in the Studio. Before,
+  `c4 render`, `c4 publish` and the VS Code preview drew straight lines.
+  Choose **Straight** in the Studio's toolbar to get them back for a view.
+- **The toolbar's line style is saved per view** in the layout sidecar's
+  new `lineStyle` section, and all three honour it. A view nobody chose a
+  style for is drawn in each browser's own default, as before. Reset
+  layout keeps the style; named layouts capture it.
+- **Long relationship labels wrap** at the Studio's width instead of
+  being cut to one line ending in "…".
+- **Two relationships between the same pair** are bowed apart, as in the
+  Studio, rather than drawn on one line.
+
 ## Unreleased: layouts from workspace JSON (PP-220)
 
 Nothing needs action. A workspace `.json` that Structurizr laid out is

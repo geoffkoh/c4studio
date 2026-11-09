@@ -9220,7 +9220,7 @@ async function normalizeStoredPositions(nodes, edges) {
 	});
 }
 // src/orthogonal.ts
-var centre = (r) => ({
+var centre$1 = (r) => ({
 	x: r.x + r.width / 2,
 	y: r.y + r.height / 2
 });
@@ -9248,8 +9248,8 @@ function connect(r, c) {
 		x: c.x,
 		y: c.y < r.y ? r.y : bottom
 	}];
-	if (!besideX && !besideY) return [centre(r)];
-	const mid = centre(r);
+	if (!besideX && !besideY) return [centre$1(r)];
+	const mid = centre$1(r);
 	return [{
 		x: c.x < r.x ? r.x : right,
 		y: mid.y
@@ -9266,8 +9266,8 @@ function connect(r, c) {
 * `curveOffset` does for curves.
 */
 function autoCorners(s, t, offset) {
-	const sc = centre(s);
-	const tc = centre(t);
+	const sc = centre$1(s);
+	const tc = centre$1(t);
 	const overlapX = Math.max(s.x, t.x) < Math.min(s.x + s.width, t.x + t.width);
 	const overlapY = Math.max(s.y, t.y) < Math.min(s.y + s.height, t.y + t.height);
 	if (overlapX && overlapY) return [];
@@ -9430,7 +9430,7 @@ function orthogonalRoute(source, target, bends = [], offset = 0, pins = {}) {
 		y
 	})) : pinned ? [] : autoCorners(source, target, offset);
 	if (pinned) return pinnedRoute(source, target, corners, pins);
-	if (corners.length === 0) return [centre(source), centre(target)];
+	if (corners.length === 0) return [centre$1(source), centre$1(target)];
 	const interior = [corners[0]];
 	for (const c of corners.slice(1)) {
 		const prev = interior[interior.length - 1];
@@ -9465,15 +9465,15 @@ function pinnedRoute(source, target, corners, pins) {
 		chain.push(p);
 	};
 	const last = corners[corners.length - 1];
-	const sourcePin = pins.source ? pin(source, pins.source, corners[0] ?? centre(target)) : null;
-	const targetPin = pins.target ? pin(target, pins.target, last ?? centre(source)) : null;
+	const sourcePin = pins.source ? pin(source, pins.source, corners[0] ?? centre$1(target)) : null;
+	const targetPin = pins.target ? pin(target, pins.target, last ?? centre$1(source)) : null;
 	if (sourcePin && pins.source) {
-		const toward = corners[0] ?? targetPin?.[1] ?? centre(target);
+		const toward = corners[0] ?? targetPin?.[1] ?? centre$1(target);
 		chain.push(sourcePin[1], ...leave(source, pins.source, sourcePin[1], toward));
 	}
 	corners.forEach(push);
 	if (targetPin && pins.target) {
-		const from = chain[chain.length - 1] ?? centre(source);
+		const from = chain[chain.length - 1] ?? centre$1(source);
 		leave(target, pins.target, targetPin[1], from).reverse().forEach(push);
 		push(targetPin[1]);
 	}
@@ -9564,6 +9564,197 @@ function routeLabelPoint(points) {
 		x: (a.x + b.x) / 2,
 		y: (a.y + b.y) / 2
 	};
+}
+// src/edgePath.ts
+var LINE_STYLES = [
+	"bezier",
+	"straight",
+	"step",
+	"smoothstep"
+];
+/** A stored value as a line style: `"default"` is what browsers kept
+before the style had a name of its own, and meant Bezier. */
+function asLineStyle(raw) {
+	if (raw === "default") return "bezier";
+	return LINE_STYLES.find((style) => style === raw);
+}
+/** Corner radius of a Smooth step route; Step's corners are square. */
+var SMOOTH_STEP_RADIUS = 8;
+/** Gap between parallel lines joining the same two elements. */
+var CURVE_GAP = 48;
+/**
+* The perpendicular offset for each edge that shares its two elements with
+* another, keyed by edge id. Sign-normalised to the canonical pair order,
+* so opposite directions bow to opposite sides; the middle edge of an
+* odd-sized group keeps the centre line. An edge alone between its pair
+* has no entry.
+*/
+function curveOffsets(edges) {
+	const pairKey = (e) => [e.source, e.target].sort().join("|");
+	const counts = /* @__PURE__ */ new Map();
+	for (const e of edges) counts.set(pairKey(e), (counts.get(pairKey(e)) ?? 0) + 1);
+	const seen = /* @__PURE__ */ new Map();
+	const offsets = /* @__PURE__ */ new Map();
+	for (const e of edges) {
+		const key = pairKey(e);
+		const total = counts.get(key) ?? 1;
+		if (total < 2) continue;
+		const index = seen.get(key) ?? 0;
+		seen.set(key, index + 1);
+		const canonical = e.source <= e.target ? 1 : -1;
+		offsets.set(e.id, (index - (total - 1) / 2) * CURVE_GAP * canonical);
+	}
+	return offsets;
+}
+var centre = (r) => ({
+	x: r.x + r.width / 2,
+	y: r.y + r.height / 2
+});
+/**
+* Where the line from `r`'s centre towards `aimAt` crosses its border:
+* edges aim at centres (or a curve's control point) while arrowheads still
+* start and stop at the box.
+*/
+function borderIntersection(r, aimAt) {
+	const w = r.width / 2;
+	const h = r.height / 2;
+	const c = centre(r);
+	const dx = (aimAt.x - c.x) / (2 * w) || 0;
+	const dy = (aimAt.y - c.y) / (2 * h) || 0;
+	const scale = 1 / Math.max(Math.abs(dx), Math.abs(dy)) || 1;
+	return {
+		x: c.x + dx * scale * w,
+		y: c.y + dy * scale * h
+	};
+}
+function sideOf(r, p) {
+	if (p.x <= r.x + 1) return "left";
+	if (p.x >= r.x + r.width - 1) return "right";
+	if (p.y <= r.y + 1) return "top";
+	return "bottom";
+}
+function controlOffset(distance, curvature) {
+	return distance >= 0 ? .5 * distance : curvature * 25 * Math.sqrt(-distance);
+}
+function control(side, from, to, curvature) {
+	switch (side) {
+		case "left": return {
+			x: from.x - controlOffset(from.x - to.x, curvature),
+			y: from.y
+		};
+		case "right": return {
+			x: from.x + controlOffset(to.x - from.x, curvature),
+			y: from.y
+		};
+		case "top": return {
+			x: from.x,
+			y: from.y - controlOffset(from.y - to.y, curvature)
+		};
+		case "bottom": return {
+			x: from.x,
+			y: from.y + controlOffset(to.y - from.y, curvature)
+		};
+	}
+}
+function bezier(s, sSide, t, tSide) {
+	const sc = control(sSide, s, t, .25);
+	const tc = control(tSide, t, s, .25);
+	return {
+		path: `M${s.x},${s.y} C${sc.x},${sc.y} ${tc.x},${tc.y} ${t.x},${t.y}`,
+		labelX: s.x * .125 + sc.x * .375 + tc.x * .375 + t.x * .125,
+		labelY: s.y * .125 + sc.y * .375 + tc.y * .375 + t.y * .125,
+		orthogonal: false,
+		route: []
+	};
+}
+/**
+* The line between two boxes, as the chosen style draws it.
+*
+* A Step or Smooth step style, a re-routed edge and a `routing Orthogonal`
+* style all draw an orthogonal route. Otherwise saved bend points give
+* straight runs through them, a parallel line bows through an offset
+* control point, and the rest is a Bezier or a straight line.
+*/
+function edgeGeometry(input) {
+	const { source, target } = input;
+	const lineStyle = input.lineStyle ?? "bezier";
+	const bends = input.waypoints ?? [];
+	const curveOffset = input.curveOffset ?? 0;
+	if (input.routing === "orthogonal" || input.styleRouting === "orthogonal" || lineStyle === "step" || lineStyle === "smoothstep") {
+		const route = orthogonalRoute(source, target, bends, curveOffset, input.sides ?? {});
+		const at = routeLabelPoint(route);
+		return {
+			path: orthogonalPath(route, lineStyle === "smoothstep" ? SMOOTH_STEP_RADIUS : 0),
+			labelX: at.x,
+			labelY: at.y,
+			orthogonal: true,
+			route
+		};
+	}
+	if (bends.length > 0) {
+		const first = {
+			x: bends[0][0],
+			y: bends[0][1]
+		};
+		const last = {
+			x: bends[bends.length - 1][0],
+			y: bends[bends.length - 1][1]
+		};
+		const points = [
+			borderIntersection(source, first),
+			...bends.map(([x, y]) => ({
+				x,
+				y
+			})),
+			borderIntersection(target, last)
+		];
+		let longest = 0;
+		let longestLength = -1;
+		for (let i = 0; i < points.length - 1; i += 1) {
+			const length = Math.hypot(points[i + 1].x - points[i].x, points[i + 1].y - points[i].y);
+			if (length > longestLength) {
+				longestLength = length;
+				longest = i;
+			}
+		}
+		return {
+			path: points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x},${p.y}`).join(" "),
+			labelX: (points[longest].x + points[longest + 1].x) / 2,
+			labelY: (points[longest].y + points[longest + 1].y) / 2,
+			orthogonal: false,
+			route: []
+		};
+	}
+	const sourceCentre = centre(source);
+	const targetCentre = centre(target);
+	if (curveOffset !== 0) {
+		const dx = targetCentre.x - sourceCentre.x;
+		const dy = targetCentre.y - sourceCentre.y;
+		const length = Math.hypot(dx, dy) || 1;
+		const c = {
+			x: (sourceCentre.x + targetCentre.x) / 2 + -dy / length * curveOffset,
+			y: (sourceCentre.y + targetCentre.y) / 2 + dx / length * curveOffset
+		};
+		const s = borderIntersection(source, c);
+		const t = borderIntersection(target, c);
+		return {
+			path: `M ${s.x},${s.y} Q ${c.x},${c.y} ${t.x},${t.y}`,
+			labelX: .25 * s.x + .5 * c.x + .25 * t.x,
+			labelY: .25 * s.y + .5 * c.y + .25 * t.y,
+			orthogonal: false,
+			route: []
+		};
+	}
+	const s = borderIntersection(source, targetCentre);
+	const t = borderIntersection(target, sourceCentre);
+	if (lineStyle === "straight") return {
+		path: `M ${s.x},${s.y}L ${t.x},${t.y}`,
+		labelX: (s.x + t.x) / 2,
+		labelY: (s.y + t.y) / 2,
+		orthogonal: false,
+		route: []
+	};
+	return bezier(s, sideOf(source, s), t, sideOf(target, t));
 }
 // src/perspective.ts
 /** Swatch colour for a value that no `Perspective:` style painted. */
@@ -9776,6 +9967,8 @@ var BADGE_HEIGHT = 16;
 var LEGEND_MAX_LABEL_LINES = 2;
 var ARROW = 10;
 var EDGE_LABEL_SIZE = 10;
+/** `normal` line height at 10px, as the canvas lays a wrapped label out. */
+var EDGE_LABEL_LEADING = 12;
 var EDGE_LABEL_COLOUR = "#6b7684";
 var EDGE_LABEL_BG = "rgba(255,255,255,0.92)";
 var EDGE_LABEL_BORDER = "#e2e5ea";
@@ -9787,20 +9980,6 @@ function textLine(content, x, y, size, colour, opacity = 1, weight = 400, anchor
 	return `<text x="${round(x)}" y="${round(y)}" font-family="${FONT}" font-size="${size}" font-weight="${weight}" text-anchor="${anchor}" fill="${fill}">${escapeXml(content)}</text>`;
 }
 var round = (n) => Math.round(n * 100) / 100;
-/** Where the line from a node's centre towards `aimAt` leaves its box. */
-function borderIntersection(node, aimAt) {
-	const w = node.width / 2;
-	const h = node.height / 2;
-	const cx = node.x + w;
-	const cy = node.y + h;
-	const dx = (aimAt.x - cx) / (2 * w) || 0;
-	const dy = (aimAt.y - cy) / (2 * h) || 0;
-	const scale = 1 / Math.max(Math.abs(dx), Math.abs(dy)) || 1;
-	return {
-		x: cx + dx * scale * w,
-		y: cy + dy * scale * h
-	};
-}
 /** Absolute positions: React Flow nests children inside their parent. */
 function place(nodes) {
 	const byId = new Map(nodes.map((n) => [n.id, n]));
@@ -9963,57 +10142,42 @@ function arrowMarkerDefs(edges) {
 	for (const edge of edges) if (edge.color) colours.add(edge.color);
 	return [...colours].map((colour) => `<marker id="${arrowMarkerId(colour)}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="${ARROW}" markerHeight="${ARROW}" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="${colour}"/></marker>`).join("");
 }
-function paintEdge(edge, placed) {
+function paintEdge(edge, placed, lineStyle, curveOffset) {
 	const source = placed.get(edge.source);
 	const target = placed.get(edge.target);
 	if (!source || !target) return "";
-	const orthogonal = edge.routing === "orthogonal" || edge.styleRouting === "orthogonal";
-	let points;
-	if (orthogonal) points = orthogonalRoute(source, target, edge.waypoints ?? [], 0, edge.sides ?? {}).map((p) => ({
-		x: round(p.x),
-		y: round(p.y)
-	}));
-	else {
-		const waypoints = (edge.waypoints ?? []).map(([x, y]) => ({
-			x,
-			y
-		}));
-		const firstAim = waypoints[0] ?? {
-			x: target.x + target.width / 2,
-			y: target.y + target.height / 2
-		};
-		const lastAim = waypoints[waypoints.length - 1] ?? {
-			x: source.x + source.width / 2,
-			y: source.y + source.height / 2
-		};
-		const start = borderIntersection(source, firstAim);
-		const end = borderIntersection(target, lastAim);
-		points = [
-			start,
-			...waypoints,
-			end
-		];
-	}
-	const d = orthogonal ? orthogonalPath(points) : points.map((p, i) => `${i === 0 ? "M" : "L"} ${round(p.x)} ${round(p.y)}`).join(" ");
+	const geometry = edgeGeometry({
+		source,
+		target,
+		lineStyle,
+		waypoints: edge.waypoints,
+		curveOffset,
+		routing: edge.routing,
+		styleRouting: edge.styleRouting,
+		sides: edge.sides
+	});
+	const d = roundPath(geometry.path);
 	const colour = edge.color || "#707070";
 	const strokeWidth = edge.thickness ?? 2;
-	const lineStyle = edge.lineStyle === "solid" || edge.lineStyle === "dashed" || edge.lineStyle === "dotted" ? edge.lineStyle : EDGE_LINE_STYLE;
-	const dash = lineStyle === "dashed" ? ` stroke-dasharray="${round(strokeWidth * 5)} ${round(strokeWidth * 3)}"` : lineStyle === "dotted" ? ` stroke-dasharray="${round(strokeWidth)} ${round(strokeWidth * 2.5)}"` : "";
+	const lineStyleOfStroke = edge.lineStyle === "solid" || edge.lineStyle === "dashed" || edge.lineStyle === "dotted" ? edge.lineStyle : EDGE_LINE_STYLE;
+	const dash = lineStyleOfStroke === "dashed" ? ` stroke-dasharray="${round(strokeWidth * 5)} ${round(strokeWidth * 3)}"` : lineStyleOfStroke === "dotted" ? ` stroke-dasharray="${round(strokeWidth)} ${round(strokeWidth * 2.5)}"` : "";
 	const opacity = edge.opacity !== void 0 ? ` opacity="${edge.opacity / 100}"` : "";
 	const path = `<path d="${d}" fill="none" stroke="${colour}" stroke-width="${strokeWidth}"${dash}${opacity} marker-end="url(#${arrowMarkerId(colour)})"/>`;
 	if (!edge.label) return path;
-	const mid = points[Math.floor((points.length - 1) / 2)];
-	const next = points[Math.floor((points.length - 1) / 2) + 1] ?? mid;
-	const at = orthogonal ? routeLabelPoint(points) : {
-		x: (mid.x + next.x) / 2,
-		y: (mid.y + next.y) / 2
-	};
-	const cx = at.x + (edge.labelOffset?.[0] ?? 0);
-	const cy = at.y + (edge.labelOffset?.[1] ?? 0);
-	const [line] = wrap(edge.label, 220, EDGE_LABEL_SIZE, 1);
-	const width = line.length * EDGE_LABEL_SIZE * CHAR_RATIO + 10;
-	const label = `<rect x="${round(cx - width / 2)}" y="${round(cy - 8)}" width="${round(width)}" height="16" rx="4" ry="4" fill="${EDGE_LABEL_BG}" stroke="${EDGE_LABEL_BORDER}"/>` + textLine(line, cx, cy + 3.5, EDGE_LABEL_SIZE, EDGE_LABEL_COLOUR);
+	const cx = geometry.labelX + (edge.labelOffset?.[0] ?? 0);
+	const cy = geometry.labelY + (edge.labelOffset?.[1] ?? 0);
+	const lines = wrap(edge.label, 148, EDGE_LABEL_SIZE, Number.POSITIVE_INFINITY);
+	const width = Math.max(...lines.map((line) => line.length)) * EDGE_LABEL_SIZE * CHAR_RATIO + 12;
+	const height = lines.length * EDGE_LABEL_LEADING + 4;
+	const top = cy - height / 2;
+	const label = `<rect x="${round(cx - width / 2)}" y="${round(top)}" width="${round(width)}" height="${round(height)}" rx="4" ry="4" fill="${EDGE_LABEL_BG}" stroke="${EDGE_LABEL_BORDER}"/>` + lines.map((line, i) => textLine(line, cx, top + 2 + EDGE_LABEL_LEADING * i + EDGE_LABEL_LEADING / 2 + 3.5, EDGE_LABEL_SIZE, EDGE_LABEL_COLOUR)).join("");
 	return path + (opacity ? `<g${opacity}>${label}</g>` : label);
+}
+/** Path data with every number rounded, as the rest of this file writes. */
+/** Path data with rounded numbers, in one spelling — `M 1 2 L 3 4` — so
+what a style draws reads the same whichever builder made it. */
+function roundPath(d) {
+	return d.replace(/-?\d+(?:\.\d+)?(?:e-?\d+)?/g, (n) => String(round(Number(n)))).replace(/,/g, " ").replace(/\s*([MLCQ])\s*/g, " $1 ").trim();
 }
 /** Widest line a 14px swatch can show and still read as a line. */
 var LEGEND_LINE_MAX_WIDTH = 3;
@@ -10166,9 +10330,11 @@ async function renderSvg(payload, options = {}) {
 	const shift = `translate(${round(padding - minX)},${round(padding + titleHeight - minY)})`;
 	const boundaries = boxes.filter((b) => b.isBoundary);
 	const leaves = boxes.filter((b) => !b.isBoundary);
+	const lineStyle = asLineStyle(payload.lineStyle);
+	const offsets = curveOffsets(payload.edges);
 	const body = [
 		...boundaries.map(paintBoundary),
-		...payload.edges.map((edge) => paintEdge(edge, placed)),
+		...payload.edges.map((edge) => paintEdge(edge, placed, lineStyle, offsets.get(edge.id))),
 		...leaves.map(paintNode),
 		draggedTitle ? textLine(title, draggedTitle[0], draggedTitle[1] + TITLE_SIZE, TITLE_SIZE, TITLE_COLOUR, 1, 600, "start") : "",
 		draggedLegend && legendSize ? paintLegend(entries, draggedLegend[0], draggedLegend[1]).markup : ""

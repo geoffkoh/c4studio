@@ -21,6 +21,7 @@ import {
   renameSource,
   saveExpansion,
   saveLayout,
+  saveLineStyle,
   saveNamedLayout,
   saveSource,
 } from "./api";
@@ -492,6 +493,7 @@ export default function App() {
       loadGraph={getViewGraph}
       loadPerspectiveValues={perspectiveValuesLoader}
       saveExpansion={saveExpansion}
+      saveLineStyle={saveLineStyle}
       saveLayout={saveLayout}
       resetLayout={deleteLayout}
       layouts={NAMED_LAYOUTS}

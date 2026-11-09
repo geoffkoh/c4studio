@@ -317,6 +317,18 @@ export function saveExpansion(
   );
 }
 
+/** PUT /api/views/{key}/line-style -> save the view's line style (PP-222). */
+export function saveLineStyle(key: string, style: string): Promise<LayoutResult> {
+  return request<LayoutResult>(
+    `/api/views/${encodeURIComponent(key)}/line-style`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ style }),
+    },
+  );
+}
+
 /** DELETE /api/views/{key}/layout -> discard saved positions for a view. */
 export function deleteLayout(key: string): Promise<{ reset: string }> {
   return request<{ reset: string }>(

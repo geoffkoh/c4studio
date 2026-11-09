@@ -560,7 +560,8 @@ button {
   padding: 1px 5px;
   font-size: 10px;
   color: var(--muted);
-  max-width: 160px;
+  /* max-width is set inline from nodeMetrics.ts's EDGE_LABEL_MAX_WIDTH,
+     the width `c4 render` wraps labels at too (PP-222). */
   text-align: center;
 }
 

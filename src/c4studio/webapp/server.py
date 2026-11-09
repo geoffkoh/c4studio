@@ -32,6 +32,9 @@ from c4studio.impact import analyse as analyse_impact
 from c4studio.impact import family as impact_family
 from c4studio.impact import to_dict as impact_to_dict
 from c4studio.layout_sidecar import (
+    LINE_STYLES as _LINE_STYLES,
+)
+from c4studio.layout_sidecar import (
     ROUTING_MODES as _ROUTING_MODES,
 )
 from c4studio.layout_sidecar import (
@@ -63,6 +66,9 @@ from c4studio.layout_sidecar import (
 )
 from c4studio.layout_sidecar import (
     read_labels as _read_layout_labels,
+)
+from c4studio.layout_sidecar import (
+    read_line_styles as _read_layout_line_styles,
 )
 from c4studio.layout_sidecar import (
     read_positions as _read_layout_sidecar,
@@ -187,6 +193,9 @@ class AppState:
     # Pinned sides of re-routed edges (PP-201), from the sidecar's `sides`
     # section: ``{view_key: {edge_id: {"source"|"target": side}}}``.
     sides: dict[str, dict[str, dict[str, str]]] = field(default_factory=dict)
+    # Each view's line style (PP-222), from the sidecar's `lineStyle`
+    # section: ``{view_key: "smoothstep"}``.
+    line_styles: dict[str, str] = field(default_factory=dict)
     # Per-view UI state from the sidecar's `expanded`/`collapsed` sections:
     # element ids expanded in place and group node ids collapsed, as
     # ``{view_key: [id, ...]}``. Applied when a graph request names neither.
@@ -302,6 +311,14 @@ class SnapshotNameRequest(BaseModel):
     """
 
     name: str
+
+
+class LineStyleRequest(BaseModel):
+    """Body for ``PUT /api/views/{key}/line-style``."""
+
+    # "bezier", "straight", "step" or "smoothstep"; null forgets the view's
+    # choice, so it is drawn in the viewer's own default again.
+    style: str | None = None
 
 
 class ExpansionRequest(BaseModel):
@@ -785,18 +802,22 @@ def _write_layout_sidecar(
     routing: dict[str, dict[str, str]] | None = None,
     snapshots: dict[str, dict[str, dict[str, Any]]] | None = None,
     sides: dict[str, dict[str, dict[str, str]]] | None = None,
+    line_styles: dict[str, str] | None = None,
 ) -> Path:
     """Write every sidecar section, removing the file when nothing is left.
 
-    ``snapshots`` (named layouts, PP-197) is kept as it is on disk unless
-    given: only the layout routes change it, and threading it through every
-    other writer is how a section gets dropped by the one that forgot.
+    ``snapshots`` (named layouts, PP-197), ``sides`` and ``line_styles``
+    are kept as they are on disk unless given: only their own routes change
+    them, and threading a section through every other writer is how it gets
+    dropped by the one that forgot.
     """
     sidecar = _layout_sidecar(source)
     if snapshots is None:
         snapshots = _read_layout_snapshots(source)
     if sides is None:
         sides = _read_layout_sides(source)
+    if line_styles is None:
+        line_styles = _read_layout_line_styles(source)
     document: dict[str, Any] = {"version": 1, "views": views}
     if waypoints:
         document["edges"] = waypoints
@@ -814,6 +835,8 @@ def _write_layout_sidecar(
         document["snapshots"] = snapshots
     if sides:
         document["sides"] = sides
+    if line_styles:
+        document["lineStyle"] = line_styles
     if not any(
         (
             views,
@@ -825,6 +848,7 @@ def _write_layout_sidecar(
             routing,
             snapshots,
             sides,
+            line_styles,
         )
     ):
         sidecar.unlink(missing_ok=True)
@@ -864,6 +888,7 @@ def _apply_saved_layout(state: AppState) -> None:
     state.labels = _read_layout_labels(state.current_path)
     state.routing = _read_layout_routing(state.current_path)
     state.sides = _read_layout_sides(state.current_path)
+    state.line_styles = _read_layout_line_styles(state.current_path)
     state.expanded = _read_layout_ids(state.current_path, "expanded")
     state.collapsed = _read_layout_ids(state.current_path, "collapsed")
     state.chrome = _read_layout_chrome(state.current_path)
@@ -1594,6 +1619,8 @@ def create_app(
             data["chrome"] = {
                 name: [int(x), int(y)] for name, (x, y) in state.chrome[key].items()
             }
+        if key in state.line_styles:
+            data["lineStyle"] = state.line_styles[key]
         data["expandedIds"] = sorted(expand_ids)
         data["collapsedIds"] = sorted(collapse_ids)
         return _cache_graph(state, cache_key, data)
@@ -1771,6 +1798,42 @@ def create_app(
             )
         return {"reset": key}
 
+    @app.put("/api/views/{key}/line-style")
+    def save_line_style(
+        key: str, body: LineStyleRequest, state: AppState = Depends(_get_state)
+    ) -> dict[str, str]:
+        """Save the view's line style, so ``c4 render`` draws it (PP-222).
+
+        Allowed in Viewer mode, like every other layout write: it is how the
+        diagram is drawn, never the model. Reset layout keeps it — that
+        returns the arrangement to auto-layout, and the style is not part of
+        the arrangement.
+        """
+        source = _layout_source(state, key)
+        if body.style is not None and body.style not in _LINE_STYLES:
+            raise HTTPException(
+                status_code=422, detail=f"Unknown line style {body.style!r}"
+            )
+        styles = _read_layout_line_styles(source)
+        if body.style is None:
+            styles.pop(key, None)
+        else:
+            styles[key] = body.style
+        state.line_styles = styles
+        sidecar = _write_layout_sidecar(
+            source,
+            _read_layout_sidecar(source),
+            _read_layout_waypoints(source),
+            _read_layout_labels(source),
+            state.expanded,
+            state.collapsed,
+            state.chrome,
+            _read_layout_routing(source),
+            line_styles=styles,
+        )
+        _invalidate_view_cache(state, key)
+        return {"saved": str(sidecar)}
+
     @app.post("/api/views/{key}/expansion")
     def save_expansion(
         key: str, body: ExpansionRequest, state: AppState = Depends(_get_state)
@@ -1904,6 +1967,7 @@ def create_app(
             sections["chrome"],
             sections["routing"],
             sides=sections["sides"],
+            line_styles=sections["lineStyle"],
         )
         # Positions are applied to the view in place, so clear the old
         # ones first, exactly as a reset does, then reload every section
