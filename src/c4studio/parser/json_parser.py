@@ -53,7 +53,9 @@ from c4studio.models import (
     Styles,
     Terminology,
     User,
+    Vertex,
     View,
+    ViewElement,
     ViewSet,
     ViewType,
     Workspace,
@@ -330,6 +332,19 @@ def _parse_auto_layout(data: dict[str, Any] | None) -> AutomaticLayout | None:
     )
 
 
+def _vertices(raw: Any) -> list[Vertex]:
+    """A line's bend points, skipping any entry without numeric x and y."""
+    if not isinstance(raw, list):
+        return []
+    return [
+        Vertex(x=int(v["x"]), y=int(v["y"]))
+        for v in raw
+        if isinstance(v, dict)
+        and isinstance(v.get("x"), int | float)
+        and isinstance(v.get("y"), int | float)
+    ]
+
+
 def _parse_relationship_view(data: dict[str, Any]) -> RelationshipView:
     return RelationshipView(
         id=data.get("id", ""),
@@ -337,6 +352,7 @@ def _parse_relationship_view(data: dict[str, Any]) -> RelationshipView:
         url=data.get("url", ""),
         order=str(data.get("order", "")),
         response=data.get("response"),
+        vertices=_vertices(data.get("vertices")),
         properties=_properties(data.get("properties")),
         title=data.get("title", ""),
         link=data.get("link"),
@@ -358,6 +374,29 @@ def _filter_mode(raw: str | None) -> FilterMode | None:
     if raw == FilterMode.EXCLUDE.value:
         return FilterMode.EXCLUDE
     return None
+
+
+def _positioned(data: dict[str, Any]) -> list[ViewElement]:
+    """The view's elements that Structurizr placed, with their x and y.
+
+    None at all when Structurizr itself would lay the view out afresh, as
+    ``structurizr-diagram.js`` decides it: the view asks for automatic
+    layout, or every element sits at 0,0 — which is what the Java library
+    writes for a view nobody arranged. Taken at face value, that stacks
+    every box on one spot.
+    """
+    raw = data.get("elements", [])
+    placed = [
+        ViewElement(id=str(e["id"]), x=int(e["x"]), y=int(e["y"]))
+        for e in raw
+        if isinstance(e, dict)
+        and "id" in e
+        and isinstance(e.get("x"), int | float)
+        and isinstance(e.get("y"), int | float)
+    ]
+    if data.get("automaticLayout") or all(e.x == 0 and e.y == 0 for e in placed):
+        return []
+    return placed
 
 
 def _parse_view(data: dict[str, Any], view_type: ViewType) -> View:
@@ -383,6 +422,7 @@ def _parse_view(data: dict[str, Any], view_type: ViewType) -> View:
         order=int(data.get("order", 0)),
         properties=_properties(data.get("properties")),
         relationship_views=relationship_views,
+        element_views=_positioned(data),
         animations=animations,
         owner=data.get("owner", ""),
         disable_automatic_layout=bool(data.get("disableAutomaticLayout", False)),
@@ -709,7 +749,7 @@ def _parse_json_dict(data: dict[str, Any]) -> Workspace:
         properties=_properties(model_data.get("properties")),
     )
 
-    return Workspace(
+    workspace = Workspace(
         name=ws_data.get("name", ""),
         description=ws_data.get("description", ""),
         model=workspace_model,
@@ -729,3 +769,48 @@ def _parse_json_dict(data: dict[str, Any]) -> Workspace:
         ),
         properties=_properties(ws_data.get("properties")),
     )
+    _size_positioned_elements(workspace)
+    return workspace
+
+
+#: structurizr-ui.js's default element style: what every box measures
+#: unless a style says otherwise, and so what the stored x/y were laid out
+#: around.
+STRUCTURIZR_ELEMENT_SIZE = (450, 300)
+
+_KIND_TAGS: tuple[tuple[type, str], ...] = (
+    (Person, "Person"),
+    (SoftwareSystem, "Software System"),
+    (Container, "Container"),
+    (Component, "Component"),
+    (InfrastructureNode, "Infrastructure Node"),
+)
+
+
+def _size_positioned_elements(workspace: Workspace) -> None:
+    """Give every element Structurizr placed the size it placed it at (PP-220).
+
+    A JSON layout's coordinates are top-left corners of Structurizr's boxes,
+    450x300 unless an element style sizes them. Drawn at c4studio's own
+    smaller size they would sit apart with lines meeting them off-centre.
+    Deployment nodes are left unsized: they are boundaries here, fitted
+    around their contents, as Structurizr draws them.
+
+    Only the workspace's own styles are consulted. A remote theme is never
+    fetched while parsing, so a theme that resizes elements is not seen.
+    """
+    styles = workspace.views.configuration.styles.element_styles
+    for view in workspace.views:
+        for view_element in view.element_views:
+            element = workspace.find_element(view_element.id)
+            if isinstance(element, DeploymentNode):
+                continue
+            tags = {"Element", *(getattr(element, "tags", None) or [])}
+            tags.update(tag for kind, tag in _KIND_TAGS if isinstance(element, kind))
+            width, height = STRUCTURIZR_ELEMENT_SIZE
+            # Declaration order, later matches overriding, as Structurizr.
+            for style in styles:
+                if style.tag in tags:
+                    width = style.width or width
+                    height = style.height or height
+            view_element.width, view_element.height = width, height
