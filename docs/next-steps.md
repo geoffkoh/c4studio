@@ -8,7 +8,7 @@ open right now, and what to do next.
 **Keep it current.** It is only worth reading if it is true, so update it
 when you finish a run of work, not when you remember.
 
-Last updated: **30 October 2026**, after the interface run
+Last updated: **9 November 2026**, after the 0.4.0 release (PP-216); before that **30 October 2026**, after the interface run
 (PP-195 … PP-208, PP-206) and the October roadmap review: dynamic-view
 step ids (PP-198), `routing Orthogonal` (PP-209), `workspace extends`
 (PP-210), impact in the Studio (PP-193), the diff as a PR comment
@@ -21,7 +21,7 @@ folded into Diagrams as an editor panel (PP-214).
 
 | | |
 |---|---|
-| PyPI | **0.3.0** — published 13 Sep 2026, tagged `v0.3.0`, verified by isolated install |
+| PyPI | **0.4.0** — published 9 Nov 2026, tagged `v0.4.0` (PP-216). 0.3.0 was 13 Sep 2026 |
 | VS Code extension | **0.3.1**, packaged as `.vsix` only. Not on the Marketplace, and versioned independently of the Python package |
 | `main` | Green. Four CI jobs: Python gate, bundle + layout, VS Code extension packaging, and the `render` dogfood |
 | Open PRs | **None** |

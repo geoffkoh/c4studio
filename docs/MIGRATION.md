@@ -5,6 +5,30 @@ compatibility work (PP-31 → PP-35) and how to adapt existing code.
 
 ---
 
+## 0.4.0 — lint, diff, impact and a published site (PP-182 … PP-215)
+
+Nothing needs action. The new commands (`c4 lint`, `c4 diff`,
+`c4 impact`, `c4 publish`) are additive. Four changes are visible:
+
+- **The Source page is gone.** Its editor is now a panel on the right of
+  the Diagrams page, opened by the top bar's **Source** button or `e`
+  (PP-214, PP-215). The panel's open state and split ratio start fresh,
+  because the panes swapped sides.
+- **Dynamic-view edge ids changed** from `step-<order>-<src>__<dst>` to
+  `step-<src>__<dst>__<n>` (PP-198). An existing layout sidecar still
+  applies through `previousIds` and is rewritten on the next save. Only a
+  client that keys on edge ids from the HTTP API sees the difference.
+- **Some DSL now parses to more than it did.** Three things used to drop
+  content and now keep it: `"""` text blocks (they read as `""` before),
+  `\` line continuation (PP-202), and steps after a `parallel` block in a
+  dynamic view (PP-186). `!docs`/`!adrs` now attach to the element they
+  are written inside (PP-185). The rendered output changes for these
+  models, but only because the old output was wrong.
+- **`workspace extends`** with a local file now works (PP-210). It used
+  to fail the whole parse.
+
+---
+
 ## 0.3.0 — c4studio becomes an editor (PP-119 … PP-142)
 
 `0.2.0` was a viewer. `0.3.0` can author: an in-browser DSL editor, a
