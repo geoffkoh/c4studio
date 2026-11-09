@@ -160,4 +160,31 @@ export const dslEditorTheme = EditorView.theme({
   ".cm-activeLine": { backgroundColor: "rgba(0, 0, 0, 0.03)" },
   ".cm-activeLineGutter": { backgroundColor: "transparent", color: "var(--muted)" },
   ".cm-flash-line": { animation: "src-focus 2.2s ease-out" },
+  // The find bar (PP-225), in the app's own controls rather than
+  // CodeMirror's defaults.
+  ".cm-panels": {
+    backgroundColor: "var(--panel)",
+    color: "var(--text)",
+    fontFamily: "inherit",
+  },
+  ".cm-panels-top": { borderBottom: "1px solid var(--border)" },
+  ".cm-search": { padding: "6px 10px", fontSize: "12px" },
+  ".cm-search input, .cm-search button, .cm-search label": { fontSize: "12px" },
+  ".cm-textfield": {
+    border: "1px solid var(--border)",
+    borderRadius: "4px",
+    padding: "2px 6px",
+    backgroundColor: "var(--panel)",
+    color: "var(--text)",
+  },
+  ".cm-button": {
+    backgroundImage: "none",
+    backgroundColor: "var(--panel)",
+    border: "1px solid var(--border)",
+    borderRadius: "4px",
+    color: "var(--text)",
+  },
+  ".cm-searchMatch": { backgroundColor: "rgba(255, 196, 0, 0.35)" },
+  ".cm-searchMatch-selected": { backgroundColor: "rgba(255, 140, 0, 0.55)" },
+  ".cm-selectionMatch": { backgroundColor: "rgba(0, 120, 212, 0.12)" },
 });

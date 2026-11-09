@@ -61,6 +61,15 @@ theme are not applied, since the parser never fetches. `c4 render` has
 no way to pick a named layout yet; options A–D are in the PP-220
 discussion.
 
+### Find in the source editor (PP-225)
+
+⌘/Ctrl-F in the editor fell through to the browser's find, which cannot
+see CodeMirror's off-screen lines, so search looked broken. The editor
+now has its own find bar from `@codemirror/search`, a new npm dependency
+the user agreed to. It is themed in `dslLanguage.ts`, and its keymap sits
+before `defaultKeymap`. The bar reads its query on key events, so a test
+must type into it: Playwright's `fill` leaves the query empty.
+
 ### Resizable element boxes (PP-224)
 
 A selected element now has resize handles, like a boundary. Its size is

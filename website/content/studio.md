@@ -26,6 +26,7 @@ In both modes you can still arrange a diagram. Positions, routes and collapsed g
 The source editor is a CodeMirror panel on the right of the diagram. Open it with the **Source** button in the top bar or the `e` key. *Show definition* on any element jumps straight to the line that declares it. A ● on the Source button marks unsaved work behind a closed editor.
 
 - **Highlighting and autocomplete** for DSL keywords, your own element identifiers and your view keys, drawn from the loaded workspace.
+- **Find and replace** with ⌘/Ctrl-F in the editor, including matches far below what is on screen, which the browser's own find cannot reach. Enter steps to the next match, Shift-Enter to the previous one, and other occurrences of the selected text are highlighted.
 - **Diagnostics as you type**, from the same parser the CLI uses. Invalid DSL still saves: an editor that refuses to save halfway through a thought gets in the way.
 - **⌘S or Ctrl+S saves**, and the diagram redraws from the text.
 - **Conflict detection.** If the file changed on disk after you opened it, the save stops and shows you both versions rather than overwriting.
