@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>c4studio: Structurizr DSL and C4 diagrams, with a local Studio</title>
+<meta name="description" content="c4studio is an open-source Python implementation of Structurizr. Write C4 architecture models in Structurizr DSL, edit them beside a live diagram, and lint, diff, render and publish them in CI.">
+<link rel="canonical" href="$canonical">
+<meta property="og:type" content="website">
+<meta property="og:title" content="c4studio: architecture as code, with a studio beside it">
+<meta property="og:description" content="Structurizr DSL and C4 diagrams in Python: a local Studio, a CLI for CI, and a VS Code preview.">
+<meta property="og:url" content="$canonical">
+<meta property="og:image" content="${site}assets/studio.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/site.css">
+<script src="assets/theme.js"></script>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"c4studio","applicationCategory":"DeveloperApplication","operatingSystem":"macOS, Linux, Windows","softwareVersion":"$version","license":"https://opensource.org/licenses/MIT","url":"$canonical","downloadUrl":"$pypi","codeRepository":"$repo","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}
+</script>
+</head>
+<body class="home">
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar">
+  <a class="brand" href="index.html" aria-label="c4studio home">
+    <img src="assets/favicon.svg" alt="" width="26" height="26">
+    <span>c4studio</span>
+  </a>
+  <nav class="topnav" aria-label="Site">
+    <a href="getting-started.html">Docs</a>
+    <a href="dsl-reference.html">DSL</a>
+    <a href="extensions.html">Extensions</a>
+    <a href="example/index.html">Example</a>
+  </nav>
+  <div class="topbar-actions">
+    <button class="search-btn" type="button" data-search-open aria-label="Search the docs">
+      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="m20 20-3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <span>Search</span><kbd>/</kbd>
+    </button>
+    <button class="icon-btn" type="button" data-theme-toggle aria-label="Toggle dark mode">
+      <svg class="sun" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="currentColor"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <svg class="moon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5Z" fill="currentColor"/></svg>
+    </button>
+    <a class="icon-btn" href="$repo" aria-label="c4studio on GitHub">
+      <svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+    </a>
+  </div>
+</header>
+
+<main id="main">
+  <section class="hero">
+    <div class="hero-glow" aria-hidden="true"></div>
+    <div class="wrap hero-inner">
+      <a class="pill" href="migration.html#040--lint-diff-impact-and-a-published-site-pp-182--pp-215">
+        <span class="pill-tag">New</span> v$version: lint, diff, impact and a published site →
+      </a>
+      <h1>Architecture as code,<br><span class="grad">with a studio beside it.</span></h1>
+      <p class="lede">c4studio reads <strong>Structurizr DSL</strong> and draws your <strong>C4 diagrams</strong>.
+        Edit the model beside a live diagram in a local Studio, then lint, diff, render and publish
+        it from the command line and in CI. Open source, written in Python, and nothing leaves your machine.</p>
+      <div class="cta">
+        <a class="btn btn-primary" href="getting-started.html">Get started</a>
+        <a class="btn btn-ghost" href="example/index.html">See a live example</a>
+      </div>
+      <div class="install" data-copy-root>
+        <span class="prompt" aria-hidden="true">$$</span>
+        <code>pipx install c4studio</code>
+        <button class="copy" type="button" data-copy="pipx install c4studio" aria-label="Copy install command">Copy</button>
+      </div>
+      <p class="install-note">Python 3.13+ · or run it with no install: <code>uvx --from c4studio c4 webapp</code></p>
+    </div>
+    <div class="wrap">
+      <figure class="shot shot-hero">
+        <div class="shot-bar" aria-hidden="true"><i></i><i></i><i></i><span>127.0.0.1:8090</span></div>
+        <img src="assets/studio.jpg" width="1800" height="1075" alt="The c4studio Studio showing a system landscape: people grouped into front, middle and back office inside an enterprise boundary, the trading systems they use, and the external systems below, with the file tree, view list and element tree on the left.">
+      </figure>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="wrap steps">
+      <div class="step">
+        <span class="step-n">1</span>
+        <h2>Start a model</h2>
+        <pre><code><span class="tok-command">c4</span> new shop.dsl <span class="tok-property">--template</span> full-c4</code></pre>
+        <p>Four starter templates, from one box to a full container-and-component model.</p>
+      </div>
+      <div class="step">
+        <span class="step-n">2</span>
+        <h2>Edit it, and see it</h2>
+        <pre><code><span class="tok-command">c4</span> webapp shop.dsl</code></pre>
+        <p>The Studio opens in your browser. Type DSL on the right and the diagram redraws when you save.</p>
+      </div>
+      <div class="step">
+        <span class="step-n">3</span>
+        <h2>Ship it</h2>
+        <pre><code><span class="tok-command">c4</span> lint shop.dsl &amp;&amp; <span class="tok-command">c4</span> publish shop.dsl</code></pre>
+        <p>Check it against your standards, then publish a static site of every view and its docs.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap features" aria-labelledby="features-h">
+    <p class="eyebrow">What you get</p>
+    <h2 id="features-h" class="section-h">One model. Every surface.</h2>
+    <p class="section-sub">The same parser and the same layout code run in the Studio, the CLI, CI and the VS Code preview, so every surface draws the same diagram.</p>
+    <div class="grid">
+      <a class="card" href="studio.html">
+        <span class="card-icon" aria-hidden="true">✎</span>
+        <h3>A Studio for the DSL</h3>
+        <p>CodeMirror editor with highlighting, autocomplete from your own identifiers, diagnostics as you type, and conflict-safe saves.</p>
+      </a>
+      <a class="card" href="studio.html#working-with-the-diagram">
+        <span class="card-icon" aria-hidden="true">⌖</span>
+        <h3>Diagrams you can arrange</h3>
+        <p>Drag, align, re-route lines like a whiteboard connector, and keep named layouts per view. Arrangement is saved beside the model, never in it.</p>
+      </a>
+      <a class="card" href="studio.html#perspectives-and-impact">
+        <span class="card-icon" aria-hidden="true">◐</span>
+        <h3>Perspectives and impact</h3>
+        <p>Show security, ownership or cost over any diagram, or ask what else is involved when one element changes.</p>
+      </a>
+      <a class="card" href="cli.html#c4-lint">
+        <span class="card-icon" aria-hidden="true">✓</span>
+        <h3>Model standards in CI</h3>
+        <p><code>c4 lint</code> catches orphans, missing descriptions, duplicate relationships and styles that match nothing, and its exit code gates the build.</p>
+      </a>
+      <a class="card" href="ci.html#post-the-model-diff-on-every-pull-request">
+        <span class="card-icon" aria-hidden="true">±</span>
+        <h3>Architecture diffs on PRs</h3>
+        <p><code>c4 diff</code> reports what changed between two git revisions, and which views a reviewer has to look at again.</p>
+      </a>
+      <a class="card" href="cli.html#c4-publish">
+        <span class="card-icon" aria-hidden="true">⇪</span>
+        <h3>Publish a site</h3>
+        <p>One self-contained page per view, with your <code>!docs</code> and ADRs beside them. Works from <code>file://</code> or any static host.</p>
+      </a>
+      <a class="card" href="cli.html#c4-render">
+        <span class="card-icon" aria-hidden="true">◇</span>
+        <h3>Headless SVG</h3>
+        <p><code>c4 render</code> draws standalone SVGs with titles, legends and embedded theme icons, for docs-as-code pipelines.</p>
+      </a>
+      <a class="card" href="vscode.html">
+        <span class="card-icon" aria-hidden="true">⌘</span>
+        <h3>VS Code preview</h3>
+        <p>Highlighting, problems as you type, and one view drawn beside your editor, with no server to run.</p>
+      </a>
+      <a class="card" href="dsl-support.html">
+        <span class="card-icon" aria-hidden="true">⇄</span>
+        <h3>Structurizr compatible</h3>
+        <p>Reads the Structurizr DSL and workspace JSON, and round-trips JSON with structurizr.com and Lite. Unsupported constructs are skipped and reported, never executed.</p>
+      </a>
+    </div>
+  </section>
+
+  <section class="split wrap">
+    <div class="split-text">
+      <p class="eyebrow">The Studio</p>
+      <h2 class="section-h">Write the text. Watch the diagram follow.</h2>
+      <p>The diagram is a preview of the DSL, never the other way round. c4studio never rewrites your source, so your comments, formatting and <code>!include</code> structure stay exactly as you wrote them.</p>
+      <ul class="ticks">
+        <li>A file tree that covers every <code>!include</code> fragment</li>
+        <li>Saving with ⌘S redraws the diagram; a file that changed on disk is never silently overwritten</li>
+        <li><code>--viewer</code> serves the Studio read-only, enforced on the server</li>
+        <li>An optional assistant that proposes a diff and never writes on its own</li>
+      </ul>
+      <a class="link-arrow" href="studio.html">Tour the Studio →</a>
+    </div>
+    <figure class="shot">
+      <div class="shot-bar" aria-hidden="true"><i></i><i></i><i></i><span>127.0.0.1:8090</span></div>
+      <img src="assets/editor.jpg" width="1800" height="1075" loading="lazy" alt="The Studio with the source editor open beside a container diagram of an internet banking system. The editor shows the DSL with syntax highlighting and reports no problems.">
+    </figure>
+  </section>
+
+  <section class="split split-rev wrap">
+    <div class="split-text">
+      <p class="eyebrow">Beyond Structurizr</p>
+      <h2 class="section-h">Standard DSL, with a few extras.</h2>
+      <p>Everything c4studio adds is an ordinary Structurizr <code>properties</code> entry or a file beside the workspace, so your model still opens in any other Structurizr tool.</p>
+      <ul class="ticks">
+        <li><code>c4studio.autolayout</code> sets a layout direction for each boundary and group</li>
+        <li><code>c4studio.legend</code> and <code>c4studio.badge</code> control the legend and badges</li>
+        <li>Theme files on disk, inlined and usable offline</li>
+        <li><code>c4studio.lint.json</code> holds your house rules</li>
+      </ul>
+      <a class="link-arrow" href="extensions.html">See every extension →</a>
+    </div>
+    <div class="code code-feature" data-lang="dsl"><pre><code><span class="tok-def">platform</span> = <span class="tok-keyword">softwareSystem</span> <span class="tok-string">"Platform"</span> {
+    <span class="tok-property">properties</span> {
+        <span class="tok-ext">"c4studio.autolayout"</span> <span class="tok-string">"lr"</span>
+    }
+    <span class="tok-keyword">group</span> <span class="tok-string">"Backend"</span> {
+        <span class="tok-def">api</span>    = <span class="tok-keyword">container</span> <span class="tok-string">"API"</span>
+        <span class="tok-def">worker</span> = <span class="tok-keyword">container</span> <span class="tok-string">"Worker"</span>
+    }
+}
+
+<span class="tok-comment">// in views → styles</span>
+<span class="tok-keyword">element</span> <span class="tok-string">"Database"</span> {
+    <span class="tok-property">properties</span> {
+        <span class="tok-ext">"c4studio.badge"</span>  <span class="tok-string">"#ffcc00"</span>
+        <span class="tok-ext">"c4studio.legend"</span> <span class="tok-string">"Anything that stores data"</span>
+    }
+}</code></pre></div>
+  </section>
+
+  <section class="split wrap">
+    <div class="split-text">
+      <p class="eyebrow">Perspectives</p>
+      <h2 class="section-h">Ask the diagram a question.</h2>
+      <p>Hang security, ownership or cost on elements and relationships, then show one perspective over any view. Whatever carries it gets a badge with its value, everything else fades, and the legend lists the values.</p>
+      <a class="link-arrow" href="dsl-reference.html#9-perspectives">How perspectives work →</a>
+    </div>
+    <figure class="shot">
+      <img src="assets/images/perspective-overlay.png" width="2560" height="1150" loading="lazy" alt="The security perspective shown over a container diagram: two containers badged High, a person badged Medium, the rest faded, and a legend of the values.">
+    </figure>
+  </section>
+
+  <section class="band band-ci">
+    <div class="wrap split">
+      <div class="split-text">
+        <p class="eyebrow">In CI</p>
+        <h2 class="section-h">Review architecture like code.</h2>
+        <p>Render the diagrams on every push, post the model diff on every pull request, and publish the model to GitHub Pages on every merge. The live example on this site is published that way.</p>
+        <a class="link-arrow" href="ci.html">Set up CI →</a>
+      </div>
+      <div class="code code-feature" data-lang="yaml"><pre><code><span class="tok-property">- uses</span>: actions/checkout@v7
+<span class="tok-property">- uses</span>: geoffkoh/c4studio@v$version
+  <span class="tok-property">with</span>:
+    <span class="tok-property">workspace</span>: docs/architecture.dsl
+    <span class="tok-property">mode</span>: comment   <span class="tok-comment"># or render, commit</span>
+<span class="tok-property">- run</span>: pip install c4studio
+<span class="tok-property">- run</span>: c4 lint docs/architecture.dsl</code></pre></div>
+    </div>
+  </section>
+
+  <section class="wrap closing">
+    <h2 class="section-h">Local-first, by design.</h2>
+    <p class="section-sub">No accounts, no server and no workspace locking. You share models through git and the files c4studio generates. The one feature that uses the network, the assistant, is off unless you turn it on.</p>
+    <div class="cta">
+      <a class="btn btn-primary" href="getting-started.html">Read the guide</a>
+      <a class="btn btn-ghost" href="$repo">Star on GitHub</a>
+    </div>
+  </section>
+</main>
+
+<footer class="footer footer-home">
+  <div class="wrap footer-grid">
+    <div>
+      <a class="brand" href="index.html"><img src="assets/favicon.svg" alt="" width="22" height="22"><span>c4studio</span></a>
+      <p>A Python implementation of Structurizr. MIT licensed.</p>
+    </div>
+    <div>
+      <p class="footer-h">Docs</p>
+      <a href="getting-started.html">Getting started</a>
+      <a href="studio.html">The Studio</a>
+      <a href="cli.html">Command line</a>
+      <a href="ci.html">CI and automation</a>
+    </div>
+    <div>
+      <p class="footer-h">Language</p>
+      <a href="dsl-reference.html">DSL reference</a>
+      <a href="extensions.html">Beyond Structurizr</a>
+      <a href="dsl-support.html">Keyword coverage</a>
+    </div>
+    <div>
+      <p class="footer-h">Project</p>
+      <a href="$repo">GitHub</a>
+      <a href="$pypi">PyPI</a>
+      <a href="migration.html">Migration guide</a>
+    </div>
+  </div>
+  <p class="footer-fine wrap">c4studio v$version. Not affiliated with Structurizr Limited. C4 model by Simon Brown.</p>
+</footer>
+
+<div class="search" role="dialog" aria-modal="true" aria-label="Search the docs" hidden>
+  <div class="search-panel">
+    <input type="search" placeholder="Search the docs…" aria-label="Search the docs" autocomplete="off" spellcheck="false">
+    <ul class="search-results" role="listbox"></ul>
+    <p class="search-hint"><kbd>↑</kbd><kbd>↓</kbd> to move · <kbd>Enter</kbd> to open · <kbd>Esc</kbd> to close</p>
+  </div>
+</div>
+<script src="assets/search-index.js" defer></script>
+<script src="assets/site.js" defer></script>
+</body>
+</html>

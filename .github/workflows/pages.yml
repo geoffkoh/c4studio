@@ -1,0 +1,85 @@
+name: Site
+
+# Builds the project site (website/build.py) and deploys it to GitHub
+# Pages, https://geoffkoh.github.io/c4studio/ (PP-217). Pull requests
+# build it without deploying, so a page that no longer builds fails the PR
+# rather than the next merge.
+#
+# The site is built from the checkout, not the PyPI release: its pages are
+# generated from the CLI, the docs and the frontend vocabulary on main.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "website/**"
+      - "docs/**"
+      - "src/**"
+      - "samples/c4studio/**"
+      - "frontend/src/highlight.ts"
+      - "frontend/src/shortcuts.ts"
+      - "action.yml"
+      - "pyproject.toml"
+      - ".github/workflows/pages.yml"
+  pull_request:
+    paths:
+      - "website/**"
+      - "docs/**"
+      - "src/**"
+      - "samples/c4studio/**"
+      - "frontend/src/highlight.ts"
+      - "frontend/src/shortcuts.ts"
+      - "action.yml"
+      - "pyproject.toml"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One deployment at a time, and never cancel one that has started: a
+# half-finished Pages deployment is worse than a late one.
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build the site
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v10.1.0
+        # Pinned exactly: setup-uv has no rolling major tags (see checks.yml).
+        with:
+          enable-cache: auto
+
+      # The live example is `c4 publish`, which draws SVG with Node.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+
+      - run: uv sync
+
+      - name: Build
+        run: uv run python website/build.py -o _site
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+
+  deploy:
+    name: Deploy to GitHub Pages
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

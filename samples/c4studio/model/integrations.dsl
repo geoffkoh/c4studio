@@ -6,8 +6,8 @@
 
 !element c4studio {
 
-    vscode = container "VS Code Extension" "DSL highlighting, inline diagnostics, and the web app embedded as a side-panel preview. Spawns whatever c4studio is on the machine, so it feature-detects rather than assuming." "TypeScript, esbuild, .vsix" {
-        previewMgr  = component "Preview Manager" "Owns the panel and the server behind it. Asks for Viewer mode and falls back when the flag is unknown — VS Code already has the file open, and a second editor writing to it is the one thing the preview must not do." "TypeScript"
+    vscode = container "VS Code Extension" "DSL highlighting, inline diagnostics, and a preview that draws one view as an SVG beside the editor. Runs whatever c4studio is on the machine, so it feature-detects rather than assuming." "TypeScript, esbuild, .vsix" {
+        previewMgr  = component "Preview Manager" "Owns the preview panel: renders the chosen view with `c4 render --view` and shows the SVG, with no server and no port. Starts the Studio in a browser only when asked." "TypeScript"
         resolver    = component "Server Resolver" "Finds a runnable c4studio: a configured command, the project's own environment, or a managed install." "TypeScript"
         diagnostics = component "Diagnostics Bridge" "Runs `c4 check --json` on save and publishes the results into the Problems panel." "TypeScript"
         grammar     = component "TextMate Grammar" "DSL syntax highlighting. The third copy of the keyword vocabulary, and the one that cannot share the others." "tmLanguage JSON"

@@ -4,6 +4,11 @@ Python implementation of [Structurizr](https://structurizr.com/) for architectur
 modeling and C4 diagram generation — with a local-first **Studio** for writing
 the DSL and watching the diagram follow.
 
+**Documentation: [geoffkoh.github.io/c4studio](https://geoffkoh.github.io/c4studio/)**
+— guides, the DSL reference, c4studio's extensions to the DSL, and a
+[live example](https://geoffkoh.github.io/c4studio/example/index.html)
+published from the model of c4studio itself.
+
 ## Install
 Published on PyPI as **`c4studio`**; the import package is `c4studio`
 and the command is `c4`:
@@ -312,19 +317,24 @@ Published diagrams follow the layout you arranged in the Studio
 (`--no-layout` for a fresh one), and `--perspective security` draws the
 whole site through one perspective.
 
-To publish on every merge, add the site to a Pages workflow:
+To publish on every merge, add the site to a Pages workflow (the
+[complete workflow](https://geoffkoh.github.io/c4studio/ci.html#publish-the-model-to-github-pages),
+with its permissions, is on the site):
 
 ```yaml
 - uses: actions/checkout@v7
-- uses: actions/setup-node@v6      # c4 render needs Node
+- uses: actions/setup-node@v7      # c4 publish draws SVG with Node
   with:
-    node-version: "20"
-- run: pipx install c4studio
+    node-version: 20
+- uses: actions/setup-python@v7    # runners default to an older Python
+  with:
+    python-version: "3.13"
+- run: pip install c4studio
 - run: c4 publish architecture.dsl -o site/
-- uses: actions/upload-pages-artifact@v4
+- uses: actions/upload-pages-artifact@v5
   with:
     path: site/
-- uses: actions/deploy-pages@v4
+- uses: actions/deploy-pages@v5
 ```
 
 ## What changed (`c4 diff`)
@@ -371,7 +381,11 @@ jobs:
         with:
           fetch-depth: 0 # c4 diff reads the base revision from git history
 
-      - run: pipx install c4studio # no Node needed: diff compares models
+      - uses: actions/setup-python@v7 # runners default to an older Python
+        with:
+          python-version: "3.13"
+
+      - run: pip install c4studio # no Node needed: diff compares models
 
       - name: Diff the model against the target branch
         env:
@@ -508,7 +522,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: geoffkoh/c4studio@v0.3.0
+      - uses: geoffkoh/c4studio@v0.4.0
         id: diagrams
         with:
           workspace: docs/architecture.dsl
@@ -534,11 +548,10 @@ diff when the model has not changed.
 
 ## VS Code Extension
 [`editors/vscode/`](./editors/vscode/) ships a VS Code extension with
-Structurizr DSL syntax highlighting and an in-editor C4 diagram preview
-(the full web app in a side panel, live-reloading as you save). The preview
-runs in **Viewer** mode — VS Code already has the file open in its own
-editor, and a second editor writing to it behind VS Code's back is the one
-thing the preview must not do. Build and install it locally:
+Structurizr DSL syntax highlighting, problems as you type, and a preview
+that draws one view as an SVG beside the editor (via `c4 render`, so no
+server and no port), redrawn as you save. *Open in Studio (browser)*
+starts the full Studio when you want it. Build and install it locally:
 
 ```bash
 cd editors/vscode && npm install && npm run package
