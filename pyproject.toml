@@ -4,7 +4,7 @@
 # project. C4 is the notation, not a vendor's product, so the name stays
 # honest even if support broadens beyond Structurizr DSL.
 name = "c4studio"
-version = "0.3.0"
+version = "0.4.0"
 description = "Parse Structurizr DSL/JSON and generate C4 diagrams in Mermaid, with a CLI and a React web app"
 readme = "README.md"
 license = "MIT"
@@ -28,7 +28,11 @@ dependencies = [
 ]
 
 [project.urls]
+Homepage = "https://github.com/geoffkoh/c4studio"
 Repository = "https://github.com/geoffkoh/c4studio"
+Documentation = "https://github.com/geoffkoh/c4studio/blob/main/docs/dsl-reference.md"
+Issues = "https://github.com/geoffkoh/c4studio/issues"
+"Migration guide" = "https://github.com/geoffkoh/c4studio/blob/main/docs/MIGRATION.md"
 
 [project.optional-dependencies]
 # The assistant is the one feature that leaves the machine, and the only
