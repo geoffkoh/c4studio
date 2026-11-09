@@ -65,6 +65,14 @@ def test_every_page_is_written(site: Path) -> None:
     assert (site / "assets" / "search-index.js").is_file()
 
 
+def test_the_home_page_keeps_its_search_console_verification(site: Path) -> None:
+    """Google re-checks this tag; losing it silently un-verifies the site."""
+    assert (
+        '<meta name="google-site-verification" '
+        'content="Dg6YXgvCsF0Kl9JaQa82lPxGN4vur9pfZDWyUDzWZz8">'
+    ) in _text(site / "index.html")
+
+
 def test_every_internal_link_and_anchor_resolves(site: Path) -> None:
     """A broken link is the commonest way a docs site rots."""
     checked = 0
