@@ -28,7 +28,11 @@ dependencies = [
 ]
 
 [project.urls]
+Homepage = "https://github.com/geoffkoh/c4studio"
 Repository = "https://github.com/geoffkoh/c4studio"
+Documentation = "https://github.com/geoffkoh/c4studio/blob/main/docs/dsl-reference.md"
+Issues = "https://github.com/geoffkoh/c4studio/issues"
+"Migration guide" = "https://github.com/geoffkoh/c4studio/blob/main/docs/MIGRATION.md"
 
 [project.optional-dependencies]
 # The assistant is the one feature that leaves the machine, and the only
