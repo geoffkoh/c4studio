@@ -54,6 +54,13 @@ export {
 } from "./nodeMetrics";
 export { insertionIndex } from "./waypoints";
 export {
+  asLineStyle,
+  curveOffsets,
+  edgeGeometry,
+  LINE_STYLES,
+  type LineStyle,
+} from "./edgePath";
+export {
   dragRun,
   handlePoint,
   insertStep,

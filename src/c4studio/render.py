@@ -127,6 +127,9 @@ def _payload_with_layout(
     layout_sidecar.attach_labels(
         payload, layout_sidecar.read_labels(layout_source).get(view.key, {})
     )
+    line_style = layout_sidecar.read_line_styles(layout_source).get(view.key)
+    if line_style is not None:
+        payload["lineStyle"] = line_style
     chrome = layout_sidecar.read_chrome(layout_source).get(view.key)
     if chrome:
         # The renderer places title and legend itself unless told where

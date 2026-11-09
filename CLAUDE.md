@@ -191,11 +191,13 @@ workspace (`packages/*`, `frontend/`) and `editors/vscode/` alike.
   `collapsed` (collapsed group nodes), `chrome` (dragged title/legend
   positions), `routing` (edges re-routed orthogonally, whose `edges`
   waypoints are then route corners), `sides` (the node side a re-routed
-  edge's end is pinned to) and `snapshots` (named layouts: per view, per
-  name, a copy of every per-view section above) — so a sidecar written by
-  an older version still loads. Every sidecar write rewrites the whole
-  file, so a new section must be threaded through each writer in
-  `server.py` — except `snapshots` and `sides`, which
+  edge's end is pinned to), `lineStyle` (the toolbar's line style per
+  view, so `c4 render` draws what the screen shows) and `snapshots`
+  (named layouts: per view, per name, a copy of every per-view section
+  above) — so a sidecar written by an older version still loads. Every
+  sidecar write rewrites the whole file, so a new section must be
+  threaded through each writer in `server.py` — except `snapshots`,
+  `sides` and `lineStyle`, which
   `_write_layout_sidecar` keeps from disk unless given; a further section
   is better done that way than threaded. A new per-view section also belongs in
   `SNAPSHOT_SECTIONS`, or named layouts silently leave it out. Add new

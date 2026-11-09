@@ -15,7 +15,7 @@ import { expect, test, type Page } from "@playwright/test";
 const HANDLES = ["edge-end-handle", "edge-segment-handle", "edge-waypoint"];
 
 async function open(page: Page, { bend = false } = {}) {
-  await page.route(/\/api\/views\/[^/]+\/(expansion|layout)$/, async (route) => {
+  await page.route(/\/api\/views\/[^/]+\/(expansion|layout|line-style)$/, async (route) => {
     if (route.request().method() === "GET") return route.fallback();
     return route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
   });

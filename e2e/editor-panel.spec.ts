@@ -13,7 +13,7 @@ import { expect, test, type Page } from "@playwright/test";
  * Layout writes are answered here because the server serves `samples/`.
  */
 async function open(page: Page, width = 1440) {
-  await page.route(/\/api\/views\/[^/]+\/(expansion|layout)$/, async (route) => {
+  await page.route(/\/api\/views\/[^/]+\/(expansion|layout|line-style)$/, async (route) => {
     if (route.request().method() === "GET") return route.fallback();
     return route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
   });

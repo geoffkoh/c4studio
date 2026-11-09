@@ -22,7 +22,7 @@ async function open(page: Page) {
   const reply = (route: Route, body: unknown, status = 200) =>
     route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
 
-  await page.route(/\/api\/views\/[^/]+\/(expansion|layout)$/, async (route) => {
+  await page.route(/\/api\/views\/[^/]+\/(expansion|layout|line-style)$/, async (route) => {
     if (route.request().method() === "GET") return route.fallback();
     calls.push(route.request().url().endsWith("/layout") ? "layout" : "expansion");
     return reply(route, {});

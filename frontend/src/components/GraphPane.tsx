@@ -43,6 +43,8 @@ import {
   FloatingEdge,
   insertionIndex,
   insertStep,
+  asLineStyle,
+  curveOffsets,
   layoutGraph,
   nearestRun,
   needsAutoLayout,
@@ -52,6 +54,7 @@ import {
   withLiveValue,
   normalizeStoredPositions,
   type ElementNodeData,
+  type LineStyle,
   type FloatingEdgeData,
   type Pins,
   type Pt,
@@ -88,10 +91,10 @@ const NODE_TYPES: NodeTypes = {
 const EDGE_TYPES: EdgeTypes = { floating: FloatingEdge };
 
 /** Relationship line routing, rendered by the floating edge. */
-type EdgeStyle = "default" | "straight" | "step" | "smoothstep";
+type EdgeStyle = LineStyle;
 
 const EDGE_STYLES: { value: EdgeStyle; label: string }[] = [
-  { value: "default", label: "Bezier" },
+  { value: "bezier", label: "Bezier" },
   { value: "straight", label: "Straight" },
   { value: "step", label: "Step" },
   { value: "smoothstep", label: "Smooth step" },
@@ -142,11 +145,9 @@ function findPerspective(
   return data?.perspectives?.find((p) => p.name === name);
 }
 
+/** This browser's line style: what a view with none saved is drawn in. */
 function storedEdgeStyle(): EdgeStyle {
-  const raw = window.localStorage.getItem(EDGE_STYLE_STORAGE_KEY);
-  return EDGE_STYLES.some((s) => s.value === raw)
-    ? (raw as EdgeStyle)
-    : "default";
+  return asLineStyle(window.localStorage.getItem(EDGE_STYLE_STORAGE_KEY)) ?? "bezier";
 }
 
 function storedHoverEmphasis(): boolean {
@@ -202,6 +203,9 @@ interface GraphPaneProps {
     expanded: string[],
     collapsed: string[],
   ) => Promise<unknown>;
+  /** Persist the view's line style to the layout sidecar, where `c4 render`
+      reads it (PP-222). */
+  saveLineStyle?: (key: string, style: LineStyle) => Promise<unknown>;
   saveLayout: (
     key: string,
     positions: Record<string, [number, number]>,
@@ -280,32 +284,12 @@ async function toFlow(
     };
   });
 
-  // Edges sharing a node pair (either direction) fan out as curves so
-  // bidirectional flows and parallel relationships stay readable: each
-  // gets a perpendicular offset, sign-normalised to the canonical pair
-  // order so opposite directions bow to opposite sides.
-  const CURVE_GAP = 48;
-  const pairKey = (e: { source: string; target: string }) =>
-    [e.source, e.target].sort().join("|");
-  const pairCounts = new Map<string, number>();
-  for (const e of data.edges) {
-    const key = pairKey(e);
-    pairCounts.set(key, (pairCounts.get(key) ?? 0) + 1);
-  }
-  const pairSeen = new Map<string, number>();
+  // Lines sharing a pair of elements bow apart, by the offsets `c4 render`
+  // uses too (PP-222).
+  const offsets = curveOffsets(data.edges);
 
   const edges: Edge[] = data.edges.map((e) => {
-    const key = pairKey(e);
-    const total = pairCounts.get(key) ?? 1;
-    let curveOffset: number | undefined;
-    if (total > 1) {
-      const index = pairSeen.get(key) ?? 0;
-      pairSeen.set(key, index + 1);
-      const canonical = e.source <= e.target ? 1 : -1;
-      // The middle edge of an odd-sized group keeps the straight centre
-      // line (offset 0); the rest fan out around it.
-      curveOffset = (index - (total - 1) / 2) * CURVE_GAP * canonical;
-    }
+    const curveOffset = offsets.get(e.id);
     return {
       id: e.id,
       source: e.source,
@@ -433,6 +417,7 @@ export function GraphPane({
   loadGraph,
   loadPerspectiveValues,
   saveExpansion,
+  saveLineStyle,
   saveLayout,
   resetLayout,
   layouts,
@@ -539,10 +524,18 @@ export function GraphPane({
     return () => window.clearInterval(timer);
   }, [playing, maxStep]);
 
-  const handleEdgeStyle = useCallback((style: EdgeStyle) => {
-    setEdgeStyle(style);
-    window.localStorage.setItem(EDGE_STYLE_STORAGE_KEY, style);
-  }, []);
+  // The choice is the view's, saved in the layout sidecar so `c4 render`
+  // draws it too (PP-222), and this browser's default for views with none.
+  const handleEdgeStyle = useCallback(
+    (style: EdgeStyle) => {
+      setEdgeStyle(style);
+      window.localStorage.setItem(EDGE_STYLE_STORAGE_KEY, style);
+      if (view && saveLineStyle) {
+        void Promise.resolve(saveLineStyle(view.key, style)).catch(() => undefined);
+      }
+    },
+    [view, saveLineStyle],
+  );
 
   const handleHoverToggle = useCallback(() => {
     setHoverEmphasis((enabled) => {
@@ -1646,6 +1639,8 @@ export function GraphPane({
           });
         }
         setPerspectiveNames(data.perspectives ?? []);
+        // The view's saved line style, else this browser's (PP-222).
+        setEdgeStyle(asLineStyle(data.lineStyle) ?? storedEdgeStyle());
         setPayload(data);
         const flow = await toFlow(
           data,

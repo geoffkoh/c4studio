@@ -202,6 +202,9 @@ export interface GraphData {
   /** Dragged title/legend positions from the sidecar, keyed "title" /
       "legend"; absent chrome keeps its computed placement. */
   chrome?: Record<string, [number, number]>;
+  /** The view's line style from the layout sidecar (PP-222): "bezier",
+      "straight", "step" or "smoothstep". Absent, the browser's own. */
+  lineStyle?: string;
 }
 
 /** Response body from POST /api/views/{key}/layout. */

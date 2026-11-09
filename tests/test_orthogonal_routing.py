@@ -97,10 +97,20 @@ def _write_sidecar(source: Path, document: dict[str, Any]) -> None:
 def _edge_paths(svg: str) -> list[list[tuple[float, float]]]:
     """Every relationship line in the SVG, as its list of points."""
     paths = re.findall(r'<path d="([^"]+)"[^>]*marker-end=', svg)
-    return [
-        [(float(x), float(y)) for x, y in re.findall(r"([-\d.]+)[ ,]([-\d.]+)", d)]
-        for d in paths
-    ]
+    return [_on_line(d) for d in paths]
+
+
+def _on_line(d: str) -> list[tuple[float, float]]:
+    """The points a path passes through: a cubic's two control points pull
+    the curve but are not on it, so a Bezier between offset boxes reads as
+    the slant it is rather than as its (often orthogonal) control frame."""
+    points: list[tuple[float, float]] = []
+    for command, args in re.findall(r"([MLCQ])([^MLCQ]*)", d):
+        pairs = re.findall(r"([-\d.]+)[ ,]([-\d.]+)", args)
+        if command == "C":
+            pairs = pairs[-1:]
+        points.extend((float(x), float(y)) for x, y in pairs)
+    return points
 
 
 def _orthogonal(points: list[tuple[float, float]]) -> bool:

@@ -19,7 +19,7 @@ type Saved = { routing?: Record<string, string> };
 async function open(page: Page) {
   const saves: Saved[] = [];
   const styled = { id: "" };
-  await page.route(/\/api\/views\/[^/]+\/(expansion|layout)$/, async (route) => {
+  await page.route(/\/api\/views\/[^/]+\/(expansion|layout|line-style)$/, async (route) => {
     if (route.request().method() === "GET") return route.fallback();
     if (route.request().url().endsWith("/layout")) {
       saves.push(route.request().postDataJSON() as Saved);

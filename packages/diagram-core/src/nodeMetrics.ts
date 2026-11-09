@@ -249,3 +249,12 @@ export function nodeTooltip(data: NodeTextData): string | null {
   if (!clipped) return null;
   return [data.label, meta, data.description].filter(Boolean).join("\n");
 }
+
+/** Widest an edge label's plate grows before its text wraps, padding and
+    border included — `.edge-label`'s max-width, set from here (PP-222).
+    `c4 render` once cut a label to one 220px line instead, losing the end
+    of every long one. */
+export const EDGE_LABEL_MAX_WIDTH = 160;
+
+/** `.edge-label`'s horizontal padding plus border, each side. */
+export const EDGE_LABEL_INSET_X = 6;

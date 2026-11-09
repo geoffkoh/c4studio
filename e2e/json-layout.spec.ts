@@ -26,7 +26,7 @@ interface Shape {
 
 async function open(page: Page): Promise<Shape> {
   const shape: Shape = { column: [], children: new Map() };
-  await page.route(/\/api\/views\/[^/]+\/(expansion|layout)$/, async (route) => {
+  await page.route(/\/api\/views\/[^/]+\/(expansion|layout|line-style)$/, async (route) => {
     if (route.request().method() === "GET") return route.fallback();
     return route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
   });

@@ -19,7 +19,7 @@ test("a view switch mid-tween shows the view that was chosen", async ({
   // serves `samples/` — the developer's own working copy. Answer the
   // writes here so the test leaves no arrangement behind (an early run of
   // this spec did, and every later run then found nothing to expand).
-  await page.route(/\/api\/views\/[^/]+\/(expansion|layout)$/, (route) =>
+  await page.route(/\/api\/views\/[^/]+\/(expansion|layout|line-style)$/, (route) =>
     route.request().method() === "GET"
       ? route.fallback()
       : route.fulfill({ status: 200, contentType: "application/json", body: "{}" }),

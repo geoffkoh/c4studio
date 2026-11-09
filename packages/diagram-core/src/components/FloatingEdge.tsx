@@ -8,22 +8,18 @@ import {
 import {
   BaseEdge,
   EdgeLabelRenderer,
-  Position,
-  getBezierPath,
-  getStraightPath,
   useStore,
   type EdgeProps,
   type Node,
 } from "reactflow";
 
+import { edgeGeometry, type LineStyle } from "../edgePath";
+import { EDGE_LABEL_MAX_WIDTH } from "../nodeMetrics";
 import { EDGE_HOVER_COLOUR, EDGE_HOVER_WIDTH } from "../edgePaint";
 import {
   dragRun,
   handlePoint,
   nearestSide,
-  orthogonalPath,
-  orthogonalRoute,
-  routeLabelPoint,
   runIsDraggable,
   segmentRuns,
   type Pins,
@@ -43,7 +39,7 @@ export interface FloatingEdgeData {
   onLabelDragEnd?: () => void;
   label?: string;
   /** Which path renderer to use; anchoring is floating in all cases. */
-  pathStyle?: "default" | "straight" | "step" | "smoothstep";
+  pathStyle?: LineStyle;
   /** Dynamic-view animation state for this edge's step. */
   animState?: "past" | "active" | "future";
   /** Set on the hovered edge so it pops; other edges are unaffected. */
@@ -115,11 +111,6 @@ export interface FloatingEdgeData {
   curveOffset?: number;
 }
 
-interface Point {
-  x: number;
-  y: number;
-}
-
 function rectOf(node: Node): Rect {
   return {
     x: node.positionAbsolute?.x ?? 0,
@@ -134,46 +125,6 @@ const END_HANDLE_INSET = 14;
 
 /** Runs shorter than this get no handle: there is nothing to grab. */
 const MIN_HANDLE_RUN = 16;
-
-function center(node: Node): Point {
-  const { positionAbsolute, width, height } = node;
-  return {
-    x: (positionAbsolute?.x ?? 0) + (width ?? 0) / 2,
-    y: (positionAbsolute?.y ?? 0) + (height ?? 0) / 2,
-  };
-}
-
-/**
- * Point where the line from `node`'s centre towards `aimAt` crosses
- * `node`'s rectangular border. This is what makes edges aim at node
- * centres (or a curve's control point) while arrowheads still start and
- * stop at the node edge.
- */
-function borderIntersection(node: Node, aimAt: Point): Point {
-  const w = (node.width ?? 0) / 2;
-  const h = (node.height ?? 0) / 2;
-  const nodeCenter = center(node);
-
-  const dx = (aimAt.x - nodeCenter.x) / (2 * w) || 0;
-  const dy = (aimAt.y - nodeCenter.y) / (2 * h) || 0;
-  const scale = 1 / Math.max(Math.abs(dx), Math.abs(dy)) || 1;
-
-  return {
-    x: nodeCenter.x + dx * scale * w,
-    y: nodeCenter.y + dy * scale * h,
-  };
-}
-
-/** Which side of the node a border point sits on (for path curvature). */
-function sideOf(node: Node, point: Point): Position {
-  const x = node.positionAbsolute?.x ?? 0;
-  const y = node.positionAbsolute?.y ?? 0;
-  const width = node.width ?? 0;
-  if (point.x <= x + 1) return Position.Left;
-  if (point.x >= x + width - 1) return Position.Right;
-  if (point.y <= y + 1) return Position.Top;
-  return Position.Bottom;
-}
 
 interface WaypointHandleProps {
   edgeId: string;
@@ -340,6 +291,8 @@ function EdgeLabel({
         transform: `translate(-50%, -50%) translate(${x}px, ${y}px)`,
         pointerEvents: "all",
         zIndex: hovered ? 1000 : undefined,
+        // Shared with `c4 render`, which wraps at the same width (PP-222).
+        maxWidth: EDGE_LABEL_MAX_WIDTH,
       }}
       onMouseEnter={() => onHoverChange?.(id)}
       onMouseLeave={() => onHoverChange?.(null)}
@@ -438,103 +391,25 @@ export function FloatingEdge({
     return null;
   }
 
-  const sourceCenter = center(sourceNode);
-  const targetCenter = center(targetNode);
   const bends = data?.waypoints ?? [];
-  const curveOffset = bends.length > 0 ? 0 : (data?.curveOffset ?? 0);
-
-  // With an offset, everything aims at a control point perpendicular to
-  // the centre line's midpoint instead of the other node's centre.
-  let control: Point | null = null;
-  if (curveOffset !== 0) {
-    const dx = targetCenter.x - sourceCenter.x;
-    const dy = targetCenter.y - sourceCenter.y;
-    const length = Math.hypot(dx, dy) || 1;
-    control = {
-      x: (sourceCenter.x + targetCenter.x) / 2 + (-dy / length) * curveOffset,
-      y: (sourceCenter.y + targetCenter.y) / 2 + (dx / length) * curveOffset,
-    };
-  }
-
-  const sourcePoint = borderIntersection(sourceNode, control ?? targetCenter);
-  const targetPoint = borderIntersection(targetNode, control ?? sourceCenter);
-  const params = {
-    sourceX: sourcePoint.x,
-    sourceY: sourcePoint.y,
-    targetX: targetPoint.x,
-    targetY: targetPoint.y,
-    sourcePosition: sideOf(sourceNode, sourcePoint),
-    targetPosition: sideOf(targetNode, targetPoint),
-  };
-
-  const pathStyle = data?.pathStyle ?? "default";
-  // Step styles, or an edge re-routed by dragging, draw an orthogonal
-  // route from orthogonal.ts — the same one `c4 render` draws — so its
-  // segments can be grabbed and moved.
-  const orthogonal =
-    data?.routing === "orthogonal" ||
-    data?.styleRouting === "orthogonal" ||
-    pathStyle === "step" ||
-    pathStyle === "smoothstep";
   const pins: Pins = data?.sides ?? {};
-  let route: Pt[] = [];
-  let path: string;
-  let labelX: number;
-  let labelY: number;
-  if (orthogonal) {
-    route = orthogonalRoute(
-      rectOf(sourceNode),
-      rectOf(targetNode),
-      bends,
-      data?.curveOffset ?? 0,
-      pins,
-    );
-    path = orthogonalPath(route, pathStyle === "smoothstep" ? 8 : 0);
-    ({ x: labelX, y: labelY } = routeLabelPoint(route));
-  } else if (bends.length > 0) {
-    // Straight segments through every bend, clipped to the node borders
-    // at each end so arrowheads still land on the boundary.
-    const first = { x: bends[0][0], y: bends[0][1] };
-    const last = { x: bends[bends.length - 1][0], y: bends[bends.length - 1][1] };
-    const from = borderIntersection(sourceNode, first);
-    const to = borderIntersection(targetNode, last);
-    const points = [from, ...bends.map(([x, y]) => ({ x, y })), to];
-    path = points
-      .map((p, i) => `${i === 0 ? "M" : "L"} ${p.x},${p.y}`)
-      .join(" ");
-    // Label at the centre of the longest segment: always strictly between
-    // two points, so it never sits on a bend handle and covers it, and the
-    // longest run is where there is most room for the text.
-    let longest = 0;
-    let longestLength = -1;
-    for (let i = 0; i < points.length - 1; i += 1) {
-      const length = Math.hypot(
-        points[i + 1].x - points[i].x,
-        points[i + 1].y - points[i].y,
-      );
-      if (length > longestLength) {
-        longestLength = length;
-        longest = i;
-      }
-    }
-    labelX = (points[longest].x + points[longest + 1].x) / 2;
-    labelY = (points[longest].y + points[longest + 1].y) / 2;
-  } else if (control && (pathStyle === "default" || pathStyle === "straight")) {
-    // Quadratic bezier through the offset control point; the label sits
-    // on the curve's apex, Q(0.5) = 0.25·S + 0.5·C + 0.25·T.
-    path = `M ${sourcePoint.x},${sourcePoint.y} Q ${control.x},${control.y} ${targetPoint.x},${targetPoint.y}`;
-    labelX = 0.25 * sourcePoint.x + 0.5 * control.x + 0.25 * targetPoint.x;
-    labelY = 0.25 * sourcePoint.y + 0.5 * control.y + 0.25 * targetPoint.y;
-  } else if (pathStyle === "straight") {
-    [path, labelX, labelY] = getStraightPath({
-      sourceX: params.sourceX,
-      sourceY: params.sourceY,
-      targetX: params.targetX,
-      targetY: params.targetY,
-    });
-  } else {
-    [path, labelX, labelY] = getBezierPath(params);
-  }
+  // One implementation for the canvas and `c4 render` (PP-222).
+  const {
+    path,
+    labelX,
+    labelY,
+    orthogonal,
+    route,
+  } = edgeGeometry({
+    source: rectOf(sourceNode),
+    target: rectOf(targetNode),
+    lineStyle: data?.pathStyle,
+    waypoints: bends,
+    curveOffset: data?.curveOffset,
+    routing: data?.routing,
+    styleRouting: data?.styleRouting,
+    sides: pins,
+  });
 
   const animState = data?.animState;
   const hovered = data?.hoverState === "hovered";
