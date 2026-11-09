@@ -179,8 +179,11 @@ workspace (`packages/*`, `frontend/`) and `editors/vscode/` alike.
   rule and the reason several roadmap items are shaped the way they are (e.g.
   headless rendering must reuse existing layout code rather than pull in a
   renderer; the file tree's virtualisation and the assistant's diff are both
-  hand-written for this reason). The one dependency added since is `anthropic`,
-  as an **optional extra**, agreed explicitly before it went in.
+  hand-written for this reason). Two dependencies have been added since, each
+  agreed explicitly before it went in: `anthropic`, as an **optional extra**,
+  and `@codemirror/search` (PP-225), the editor's find bar. The browser's own
+  find cannot see the editor's off-screen lines, and the package is from the
+  same maintainer as the other `@codemirror/*` packages.
 - **Unsupported DSL features fail soft.** `!script`, `!plugin`, `!components`,
   unknown `!directives` and unrecognised blocks are never executed — they are
   skipped whole and recorded as structured `Diagnostic`s in

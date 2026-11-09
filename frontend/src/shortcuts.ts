@@ -40,6 +40,7 @@ export const SHORTCUTS: readonly { keys: string; action: string }[] = [
   { keys: "j / k", action: "Next / previous view" },
   { keys: "u", action: "Up one level (breadcrumb)" },
   { keys: "e", action: "Show / hide the source editor" },
+  { keys: "⌘ / Ctrl + F", action: "Find (and replace) in the source editor" },
   { keys: "f", action: "Fit diagram to window" },
   { keys: "↑ ↓ ← →", action: "Nudge the selection by 1px" },
   { keys: "Shift + arrows", action: "Nudge the selection by 10px" },

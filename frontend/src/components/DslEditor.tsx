@@ -13,6 +13,7 @@ import {
 } from "@codemirror/commands";
 import { bracketMatching } from "@codemirror/language";
 import { lintGutter, setDiagnostics, type Diagnostic } from "@codemirror/lint";
+import { highlightSelectionMatches, search, searchKeymap } from "@codemirror/search";
 import { Compartment, EditorState, StateEffect, StateField } from "@codemirror/state";
 import {
   Decoration,
@@ -153,6 +154,10 @@ export function DslEditor({
           bracketMatching(),
           closeBrackets(),
           lintGutter(),
+          // ⌘/Ctrl-F has to be the editor's own find (PP-225): the browser's
+          // cannot see it, because only the lines on screen are in the page.
+          search({ top: true }),
+          highlightSelectionMatches(),
           flashField,
           completionCompartment.current.of(
             autocompletion({
@@ -177,6 +182,7 @@ export function DslEditor({
             // completion list rather than inserting a newline.
             ...completionKeymap,
             ...closeBracketsKeymap,
+            ...searchKeymap,
             ...defaultKeymap,
             ...historyKeymap,
             indentWithTab,
