@@ -16,6 +16,7 @@
 export {
   layoutGraph,
   normalizeStoredPositions,
+  needsAutoLayout,
   chromePlacement,
   NODE_WIDTH,
   NODE_HEIGHT,

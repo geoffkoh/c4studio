@@ -52,7 +52,14 @@ export interface ElementNodeData {
       properties badge that opens it (PP-207). Absent in exports and the
       headless renderer, which draw the diagram and nothing to click. */
   onShowDetails?: (id: string) => void;
+  /** The size a Structurizr JSON layout placed this element at (PP-220);
+      absent, the box is sized by its text. */
+  boxSize?: { width: number; height: number };
 }
+
+/** How far a person's body starts below the top of its node: the head is
+    38px and overlaps the body by 16, as `svg.ts` draws it. */
+const PERSON_HEAD_DROP = 22;
 
 /** Hover text for a perspective badge: its name, description and value. */
 export function perspectiveHint(perspective: PerspectiveBadge): string {
@@ -164,6 +171,13 @@ function ElementNodeComponent({ id, data }: NodeProps<ElementNodeData>) {
         ...outline,
         ...(data.opacity !== undefined && data.opacity < 100
           ? { opacity: Math.max(0, data.opacity) / 100 }
+          : {}),
+        ...(data.boxSize
+          ? {
+              width: data.boxSize.width,
+              height: data.boxSize.height - (isPerson ? PERSON_HEAD_DROP : 0),
+              boxSizing: "border-box" as const,
+            }
           : {}),
       }}
       title={hint}

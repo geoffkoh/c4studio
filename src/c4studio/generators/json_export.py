@@ -375,6 +375,7 @@ def _relationship_view(view: RelationshipView) -> JsonDict:
             "url": view.url,
             "order": view.order,
             "response": view.response,
+            "vertices": [{"x": v.x, "y": v.y} for v in view.vertices],
             "properties": dict(view.properties),
             "title": view.title,
             "link": view.link,
@@ -401,13 +402,16 @@ _SCOPE_KEYS: dict[ViewType, str] = {
 
 
 def _view(view: View) -> JsonDict:
-    elements: list[JsonDict] = []
-    if view.element_views:
-        elements = [
-            _clean({"id": e.id, "x": e.x, "y": e.y}) for e in view.element_views
-        ]
-    elif view.included_ids:
-        elements = [{"id": element_id} for element_id in view.included_ids]
+    # Every included element, with its position where it has one: a view
+    # Structurizr placed only partly must not lose the rest on export.
+    placed = {e.id: e for e in view.element_views}
+    ids = list(dict.fromkeys([*view.included_ids, *placed]))
+    elements: list[JsonDict] = [
+        _clean({"id": eid, "x": placed[eid].x, "y": placed[eid].y})
+        if eid in placed
+        else {"id": eid}
+        for eid in ids
+    ]
 
     data = _clean(
         {

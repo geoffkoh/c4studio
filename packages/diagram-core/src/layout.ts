@@ -268,6 +268,21 @@ export async function layoutGraph(
 }
 
 /**
+ * Whether a graph has to be laid out afresh rather than from its stored
+ * positions: some node has none, and it is not a boundary around other
+ * nodes. A boundary is fitted around its children by
+ * `normalizeStoredPositions`, so it needs no position of its own — which
+ * is how a Structurizr JSON layout arrives, since Structurizr stores none
+ * for boundaries (PP-220).
+ */
+export function needsAutoLayout(
+  nodes: readonly { id: string; position?: unknown; parentId?: string }[],
+): boolean {
+  const parents = new Set(nodes.map((n) => n.parentId).filter(Boolean));
+  return nodes.some((n) => !n.position && !parents.has(n.id));
+}
+
+/**
  * Adapt stored (absolute) positions to React Flow's nested-node model.
  *
  * Stored layouts are absolute — they predate boundaries — while a child of
@@ -341,7 +356,13 @@ export async function normalizeStoredPositions(
   );
   parents.sort((a, b) => depthOf(b) - depthOf(a));
 
-  const absoluteSize = (node: Node): Size => boxes.get(node.id)?.size ?? nodeSize(node);
+  // A node a JSON layout sized (PP-220) is that size, not its text's.
+  const ownSize = (node: Node): Size => {
+    const width = Number(node.style?.width);
+    const height = Number(node.style?.height);
+    return width > 0 && height > 0 ? { width, height } : nodeSize(node);
+  };
+  const absoluteSize = (node: Node): Size => boxes.get(node.id)?.size ?? ownSize(node);
 
   for (const parentId of parents) {
     const children = childrenOf.get(parentId) ?? [];

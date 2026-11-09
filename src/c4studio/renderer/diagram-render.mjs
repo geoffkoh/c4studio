@@ -9123,6 +9123,18 @@ async function layoutGraph(nodes, edges, direction = "TB", spacing) {
 		};
 	});
 }
+/**
+* Whether a graph has to be laid out afresh rather than from its stored
+* positions: some node has none, and it is not a boundary around other
+* nodes. A boundary is fitted around its children by
+* `normalizeStoredPositions`, so it needs no position of its own — which
+* is how a Structurizr JSON layout arrives, since Structurizr stores none
+* for boundaries (PP-220).
+*/
+function needsAutoLayout(nodes) {
+	const parents = new Set(nodes.map((n) => n.parentId).filter(Boolean));
+	return nodes.some((n) => !n.position && !parents.has(n.id));
+}
 async function normalizeStoredPositions(nodes, edges) {
 	const { parentOf, childrenOf } = buildHierarchy(nodes);
 	if (childrenOf.size <= 1) return nodes;
@@ -9140,7 +9152,15 @@ async function normalizeStoredPositions(nodes, edges) {
 	const boxes = /* @__PURE__ */ new Map();
 	const parents = [...childrenOf.keys()].filter((id) => id !== void 0);
 	parents.sort((a, b) => depthOf(b) - depthOf(a));
-	const absoluteSize = (node) => boxes.get(node.id)?.size ?? nodeSize(node);
+	const ownSize = (node) => {
+		const width = Number(node.style?.width);
+		const height = Number(node.style?.height);
+		return width > 0 && height > 0 ? {
+			width,
+			height
+		} : nodeSize(node);
+	};
+	const absoluteSize = (node) => boxes.get(node.id)?.size ?? ownSize(node);
 	for (const parentId of parents) {
 		const children = childrenOf.get(parentId) ?? [];
 		const boundary = nodesById.get(parentId);
@@ -10111,7 +10131,7 @@ async function renderSvg(payload, options = {}) {
 	const padding = options.padding ?? 24;
 	if (options.perspective) payload = applyPerspective(payload, options.perspective);
 	const { nodes, edges } = toFlow(payload);
-	const placed = place(payload.nodes.some((n) => !n.position) ? await layoutGraph(nodes, edges, payload.rankDirection ?? "TB", {
+	const placed = place(needsAutoLayout(payload.nodes) ? await layoutGraph(nodes, edges, payload.rankDirection ?? "TB", {
 		rankSeparation: payload.rankSeparation,
 		nodeSeparation: payload.nodeSeparation
 	}) : await normalizeStoredPositions(nodes, edges));

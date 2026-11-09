@@ -19,7 +19,13 @@ from c4studio.graph.view_graph import (
     rank_direction,
     shown_properties,
 )
-from c4studio.models import Relationship, View, ViewType, Workspace
+from c4studio.models import (
+    Relationship,
+    RelationshipView,
+    View,
+    ViewType,
+    Workspace,
+)
 
 #: What the frontend laid out with before spacing was plumbed through, and
 #: still the look of any view that declares no autoLayout.
@@ -108,6 +114,54 @@ def _relationship_for(
     return candidates[0] if len(candidates) == 1 else None
 
 
+def _edge_for_vertices(
+    workspace: Workspace, view: View, rv: RelationshipView, edges: list[ReactFlowEdge]
+) -> ReactFlowEdge | None:
+    """The one edge a relationship view's bend points belong to, if any.
+
+    A dynamic view's steps are matched by their order. Otherwise by id, and
+    failing that by endpoints: a relationship view may name an implied
+    relationship, which the graph never draws under its own id but whose
+    endpoints are those of the lifted edge that stands in for it. A match
+    that is not unique is no match.
+    """
+    if view.type == ViewType.DYNAMIC:
+        if not rv.order.isdigit():
+            return None
+        found = [edge for edge in edges if edge.get("order") == int(rv.order)]
+    else:
+        found = [edge for edge in edges if edge["id"] == rv.id]
+        if not found:
+            rel = next((r for r in workspace.relationships if r.id == rv.id), None)
+            if rel is None:
+                return None
+            pair = (rel.source_id, rel.destination_id)
+            found = [edge for edge in edges if (edge["source"], edge["target"]) == pair]
+    return found[0] if len(found) == 1 else None
+
+
+def _attach_vertices(
+    workspace: Workspace, view: View, edges: list[ReactFlowEdge]
+) -> None:
+    """Draw the bend points a workspace JSON stores for a view's lines (PP-220).
+
+    Structurizr keeps them as ``relationships[].vertices`` beside the element
+    positions this payload already honours. They become ``waypoints``, the
+    same field the layout sidecar fills, and the sidecar is applied after
+    this, so a line re-arranged in the Studio keeps that arrangement.
+    """
+    # Bend points are coordinates in the same layout as the elements: on a
+    # view laid out afresh they would bend lines towards nothing.
+    if not any(ve.x is not None for ve in view.element_views):
+        return
+    for rv in view.relationship_views:
+        if not rv.vertices:
+            continue
+        edge = _edge_for_vertices(workspace, view, rv, edges)
+        if edge is not None:
+            edge["waypoints"] = [[vertex.x, vertex.y] for vertex in rv.vertices]
+
+
 def react_flow_graph(
     workspace: Workspace,
     view: View,
@@ -133,6 +187,13 @@ def react_flow_graph(
         A dict with ``nodes`` and ``edges`` lists in React Flow shape.
     """
     graph_data = build_view_graph(workspace, view, expand, collapse)
+    # Element sizes come only from a JSON layout (PP-220): the Studio saves
+    # boundary sizes alone, and those already reach the graph's style.
+    element_sizes = {
+        ve.id: (ve.width, ve.height)
+        for ve in view.element_views
+        if ve.width is not None and ve.height is not None
+    }
 
     nodes: list[ReactFlowNode] = []
     for graph_node in graph_data["nodes"]:
@@ -153,6 +214,9 @@ def react_flow_graph(
             node["position"] = {"x": style["x"], "y": style["y"]}
         if style is not None and "width" in style and "height" in style:
             node["size"] = {"width": style["width"], "height": style["height"]}
+        elif data.get("kind") != "boundary" and graph_node["id"] in element_sizes:
+            width, height = element_sizes[graph_node["id"]]
+            node["size"] = {"width": width, "height": height}
         nodes.append(node)
 
     edges: list[ReactFlowEdge] = []
@@ -189,6 +253,7 @@ def react_flow_graph(
                 "properties": shown_properties(rel.properties),
             }
         edges.append(edge)
+    _attach_vertices(workspace, view, edges)
 
     # Filtered views carry no layout of their own; inherit the base view's.
     # Spacing a view declares is honoured; a view that declares no

@@ -45,6 +45,7 @@ import {
   insertStep,
   layoutGraph,
   nearestRun,
+  needsAutoLayout,
   orthogonalRoute,
   segmentRuns,
   perspectiveLegendEntries,
@@ -235,7 +236,7 @@ async function toFlow(
   onGeometryChange: () => void,
   onShowDetails?: (id: string) => void,
 ): Promise<{ nodes: Node[]; edges: Edge[] }> {
-  const anyMissingPosition = data.nodes.some((n) => n.position === undefined);
+  const anyMissingPosition = needsAutoLayout(data.nodes);
   const trail = buildTrail(view, views, workspace);
   const parentView = trail.length > 1 ? trail[trail.length - 2] : undefined;
   const boundaryType =
@@ -267,6 +268,7 @@ async function toFlow(
       ...(n.size ? { style: { ...n.size } } : {}),
       data: {
         ...n.data,
+        ...(n.size && !isBoundary ? { boxSize: n.size } : {}),
         boundaryType,
         ...(isGroupBoundary ? { collapsible: true } : {}),
         drillKey: target?.key,

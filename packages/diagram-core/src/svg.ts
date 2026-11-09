@@ -27,6 +27,7 @@ import {
 } from "./edgeDefaults";
 import {
   layoutGraph,
+  needsAutoLayout,
   normalizeStoredPositions,
   type RankDirection,
 } from "./layout";
@@ -851,8 +852,7 @@ export async function renderSvg(
   }
   const { nodes, edges } = toFlow(payload);
 
-  const anyMissing = payload.nodes.some((n) => !n.position);
-  const positioned = anyMissing
+  const positioned = needsAutoLayout(payload.nodes)
     ? await layoutGraph(nodes, edges, payload.rankDirection ?? "TB", {
         rankSeparation: payload.rankSeparation,
         nodeSeparation: payload.nodeSeparation,

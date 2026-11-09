@@ -143,6 +143,8 @@ The DSL describes the model. It does not describe where you dragged each box. Wh
 
 Structurizr keeps layout inside workspace JSON instead. c4studio keeps your DSL free of coordinates, which keeps diffs readable.
 
+A workspace `.json` file that Structurizr has laid out is drawn the way Structurizr drew it, in the Studio, `c4 render` and `c4 publish`. That covers element positions, line bend points, and box sizes, which are 450×300 unless an element style sets `width` or `height`. Boundaries are fitted around their contents, because Structurizr stores no position for them. A view with `automaticLayout`, or with every element at 0,0, which is what Structurizr writes for a view nobody arranged, is laid out afresh, as Structurizr itself does. A sidecar beside the JSON still wins over the layout inside it. `c4 export` writes element positions and bend points back out.
+
 ## Dynamic perspectives
 
 A [perspective](dsl-reference.html#9-perspectives) can carry a `url`. In c4studio, a perspective with a `url` has its value **read from that URL**, so a badge can show live data such as an on-call team or a security rating.
@@ -173,6 +175,6 @@ This is **off by default**. Start the Studio with `c4 webapp <path> --dynamic-pe
 | `!decisions` | An alias for `!adrs` | Not supported; use `!adrs`. |
 | `branding`, `terminology` | Applied to diagrams | Parsed and exported, but not drawn. |
 | `routing Orthogonal` | Orthogonal lines | Drawn with c4studio's own step router. `Direct` and `Curved` are not painted. |
-| Layout | Stored in workspace JSON | Stored in a per-user `.layout.json` sidecar. |
+| Layout | Stored in workspace JSON | Stored in a per-user `.layout.json` sidecar. A layout inside workspace JSON is drawn too. |
 
 Every skipped construct is recorded as a diagnostic with a file, line and column. `c4 check` prints them, the Studio and VS Code show them as problems, and the rest of the model still renders. The full list of codes is in [Diagnostic codes](dsl-reference.html#diagnostic-codes), and [Keyword coverage](dsl-support.html) maps every keyword in the Structurizr language reference to what c4studio does with it.
