@@ -135,7 +135,7 @@ The rules are listed in [Lint rules](cli.html#lint-rules).
 
 ## Layout files: `<workspace>.layout.json`
 
-The DSL describes the model. It does not describe where you dragged each box. When you arrange a view in the Studio, the positions go in a sidecar file beside the workspace, `shop.layout.json` for `shop.dsl`, together with each view's line style, line routes, label offsets, collapsed and expanded elements, moved titles and legends, and named layouts.
+The DSL describes the model. It does not describe where you dragged each box. When you arrange a view in the Studio, the positions go in a sidecar file beside the workspace, `shop.layout.json` for `shop.dsl`, together with the size of any box you resized, each view's line style, line routes, label offsets, collapsed and expanded elements, moved titles and legends, and named layouts.
 
 - The file is **per-user UI state**, so add `*.layout.json` to `.gitignore`.
 - `c4 render`, `c4 publish` and the VS Code preview honour it, so your exports match what you arranged. `--no-layout` ignores it, which gives the same output on any machine.

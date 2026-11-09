@@ -858,11 +858,21 @@ export function GraphPane({
     const current = nodesRef.current;
     const sizes: Record<string, [number, number]> = {};
     for (const node of current) {
-      if (node.type !== "boundary") continue;
-      const width = node.width ?? Number(node.style?.width);
-      const height = node.height ?? Number(node.style?.height);
-      if (width > 0 && height > 0) {
-        sizes[node.id] = [Math.round(width), Math.round(height)];
+      if (node.type === "boundary") {
+        const width = node.width ?? Number(node.style?.width);
+        const height = node.height ?? Number(node.style?.height);
+        if (width > 0 && height > 0) {
+          sizes[node.id] = [Math.round(width), Math.round(height)];
+        }
+      } else if (node.type === "element") {
+        // Only a box with a size of its own — resized (PP-224) or placed by
+        // a JSON layout. The rest are sized by their text, and must stay
+        // that way so they grow when the text does.
+        const width = Number(node.style?.width);
+        const height = Number(node.style?.height);
+        if (width > 0 && height > 0) {
+          sizes[node.id] = [Math.round(width), Math.round(height)];
+        }
       }
     }
     const chrome: Record<string, [number, number]> = {};

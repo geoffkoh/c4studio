@@ -858,12 +858,14 @@ button {
   margin-left: 5px;
 }
 
-.boundary__resize-line {
+.boundary__resize-line,
+.node-resize__line {
   border-color: var(--accent) !important;
   pointer-events: all !important;
 }
 
-.boundary__resize-handle {
+.boundary__resize-handle,
+.node-resize__handle {
   pointer-events: all !important;
   width: 9px !important;
   height: 9px !important;

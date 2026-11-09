@@ -9529,24 +9529,30 @@ function nodeTextLines(data, inner = textWidth(data)) {
 	};
 }
 /**
-* How tall a node must be to show its text without clipping it.
-*
-* Never smaller than the kind's floor, so short-labelled nodes keep the
-* proportions the diagram is used to; taller whenever the content needs
-* it, which is the whole point.
+* How tall a node's own text is, in a box `width` wide: the least a box can
+* be resized to (PP-224) without clipping it.
 */
-function nodeHeight(data) {
-	const lines = nodeTextLines(data, textWidth(data) / MEASURE_MARGIN);
-	const person = isPersonNode(data);
-	let height = (person ? 20 : 10) + 10;
+function nodeContentHeight(data, width = 200) {
+	const lines = nodeTextLines(data, textWidth(data, width) / MEASURE_MARGIN);
+	let height = (isPersonNode(data) ? 20 : 10) + 10;
 	if (data.icon) height += 36;
 	height += lines.label.length * 16;
 	if (lines.meta.length) height += 3 + lines.meta.length * 13;
 	if (lines.description.length) height += 5 + lines.description.length * 13;
 	height += SHAPE_EXTRA_HEIGHT[data.shape ?? ""] ?? 0;
 	height += HEIGHT_SLACK;
-	const floor = (person ? 150 : 110) + (data.icon ? 36 : 0);
-	return Math.max(floor, Math.ceil(height));
+	return Math.ceil(height);
+}
+/**
+* How tall a node must be to show its text without clipping it.
+*
+* Never smaller than the kind's floor, so short-labelled nodes keep the
+* proportions the diagram is used to; taller whenever the content needs
+* it, which is the whole point.
+*/
+function nodeHeight(data, width = 200) {
+	const floor = (isPersonNode(data) ? 150 : 110) + (data.icon ? 36 : 0);
+	return Math.max(floor, nodeContentHeight(data, width));
 }
 /** The full box a node occupies in the layout. */
 function nodeBox(data) {

@@ -40,6 +40,7 @@ export {
 } from "./edgePaint";
 export {
   nodeBox,
+  nodeContentHeight,
   nodeHeight,
   nodeTextLines,
   nodeTooltip,
