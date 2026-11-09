@@ -5,6 +5,17 @@ compatibility work (PP-31 → PP-35) and how to adapt existing code.
 
 ---
 
+## Unreleased: layouts from workspace JSON (PP-220)
+
+Nothing needs action. A workspace `.json` that Structurizr laid out is
+now drawn with that layout: element positions, line bend points, and
+Structurizr's box sizes. Before, every JSON view was laid out from
+scratch. The Studio, `c4 render` and `c4 publish` all change for such
+files. A layout sidecar beside the JSON still takes precedence, and
+`--no-layout` ignores only the sidecar, not the layout inside the JSON.
+
+---
+
 ## 0.4.0 — lint, diff, impact and a published site (PP-182 … PP-215)
 
 Nothing needs action. The new commands (`c4 lint`, `c4 diff`,

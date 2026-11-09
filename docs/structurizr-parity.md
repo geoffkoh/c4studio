@@ -96,7 +96,7 @@ inferring behaviour from this document when the two might disagree.
 | `!script` / `!plugin` / `!components` | ✅ (executes JVM code) | ⚠ never executed: stripped/skipped with an `UnsupportedFeatureWarning`; CLI prints warnings to stderr |
 | Workspace JSON import | ✅ | ✅ |
 | Workspace JSON export (round-trip) | ✅ | ✅ CLI `export` + `generators/json_export` |
-| Layout persistence | ✅ (in workspace) | ✅ (sidecar JSON next to the source) |
+| Layout persistence | ✅ (in workspace) | ✅ (sidecar JSON next to the source). A layout stored in workspace JSON is honoured too (PP-220): element x/y, relationship vertices and Structurizr's box sizes (450×300 default, element-style `width`/`height`), boundaries fitted around their children, and a view upstream would auto-lay out (`automaticLayout`, or all elements at 0,0) laid out afresh. Element text keeps c4studio's font size, so a Structurizr layout's boxes read emptier than upstream's 24px default. Remote-theme sizes are not applied |
 | Branding / terminology from DSL | ✅ | ✅ parsed + JSON export (terminology export bug fixed) |
 | Workspace `configuration { scope, visibility, users }` | ✅ | ✅ parsed + JSON round-trip (informational; no auth enforcement) |
 | Multi-workspace, users, locking, branches | ✅ | ❌ (single local user by design) |
