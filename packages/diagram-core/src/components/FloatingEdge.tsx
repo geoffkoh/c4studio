@@ -217,7 +217,7 @@ function WaypointHandle({
 
   return (
     <circle
-      className="edge-waypoint nodrag nopan"
+      className="edge-waypoint nodrag nopan export-hidden"
       cx={x}
       cy={y}
       r={5}
@@ -670,7 +670,7 @@ export function FloatingEdge({
               <rect
                 key={index}
                 className={
-                  "edge-segment-handle nodrag nopan" +
+                  "edge-segment-handle nodrag nopan export-hidden" +
                   (horizontal ? " edge-segment-handle--h" : " edge-segment-handle--v")
                 }
                 data-run={index}
@@ -701,7 +701,7 @@ export function FloatingEdge({
               <circle
                 key={end}
                 className={
-                  "edge-end-handle nodrag nopan" +
+                  "edge-end-handle nodrag nopan export-hidden" +
                   (pins[end] ? " edge-end-handle--pinned" : "")
                 }
                 data-end={end}
