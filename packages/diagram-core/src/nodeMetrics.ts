@@ -8,6 +8,8 @@
 // description of lines until it fitted. Both failure modes come from the
 // same missing number, so it is computed once, here.
 //
+import { GLYPH_CHARS, GLYPH_WIDTHS } from "./glyphWidths";
+
 // The constants mirror `.node` and its children in the web app's
 // index.css. Change one side and this file has to follow, or nodes will
 // be measured as something other than what they render as.
@@ -22,6 +24,8 @@ export const PERSON_MIN_HEIGHT = 150;
 export const NODE_PAD_TOP = 10;
 export const NODE_PAD_BOTTOM = 10;
 export const NODE_PAD_X = 12;
+/** `.node`'s border, inside its width under `box-sizing: border-box`. */
+export const NODE_BORDER = 1;
 export const PERSON_PAD_TOP = 20;
 
 // `.node__icon`: 30px square above the label, with 2px/4px margins.
@@ -47,12 +51,57 @@ export const META_MAX_LINES = 2;
 export const DESC_MAX_LINES = 4;
 
 /**
- * Character width as a fraction of font size, for wrapping without a DOM.
- * Measured against the SPA's font stack; erring high keeps text inside the
- * box rather than overflowing it.
+ * Character width as a fraction of font size, for a character the glyph
+ * table does not hold. Erring high keeps text inside the box rather than
+ * overflowing it.
  */
 export const CHAR_RATIO = 0.55;
 export const BOLD_CHAR_RATIO = 0.58;
+
+/**
+ * Headroom when measuring how tall a box must be. The glyph table is one
+ * machine's font; another platform resolves the stack to a slightly wider
+ * one, and a line measured as fitting that the browser then wraps is a box
+ * drawn too short. Only heights pay it — the text itself is broken where
+ * the browser breaks it.
+ */
+const MEASURE_MARGIN = 1.02;
+
+const GLYPH_INDEX = new Map([...GLYPH_CHARS].map((ch, i) => [ch, i]));
+
+/** The table for a size and weight, or the nearest size of that weight. */
+function glyphTable(fontSize: number, bold: boolean): readonly number[] | undefined {
+  const weight = bold ? 600 : 400;
+  const exact = GLYPH_WIDTHS[`${fontSize}/${weight}`];
+  if (exact) return exact;
+  let best: [number, readonly number[]] | undefined;
+  for (const [key, table] of Object.entries(GLYPH_WIDTHS)) {
+    const [size, w] = key.split("/").map(Number);
+    if (w !== weight) continue;
+    if (!best || Math.abs(size - fontSize) < Math.abs(best[0] - fontSize)) {
+      best = [size, table];
+    }
+  }
+  return best?.[1];
+}
+
+/**
+ * How wide `text` draws in the Studio's font, without a DOM (PP-223).
+ *
+ * Summed from widths measured in the browser, per size, so the headless
+ * renderer breaks lines where the canvas does. It used to assume a flat
+ * 0.55em per character, which runs 8–26% wide.
+ */
+export function measureText(text: string, fontSize: number, bold = false): number {
+  const table = glyphTable(fontSize, bold);
+  const fallback = bold ? BOLD_CHAR_RATIO : CHAR_RATIO;
+  let em = 0;
+  for (const ch of text) {
+    const index = GLYPH_INDEX.get(ch);
+    em += index !== undefined && table ? table[index] : fallback;
+  }
+  return em * fontSize;
+}
 
 /**
  * Slack added to every measured height.
@@ -139,28 +188,40 @@ export function wrap(
   maxLines: number,
   bold = false,
 ): string[] {
-  const perChar = fontSize * (bold ? BOLD_CHAR_RATIO : CHAR_RATIO);
-  const limit = Math.max(1, Math.floor(maxWidth / perChar));
+  const fits = (line: string) => measureText(line, fontSize, bold) <= maxWidth;
+  // As much of `line` as fits with an ellipsis after it.
+  const clip = (line: string) => {
+    let kept = line;
+    while (kept && !fits(`${kept}…`)) kept = kept.slice(0, -1);
+    return `${kept.trimEnd()}…`;
+  };
+  // A line may break at a space or, as the browser breaks it, after a
+  // hyphen: "re-plans" is "re-" glued to "plans".
+  const pieces: { text: string; glue: string }[] = [];
+  for (const word of text.split(/\s+/).filter(Boolean)) {
+    (word.match(/[^-]+-+|[^-]+$|-+/g) ?? [word]).forEach((part, i) =>
+      pieces.push({ text: part, glue: i === 0 ? " " : "" }),
+    );
+  }
   const lines: string[] = [];
   let current = "";
-  for (const word of text.split(/\s+/).filter(Boolean)) {
-    const candidate = current ? `${current} ${word}` : word;
-    if (candidate.length <= limit) {
+  for (const piece of pieces) {
+    const candidate = current ? `${current}${piece.glue}${piece.text}` : piece.text;
+    if (fits(candidate)) {
       current = candidate;
       continue;
     }
     if (current) lines.push(current);
-    current = word.length > limit ? `${word.slice(0, limit - 1)}…` : word;
+    current = fits(piece.text) ? piece.text : clip(piece.text);
     if (lines.length === maxLines) break;
   }
   if (current && lines.length < maxLines) lines.push(current);
   if (lines.length > maxLines) lines.length = maxLines;
-  const consumed = lines.join(" ").replace(/…$/, "");
-  if (consumed.length < text.replace(/\s+/g, " ").trim().length && lines.length) {
+  const visible = (line: string) => line.replace(/\s+/g, "");
+  const consumed = visible(lines.join("")).replace(/…$/, "");
+  if (consumed.length < visible(text).length && lines.length) {
     const last = lines[lines.length - 1];
-    if (!last.endsWith("…")) {
-      lines[lines.length - 1] = `${last.slice(0, Math.max(0, limit - 1))}…`;
-    }
+    if (!last.endsWith("…")) lines[lines.length - 1] = clip(last);
   }
   return lines;
 }
@@ -174,19 +235,23 @@ export function isPersonNode(data: NodeTextData): boolean {
   );
 }
 
-/** Width of the text column inside a node of the given shape. */
-export function textWidth(data: NodeTextData): number {
+/** Width of the text column inside a node of the given shape: `.node`'s
+    width less its padding and border, as `box-sizing: border-box` has it. */
+export function textWidth(data: NodeTextData, width: number = NODE_WIDTH): number {
   const extra = SHAPE_EXTRA_PAD_X[data.shape ?? ""] ?? 0;
-  return NODE_WIDTH - 2 * (NODE_PAD_X + extra);
+  return width - 2 * (NODE_PAD_X + NODE_BORDER + extra);
 }
 
-/** The wrapped lines a node will show, each already capped and ellipsised. */
-export function nodeTextLines(data: NodeTextData): {
+/** The wrapped lines a node will show, each already capped and ellipsised,
+    in a column `inner` wide. */
+export function nodeTextLines(
+  data: NodeTextData,
+  inner: number = textWidth(data),
+): {
   label: string[];
   meta: string[];
   description: string[];
 } {
-  const inner = textWidth(data);
   const meta = metaLine(data);
   return {
     label: wrap(data.label ?? "", inner, LABEL_SIZE, LABEL_MAX_LINES, true),
@@ -205,7 +270,7 @@ export function nodeTextLines(data: NodeTextData): {
  * it, which is the whole point.
  */
 export function nodeHeight(data: NodeTextData): number {
-  const lines = nodeTextLines(data);
+  const lines = nodeTextLines(data, textWidth(data) / MEASURE_MARGIN);
   const person = isPersonNode(data);
 
   let height = (person ? PERSON_PAD_TOP : NODE_PAD_TOP) + NODE_PAD_BOTTOM;

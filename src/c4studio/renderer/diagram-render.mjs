@@ -8816,7 +8816,7 @@ var require_debug = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 var require_version = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = "0.8.5";
 }));
-// src/nodeMetrics.ts
+// src/glyphWidths.ts
 var import_dagre = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = {
 		graphlib: require_graphlib(),
@@ -8829,13 +8829,595 @@ var import_dagre = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJSMin(((expo
 		version: require_version()
 	};
 })))(), 1);
+var GLYPH_CHARS = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~–—‘’“”…·•×é";
+var GLYPH_WIDTHS = {
+	"10/400": [
+		.293,
+		.3228,
+		.4893,
+		.6416,
+		.6416,
+		.937,
+		.7232,
+		.3086,
+		.3936,
+		.3936,
+		.4834,
+		.6416,
+		.3086,
+		.4834,
+		.3086,
+		.3164,
+		.6416,
+		.4756,
+		.6152,
+		.6387,
+		.6553,
+		.6299,
+		.6484,
+		.6001,
+		.6504,
+		.6484,
+		.3086,
+		.3086,
+		.6416,
+		.6416,
+		.6416,
+		.5244,
+		.9297,
+		.6855,
+		.6689,
+		.7275,
+		.7383,
+		.6074,
+		.584,
+		.7583,
+		.7539,
+		.2793,
+		.5498,
+		.6704,
+		.5796,
+		.8857,
+		.7539,
+		.7832,
+		.647,
+		.7832,
+		.665,
+		.6489,
+		.6455,
+		.749,
+		.6855,
+		.9795,
+		.6904,
+		.667,
+		.6734,
+		.3936,
+		.3164,
+		.3936,
+		.6416,
+		.5571,
+		.5117,
+		.5635,
+		.626,
+		.5713,
+		.626,
+		.583,
+		.3736,
+		.6211,
+		.6001,
+		.2588,
+		.2583,
+		.5547,
+		.2646,
+		.8818,
+		.5952,
+		.6025,
+		.6221,
+		.6211,
+		.4021,
+		.5257,
+		.375,
+		.5952,
+		.5537,
+		.7861,
+		.5361,
+		.5547,
+		.5508,
+		.3936,
+		.2705,
+		.3936,
+		.6416,
+		.5952,
+		.8781,
+		.3086,
+		.3086,
+		.4707,
+		.4707,
+		.8164,
+		.3086,
+		.4834,
+		.6416,
+		.583
+	],
+	"11/400": [
+		.2871,
+		.3169,
+		.4834,
+		.6358,
+		.6358,
+		.9312,
+		.7173,
+		.3027,
+		.3877,
+		.3877,
+		.4776,
+		.6358,
+		.3027,
+		.4776,
+		.3027,
+		.3105,
+		.6358,
+		.4697,
+		.6094,
+		.6328,
+		.6494,
+		.624,
+		.6426,
+		.5942,
+		.6445,
+		.6426,
+		.3027,
+		.3027,
+		.6358,
+		.6358,
+		.6358,
+		.5186,
+		.9238,
+		.6797,
+		.6631,
+		.7217,
+		.7324,
+		.6016,
+		.5781,
+		.7525,
+		.748,
+		.2734,
+		.544,
+		.6646,
+		.5738,
+		.8799,
+		.748,
+		.7773,
+		.6411,
+		.7773,
+		.6592,
+		.6431,
+		.6397,
+		.7432,
+		.6797,
+		.9737,
+		.6846,
+		.6612,
+		.6675,
+		.3877,
+		.3105,
+		.3877,
+		.6358,
+		.5513,
+		.5059,
+		.5576,
+		.6201,
+		.5654,
+		.6201,
+		.5772,
+		.3677,
+		.6152,
+		.5942,
+		.2529,
+		.2525,
+		.5488,
+		.2588,
+		.876,
+		.5894,
+		.5967,
+		.6162,
+		.6152,
+		.3963,
+		.5198,
+		.3691,
+		.5894,
+		.5479,
+		.7803,
+		.5303,
+		.5488,
+		.5449,
+		.3877,
+		.2647,
+		.3877,
+		.6358,
+		.5894,
+		.8761,
+		.3027,
+		.3027,
+		.4648,
+		.4648,
+		.8105,
+		.3027,
+		.4776,
+		.6358,
+		.5772
+	],
+	"12/600": [
+		.2656,
+		.3413,
+		.5386,
+		.6577,
+		.6577,
+		.999,
+		.7334,
+		.3306,
+		.4131,
+		.4131,
+		.48,
+		.6577,
+		.3306,
+		.48,
+		.3306,
+		.3247,
+		.6665,
+		.4956,
+		.6299,
+		.6548,
+		.6724,
+		.6484,
+		.668,
+		.6118,
+		.6753,
+		.668,
+		.3306,
+		.3306,
+		.6577,
+		.6577,
+		.6577,
+		.5425,
+		.9238,
+		.7129,
+		.6812,
+		.7329,
+		.7402,
+		.6133,
+		.5889,
+		.7559,
+		.7695,
+		.3013,
+		.5801,
+		.6924,
+		.5859,
+		.8955,
+		.7593,
+		.7813,
+		.6606,
+		.7813,
+		.6807,
+		.6626,
+		.6514,
+		.7524,
+		.7056,
+		.9956,
+		.7124,
+		.6904,
+		.6709,
+		.4131,
+		.3247,
+		.4131,
+		.6577,
+		.5747,
+		.5,
+		.5771,
+		.6392,
+		.5781,
+		.6392,
+		.5908,
+		.3958,
+		.6333,
+		.6177,
+		.2739,
+		.2734,
+		.582,
+		.2808,
+		.9116,
+		.6128,
+		.6099,
+		.6348,
+		.6348,
+		.4233,
+		.5427,
+		.3992,
+		.6128,
+		.5693,
+		.8228,
+		.562,
+		.5791,
+		.5571,
+		.4131,
+		.2856,
+		.4131,
+		.6577,
+		.6128,
+		.8957,
+		.3306,
+		.3306,
+		.522,
+		.522,
+		.9043,
+		.3306,
+		.48,
+		.6577,
+		.5908
+	],
+	"13/600": [
+		.2598,
+		.3355,
+		.5327,
+		.6519,
+		.6519,
+		.9932,
+		.7276,
+		.3247,
+		.4072,
+		.4072,
+		.4741,
+		.6519,
+		.3247,
+		.4741,
+		.3247,
+		.3189,
+		.6607,
+		.4898,
+		.624,
+		.6489,
+		.6665,
+		.6426,
+		.6621,
+		.606,
+		.6694,
+		.6621,
+		.3247,
+		.3247,
+		.6519,
+		.6519,
+		.6519,
+		.5366,
+		.918,
+		.707,
+		.6753,
+		.7271,
+		.7344,
+		.6074,
+		.583,
+		.75,
+		.7637,
+		.2954,
+		.5742,
+		.6865,
+		.5801,
+		.8897,
+		.7534,
+		.7754,
+		.6548,
+		.7754,
+		.6748,
+		.6568,
+		.6455,
+		.7466,
+		.6997,
+		.9898,
+		.7066,
+		.6846,
+		.6651,
+		.4072,
+		.3189,
+		.4072,
+		.6519,
+		.5689,
+		.4941,
+		.5713,
+		.6333,
+		.5723,
+		.6333,
+		.585,
+		.3899,
+		.6275,
+		.6118,
+		.2681,
+		.2676,
+		.5762,
+		.2749,
+		.9058,
+		.6069,
+		.604,
+		.6289,
+		.6289,
+		.4175,
+		.5369,
+		.3933,
+		.6069,
+		.5635,
+		.8169,
+		.5562,
+		.5733,
+		.5513,
+		.4072,
+		.2798,
+		.4072,
+		.6519,
+		.6069,
+		.8936,
+		.3247,
+		.3247,
+		.5161,
+		.5161,
+		.8984,
+		.3247,
+		.4741,
+		.6519,
+		.585
+	],
+	"18/600": [
+		.2383,
+		.315,
+		.5095,
+		.6318,
+		.6318,
+		.9683,
+		.707,
+		.3035,
+		.3862,
+		.3862,
+		.4541,
+		.6318,
+		.3018,
+		.4536,
+		.3018,
+		.2988,
+		.6406,
+		.4702,
+		.6035,
+		.6289,
+		.6465,
+		.6221,
+		.6421,
+		.5851,
+		.6489,
+		.6421,
+		.3018,
+		.3018,
+		.6318,
+		.6318,
+		.6318,
+		.5166,
+		.898,
+		.6865,
+		.6543,
+		.707,
+		.7139,
+		.5864,
+		.5625,
+		.7295,
+		.7427,
+		.2749,
+		.5537,
+		.6655,
+		.5591,
+		.8691,
+		.7329,
+		.7554,
+		.6338,
+		.7554,
+		.6538,
+		.6362,
+		.6245,
+		.7261,
+		.6792,
+		.9692,
+		.686,
+		.6641,
+		.6445,
+		.3862,
+		.2988,
+		.3862,
+		.6323,
+		.5489,
+		.4756,
+		.5503,
+		.6118,
+		.5518,
+		.6118,
+		.5645,
+		.3688,
+		.6064,
+		.5908,
+		.2476,
+		.2471,
+		.5547,
+		.2544,
+		.8838,
+		.5859,
+		.5835,
+		.6079,
+		.6079,
+		.3952,
+		.5163,
+		.3722,
+		.5859,
+		.5422,
+		.7959,
+		.5352,
+		.5525,
+		.5298,
+		.3862,
+		.2588,
+		.3862,
+		.6318,
+		.5859,
+		.8852,
+		.3009,
+		.3009,
+		.4913,
+		.4913,
+		.8682,
+		.3018,
+		.4536,
+		.6318,
+		.5645
+	]
+};
 /**
-* Character width as a fraction of font size, for wrapping without a DOM.
-* Measured against the SPA's font stack; erring high keeps text inside the
-* box rather than overflowing it.
+* Character width as a fraction of font size, for a character the glyph
+* table does not hold. Erring high keeps text inside the box rather than
+* overflowing it.
 */
 var CHAR_RATIO = .55;
 var BOLD_CHAR_RATIO = .58;
+/**
+* Headroom when measuring how tall a box must be. The glyph table is one
+* machine's font; another platform resolves the stack to a slightly wider
+* one, and a line measured as fitting that the browser then wraps is a box
+* drawn too short. Only heights pay it — the text itself is broken where
+* the browser breaks it.
+*/
+var MEASURE_MARGIN = 1.02;
+var GLYPH_INDEX = new Map([...GLYPH_CHARS].map((ch, i) => [ch, i]));
+/** The table for a size and weight, or the nearest size of that weight. */
+function glyphTable(fontSize, bold) {
+	const weight = bold ? 600 : 400;
+	const exact = GLYPH_WIDTHS[`${fontSize}/${weight}`];
+	if (exact) return exact;
+	let best;
+	for (const [key, table] of Object.entries(GLYPH_WIDTHS)) {
+		const [size, w] = key.split("/").map(Number);
+		if (w !== weight) continue;
+		if (!best || Math.abs(size - fontSize) < Math.abs(best[0] - fontSize)) best = [size, table];
+	}
+	return best?.[1];
+}
+/**
+* How wide `text` draws in the Studio's font, without a DOM (PP-223).
+*
+* Summed from widths measured in the browser, per size, so the headless
+* renderer breaks lines where the canvas does. It used to assume a flat
+* 0.55em per character, which runs 8–26% wide.
+*/
+function measureText(text, fontSize, bold = false) {
+	const table = glyphTable(fontSize, bold);
+	const fallback = bold ? BOLD_CHAR_RATIO : CHAR_RATIO;
+	let em = 0;
+	for (const ch of text) {
+		const index = GLYPH_INDEX.get(ch);
+		em += index !== void 0 && table ? table[index] : fallback;
+	}
+	return em * fontSize;
+}
 /**
 * Slack added to every measured height.
 *
@@ -8895,25 +9477,35 @@ function metaLine(data) {
 * a clipped final line with an ellipsis as the CSS line clamp does.
 */
 function wrap(text, maxWidth, fontSize, maxLines, bold = false) {
-	const perChar = fontSize * (bold ? BOLD_CHAR_RATIO : CHAR_RATIO);
-	const limit = Math.max(1, Math.floor(maxWidth / perChar));
+	const fits = (line) => measureText(line, fontSize, bold) <= maxWidth;
+	const clip = (line) => {
+		let kept = line;
+		while (kept && !fits(`${kept}…`)) kept = kept.slice(0, -1);
+		return `${kept.trimEnd()}…`;
+	};
+	const pieces = [];
+	for (const word of text.split(/\s+/).filter(Boolean)) (word.match(/[^-]+-+|[^-]+$|-+/g) ?? [word]).forEach((part, i) => pieces.push({
+		text: part,
+		glue: i === 0 ? " " : ""
+	}));
 	const lines = [];
 	let current = "";
-	for (const word of text.split(/\s+/).filter(Boolean)) {
-		const candidate = current ? `${current} ${word}` : word;
-		if (candidate.length <= limit) {
+	for (const piece of pieces) {
+		const candidate = current ? `${current}${piece.glue}${piece.text}` : piece.text;
+		if (fits(candidate)) {
 			current = candidate;
 			continue;
 		}
 		if (current) lines.push(current);
-		current = word.length > limit ? `${word.slice(0, limit - 1)}…` : word;
+		current = fits(piece.text) ? piece.text : clip(piece.text);
 		if (lines.length === maxLines) break;
 	}
 	if (current && lines.length < maxLines) lines.push(current);
 	if (lines.length > maxLines) lines.length = maxLines;
-	if (lines.join(" ").replace(/…$/, "").length < text.replace(/\s+/g, " ").trim().length && lines.length) {
+	const visible = (line) => line.replace(/\s+/g, "");
+	if (visible(lines.join("")).replace(/…$/, "").length < visible(text).length && lines.length) {
 		const last = lines[lines.length - 1];
-		if (!last.endsWith("…")) lines[lines.length - 1] = `${last.slice(0, Math.max(0, limit - 1))}…`;
+		if (!last.endsWith("…")) lines[lines.length - 1] = clip(last);
 	}
 	return lines;
 }
@@ -8921,13 +9513,14 @@ function wrap(text, maxWidth, fontSize, maxLines, bold = false) {
 function isPersonNode(data) {
 	return data.shape === "Person" || data.shape === "Robot" || data.shape === void 0 && (data.kind ?? "").startsWith("person");
 }
-/** Width of the text column inside a node of the given shape. */
-function textWidth(data) {
-	return 200 - 2 * (12 + (SHAPE_EXTRA_PAD_X[data.shape ?? ""] ?? 0));
+/** Width of the text column inside a node of the given shape: `.node`'s
+width less its padding and border, as `box-sizing: border-box` has it. */
+function textWidth(data, width = 200) {
+	return width - 2 * (13 + (SHAPE_EXTRA_PAD_X[data.shape ?? ""] ?? 0));
 }
-/** The wrapped lines a node will show, each already capped and ellipsised. */
-function nodeTextLines(data) {
-	const inner = textWidth(data);
+/** The wrapped lines a node will show, each already capped and ellipsised,
+in a column `inner` wide. */
+function nodeTextLines(data, inner = textWidth(data)) {
 	const meta = metaLine(data);
 	return {
 		label: wrap(data.label ?? "", inner, 13, 4, true),
@@ -8943,7 +9536,7 @@ function nodeTextLines(data) {
 * it, which is the whole point.
 */
 function nodeHeight(data) {
-	const lines = nodeTextLines(data);
+	const lines = nodeTextLines(data, textWidth(data) / MEASURE_MARGIN);
 	const person = isPersonNode(data);
 	let height = (person ? 20 : 10) + 10;
 	if (data.icon) height += 36;
@@ -10085,7 +10678,7 @@ function paintNode(node) {
 	if (node.isPerson) parts.push(`<circle cx="${round(node.x + node.width / 2)}" cy="${round(node.y + PERSON_HEAD / 2)}" r="${PERSON_HEAD / 2}"${outlineOf(node.data, fill)}/>`);
 	parts.push(shapeMarkup(body, fill));
 	const centreX = node.x + node.width / 2;
-	const innerWidth = node.width === 200 ? textWidth(node.data) : node.width - 24;
+	const innerWidth = textWidth(node.data, node.width);
 	let cursor = body.y + (node.isPerson ? 20 : 10);
 	const icon = node.data.icon;
 	if (icon && icon.startsWith("data:")) {
@@ -10115,7 +10708,7 @@ function paintNode(node) {
 	const badge = node.data.perspectiveBadge;
 	if (badge) {
 		const text = escapeXml(badge);
-		const badgeWidth = text.length * BADGE_SIZE * CHAR_RATIO + 10;
+		const badgeWidth = measureText(badge, BADGE_SIZE) + 10;
 		const badgeX = node.x + 8;
 		const badgeY = node.y - BADGE_HEIGHT / 2;
 		parts.push(`<rect x="${round(badgeX)}" y="${round(badgeY)}" width="${round(badgeWidth)}" height="${BADGE_HEIGHT}" rx="7" ry="7" fill="${EDGE_LABEL_BG}" stroke="${EDGE_LABEL_BORDER}"/>` + textLine(text, badgeX + badgeWidth / 2, badgeY + BADGE_HEIGHT - 4, BADGE_SIZE, EDGE_LABEL_COLOUR, 1, 600));
@@ -10167,7 +10760,7 @@ function paintEdge(edge, placed, lineStyle, curveOffset) {
 	const cx = geometry.labelX + (edge.labelOffset?.[0] ?? 0);
 	const cy = geometry.labelY + (edge.labelOffset?.[1] ?? 0);
 	const lines = wrap(edge.label, 148, EDGE_LABEL_SIZE, Number.POSITIVE_INFINITY);
-	const width = Math.max(...lines.map((line) => line.length)) * EDGE_LABEL_SIZE * CHAR_RATIO + 12;
+	const width = Math.max(...lines.map((line) => measureText(line, EDGE_LABEL_SIZE))) + 12;
 	const height = lines.length * EDGE_LABEL_LEADING + 4;
 	const top = cy - height / 2;
 	const label = `<rect x="${round(cx - width / 2)}" y="${round(top)}" width="${round(width)}" height="${round(height)}" rx="4" ry="4" fill="${EDGE_LABEL_BG}" stroke="${EDGE_LABEL_BORDER}"/>` + lines.map((line, i) => textLine(line, cx, top + 2 + EDGE_LABEL_LEADING * i + EDGE_LABEL_LEADING / 2 + 3.5, EDGE_LABEL_SIZE, EDGE_LABEL_COLOUR)).join("");
@@ -10308,7 +10901,7 @@ async function renderSvg(payload, options = {}) {
 	const draggedTitle = drawTitle ? payload.chrome?.title : void 0;
 	const draggedLegend = drawLegend ? payload.chrome?.legend : void 0;
 	const legendSize = drawLegend ? paintLegend(entries, 0, 0) : null;
-	const titleWidth = title.length * TITLE_SIZE * CHAR_RATIO;
+	const titleWidth = measureText(title, TITLE_SIZE, true);
 	let minX = Math.min(...boxes.map((b) => b.x));
 	let minY = Math.min(...boxes.map((b) => b.y));
 	let maxX = Math.max(...boxes.map((b) => b.x + b.width));

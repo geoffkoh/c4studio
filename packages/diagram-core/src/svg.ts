@@ -35,7 +35,6 @@ import { type Pins } from "./orthogonal";
 import { asLineStyle, curveOffsets, edgeGeometry, type LineStyle } from "./edgePath";
 import { applyPerspective, type Perspective } from "./perspective";
 import {
-  CHAR_RATIO,
   DESC_GAP,
   EDGE_LABEL_INSET_X,
   EDGE_LABEL_MAX_WIDTH,
@@ -48,13 +47,13 @@ import {
   META_GAP,
   META_MAX_LINES,
   NODE_PAD_TOP,
-  NODE_PAD_X,
   NODE_WIDTH,
   LABEL_SIZE,
   PERSON_PAD_TOP,
   SMALL_LEADING,
   SMALL_SIZE,
   isPersonNode,
+  measureText,
   metaLine,
   nodeHeight,
   textWidth,
@@ -430,8 +429,7 @@ function paintNode(node: Placed): string {
   parts.push(shapeMarkup(body, fill));
 
   const centreX = node.x + node.width / 2;
-  const innerWidth =
-    node.width === NODE_WIDTH ? textWidth(node.data) : node.width - 2 * NODE_PAD_X;
+  const innerWidth = textWidth(node.data, node.width);
   let cursor = body.y + (node.isPerson ? PERSON_PAD_TOP : NODE_PAD_TOP);
 
   // Only `data:` URIs are drawn: a remote href would make the exported
@@ -490,7 +488,7 @@ function paintNode(node: Placed): string {
   const badge = node.data.perspectiveBadge;
   if (badge) {
     const text = escapeXml(badge);
-    const badgeWidth = text.length * BADGE_SIZE * CHAR_RATIO + 10;
+    const badgeWidth = measureText(badge, BADGE_SIZE) + 10;
     const badgeX = node.x + 8;
     const badgeY = node.y - BADGE_HEIGHT / 2;
     parts.push(
@@ -623,8 +621,8 @@ function paintEdge(
     EDGE_LABEL_SIZE,
     Number.POSITIVE_INFINITY,
   );
-  const widest = Math.max(...lines.map((line) => line.length));
-  const width = widest * EDGE_LABEL_SIZE * CHAR_RATIO + 2 * EDGE_LABEL_INSET_X;
+  const widest = Math.max(...lines.map((line) => measureText(line, EDGE_LABEL_SIZE)));
+  const width = widest + 2 * EDGE_LABEL_INSET_X;
   const height = lines.length * EDGE_LABEL_LEADING + 4;
   const top = cy - height / 2;
   // The plate fades with its line: a crisp label over a faded
@@ -874,7 +872,7 @@ export async function renderSvg(
   // Measured by painting it once; the result is a string, so this costs
   // nothing worth avoiding.
   const legendSize = drawLegend ? paintLegend(entries, 0, 0) : null;
-  const titleWidth = title.length * TITLE_SIZE * CHAR_RATIO;
+  const titleWidth = measureText(title, TITLE_SIZE, true);
 
   let minX = Math.min(...boxes.map((b) => b.x));
   let minY = Math.min(...boxes.map((b) => b.y));
