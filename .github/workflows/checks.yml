@@ -132,9 +132,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # 24, not the 20 the other jobs use: @vscode/vsce 4 needs Node 22 or
+      # later (PP-226), and 20 is past end of life.
       - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
 
       - run: npm ci
         working-directory: editors/vscode

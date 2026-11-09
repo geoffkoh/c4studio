@@ -118,6 +118,13 @@ widths, which let `nodeMetrics.ts` wrap text without a DOM. Knows nothing about 
   it was switched on; its `.github/dependabot.yml` covers both directories
   for the same reason. Note `npm audit` and Dependabot do not always agree:
   the root `nanoid` advisory was reported by npm and not by Dependabot.
+  The extension's `package.json` has an `overrides` entry pinning
+  `@vscode/vsce`'s `minimatch` to `^11.0.5` (PP-226): every `minimatch` 10.x
+  carries a DoS advisory, and `vsce` 4.1 still asks for 10. Drop the
+  override once `vsce` itself depends on 11 or later, and check that
+  `npx vsce ls` lists the same files either way: `vsce` uses `minimatch`
+  to apply `.vscodeignore`. `vsce` 4 needs Node 22 or later, which is
+  why CI's extension job runs Node 24.
 
 ### Dependabot cannot merge a frontend bump on its own
 

@@ -142,7 +142,12 @@
     "@types/vscode": "~1.85.0",
     "esbuild": "^0.28.1",
     "typescript": "^7.0.2",
-    "@vscode/vsce": "^3.6.0"
+    "@vscode/vsce": "^4.1.0"
+  },
+  "overrides": {
+    "@vscode/vsce": {
+      "minimatch": "^11.0.5"
+    }
   },
   "license": "MIT"
 }
