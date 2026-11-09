@@ -241,6 +241,22 @@ test.describe("diagram details card", () => {
     expect(svg).not.toContain("node__properties");
   });
 
+  test("an exported SVG leaves the connection handles out (PP-219)", async ({ page }) => {
+    const { element } = await open(page);
+    // On screen every element has them — so the export below is leaving
+    // out something that was there to leave out.
+    await expect(
+      page.locator(`.react-flow__node[data-id="${element.id}"] .react-flow__handle`),
+    ).toHaveCount(2);
+    const download = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Export ▾" }).click();
+    await page.getByRole("button", { name: "SVG", exact: true }).click();
+    const file = await (await download).path();
+    const svg = (await import("node:fs")).readFileSync(file!, "utf-8");
+    expect(svg).toContain(element.label);
+    expect(svg).not.toContain("react-flow__handle");
+  });
+
   for (const [chosen, chip, glyph] of [
     // Automatic: the element's text colour (white here), a dark "i".
     [undefined, "rgb(255, 255, 255)", "rgb(28, 37, 48)"],

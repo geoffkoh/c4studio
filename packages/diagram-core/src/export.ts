@@ -40,8 +40,11 @@ export async function exportDiagram(
   const options = {
     backgroundColor: BACKGROUND,
     // Controls drawn on the canvas for the person using it — a node's
-    // properties badge (PP-207) — are not part of the diagram.
-    filter: (node: HTMLElement) => !node.classList?.contains("export-hidden"),
+    // properties badge (PP-207), the connection handles edges attach to
+    // (PP-219) — are not part of the diagram.
+    filter: (node: HTMLElement) =>
+      !node.classList?.contains("export-hidden") &&
+      !node.classList?.contains("react-flow__handle"),
     width,
     height,
     style: {
