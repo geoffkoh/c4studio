@@ -1,4 +1,4 @@
-name: "pystructurizr diagrams"
+name: "c4studio diagrams"
 description: >-
   Render Structurizr DSL/JSON views as SVG on every push and pull request,
   and optionally commit them or comment on the PR.

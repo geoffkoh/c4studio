@@ -60,6 +60,7 @@ features that assume a hosted multi-user deployment.
 | `frontend/src/` | The SPA. Beyond the panes: `dslLanguage.ts` (CodeMirror `StreamLanguage`), `dslComplete.ts` (completion), `highlight.ts` (**the one copy of the DSL vocabulary** — build from it, never restate it), `fileTree.ts` and `lineDiff.ts` (pure, so they can be exercised headlessly). |
 | `editors/vscode/` | VS Code extension (TypeScript, esbuild, packaged as `.vsix`). The preview renders **one view as an SVG** via `c4 render --view` (PP-170) — no server, no port, no iframe — with `Show View…` to switch, `Show Perspective…` to show one perspective, and `Open in Studio (browser)` for the full app, which is the only command that spawns `c4 webapp`. The webview CSP is `default-src 'none'` plus `img-src data:`, and dropping that `img-src` makes theme icons vanish silently; `e2e/svg-preview.spec.ts` pins it. |
 | `samples/` | Sample workspaces used for live verification. |
+| `website/` | The project site on GitHub Pages (PP-217): `build.py`, `templates/`, `assets/`, and the guide pages in `content/`. Built from sources that cannot drift: the DSL reference and migration guide are the files in `docs/`, the CLI reference is generated from click, the shortcuts come from `frontend/src/shortcuts.ts` and code is painted with `highlight.ts`. `tests/test_website.py` checks every link and anchor, and that every command, option, `c4studio.*` key and action input is documented. `.github/workflows/pages.yml` deploys it on merge. |
 
 ## Environment & Commands
 
@@ -92,6 +93,11 @@ features that assume a hosted multi-user deployment.
 - **Run tests:** `uv run pytest`
 - **Lint/Format:** `uv run ruff check .` and `uv run ruff format .`
 - **Type check:** `uv run mypy .`
+- **Project site:** `uv run python website/build.py -o website/_site`
+  (`--no-example` skips the live example, which needs Node). A new
+  `c4studio.*` property, CLI option or action input fails
+  `tests/test_website.py` until the site documents it; a new user-facing
+  feature belongs on the matching page in `website/content/`.
 - **Visual tests:** `npm run test:visual` from the repo root — Playwright
   over the real backend and the committed bundle. It asserts what `tsc`
   cannot see: that a pane has height, that chrome is not most of the

@@ -57,14 +57,16 @@ sourcePane  -> dslEditor   "Embeds"
 sourcePane  -> assistantUi "Opens"
 dslEditor   -> dslLanguage "Highlights and completes with"
 graphPane   -> diagramCore "Lays out and draws with"
+graphPane   -> imageExport "Exports PNG and SVG with"
 apiClient   -> routes      "Calls" "JSON over HTTP"
 
 // --- Inside the VS Code extension ---
 // Declared here rather than on the container, so the component view says
 // something; the container and context views lift them to `vscode`.
 previewMgr  -> resolver "Finds a runnable backend through"
-previewMgr  -> routes   "Spawns, probes and embeds" "localhost HTTP"
-previewMgr  -> spa      "Shows in a webview iframe"
+previewMgr  -> cli      "Renders one view as SVG with"
+previewMgr  -> routes   "Starts on request, for Open in Studio" "localhost HTTP"
+previewMgr  -> spa      "Opens in a browser on request"
 diagnostics -> resolver "Finds the same backend through"
 diagnostics -> cli      "Runs `c4 check --json` with"
 resolver    -> cli      "Locates or installs"

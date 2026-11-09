@@ -27,6 +27,10 @@ from c4studio.parser.dsl import parse_dsl, parse_dsl_file
 DOCS = Path(__file__).parent.parent / "docs"
 REFERENCE = DOCS / "dsl-reference.md"
 
+#: The project site's own pages (PP-217) hold DSL examples too, and are
+#: held to the same rule.
+SITE_PAGES = sorted((Path(__file__).parent.parent / "website" / "content").glob("*.md"))
+
 #: A fragment marked `// in: model` is wrapped in this.
 MODEL_WRAPPER = """workspace "Example" {{
     model {{
@@ -120,6 +124,11 @@ def _scaffold(root: Path) -> None:
     (root / "views" / "context.dsl").write_text(
         'systemLandscape "Included" {\n    include *\n}\n', "utf-8"
     )
+    (root / "themes").mkdir()
+    (root / "themes" / "corporate.json").write_text(
+        '{"name": "Corporate", "elements": [{"tag": "Element", "background": "#334155"}]}',
+        "utf-8",
+    )
     (root / "shared").mkdir()
     (root / "shared" / "base.dsl").write_text(
         'workspace "Shop" {\n    model {\n'
@@ -142,6 +151,25 @@ def test_every_reference_example_parses_cleanly(block: str, tmp_path: Path) -> N
     assert workspace.diagnostics == [], [
         (d.code, d.message) for d in workspace.diagnostics
     ]
+
+
+def _site_blocks() -> list[tuple[str, str]]:
+    return [
+        (f"{page.stem}-line-{line}", block)
+        for page in SITE_PAGES
+        for line, block in _blocks(page)
+    ]
+
+
+@pytest.mark.parametrize(
+    "block", [b for _, b in _site_blocks()], ids=[i for i, _ in _site_blocks()]
+)
+def test_every_site_example_parses_cleanly(block: str, tmp_path: Path) -> None:
+    test_every_reference_example_parses_cleanly(block, tmp_path)
+
+
+def test_the_site_has_examples_to_check() -> None:
+    assert len(_site_blocks()) >= 6
 
 
 def test_the_reference_has_examples_to_check() -> None:

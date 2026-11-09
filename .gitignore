@@ -27,3 +27,7 @@ node_modules/
 # Playwright run artifacts. Baselines in e2e/*-snapshots/ ARE committed.
 test-results/
 playwright-report/
+
+# The project site build output (website/build.py). Deployed by
+# .github/workflows/pages.yml, never committed.
+website/_site/

@@ -65,12 +65,12 @@ with no Node install.
 match wins (each attempt is logged to the output channel):
 
 1. the `c4studio.serverCommand` setting, when set — always wins;
-2. `c4studio` already on your PATH (`pipx install
-   c4studio-studio`);
+2. `c4` already on your PATH (`pipx install
+   c4studio`);
 3. your workspace's own environment via `uv run` (when the folder has a
    `pyproject.toml`/`uv.lock` and uv is installed);
 4. `uv tool run` installing
-   [`c4studio`](https://pypi.org/project/c4studio-studio/)
+   [`c4studio`](https://pypi.org/project/c4studio/)
    from PyPI;
 5. as a last resort, a one-time, checksum-verified download of the
    [uv](https://github.com/astral-sh/uv) binary into the extension's
