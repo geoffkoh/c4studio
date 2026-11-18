@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ApiError, checkSource, saveConflict, saveSource } from "../api";
-import type { CheckResult, SaveConflict, SaveSourceResult } from "../types";
+import type {
+  CheckResult,
+  SaveConflict,
+  SaveSourceResult,
+  SourceLocation,
+  StyleLocation,
+} from "../types";
 import type { DslCompletionModel } from "../dslComplete";
 import { isDirty, tabPaths } from "../sourceBuffers";
 import type { SourceBuffers } from "../useSourceBuffers";
@@ -10,7 +16,9 @@ import { EditorTabs } from "./EditorTabs";
 import { DslEditor, type EditorFlash } from "./DslEditor";
 
 export interface CodeFocus {
-  elementId: string;
+  /** An element's definition, or a style rule (PP-230): exactly one. */
+  elementId?: string;
+  style?: { kind: StyleLocation["kind"]; tag: string };
   /** Changes on every request so re-focusing the same element re-flashes. */
   nonce: number;
 }
@@ -79,13 +87,27 @@ export function SourcePane({
   useEffect(() => {
     if (!focus || !data || appliedFocus.current === focus.nonce) return;
     appliedFocus.current = focus.nonce;
-    const location = data.locations[focus.elementId];
+    let location: SourceLocation | undefined;
+    if (focus.style) {
+      // The last rule for the tag: where two overlap, it is the one that
+      // wins, so it is the one that paints what was selected.
+      const { kind, tag } = focus.style;
+      location = [...(data.styles ?? [])]
+        .reverse()
+        .find((rule) => rule.kind === kind && rule.tag === tag);
+    } else if (focus.elementId) {
+      location = data.locations[focus.elementId];
+    }
     if (!location) {
       // `locations` only covers the loaded workspace, so this is reachable
       // — an element from the Explorer's full-model graph may be defined
       // in a workspace that is not open. Say so; the page has already
       // changed underneath the user.
-      setFocusMiss(focus.elementId);
+      setFocusMiss(
+        focus.style
+          ? `No “${focus.style.tag}” style in this workspace's files`
+          : `No definition found for “${focus.elementId}” in this workspace`,
+      );
       return;
     }
     setFocusMiss(null);
@@ -333,7 +355,7 @@ export function SourcePane({
               className="editor__status-item editor__status-item--warn"
               title="Definition sites come from the loaded workspace only"
             >
-              No definition found for “{focusMiss}” in this workspace
+              {focusMiss}
             </span>
           ) : !buffer.checkable ? (
             <span

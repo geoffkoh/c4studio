@@ -90,7 +90,7 @@ from c4studio.layout_sidecar import (
 )
 from c4studio.models import View, Workspace
 from c4studio.parser.dsl import ParseError, parse_dsl
-from c4studio.parser.locations import element_locations
+from c4studio.parser.locations import element_locations, style_locations
 from c4studio.webapp import assistant as assistant_module
 from c4studio.webapp import graph, model_graph
 from c4studio.webapp.loader import (
@@ -1385,7 +1385,19 @@ def create_app(
                     rel = path.name
                 locations[eid] = {"path": rel, "line": line}
 
-        state.source_cache = {"files": files, "locations": locations}
+        # Where each style rule is written (PP-230), in source order, so the
+        # details card can jump to the rule that paints a selection. A
+        # theme's rules are absent: they come from a URL, not a file.
+        styles: list[dict[str, Any]] = []
+        if state.current_path.suffix.lower() in dsl_suffixes:
+            for kind, tag, path, line in style_locations(state.current_path):
+                try:
+                    rel = path.relative_to(state.root).as_posix()
+                except ValueError:
+                    rel = path.name
+                styles.append({"kind": kind, "tag": tag, "path": rel, "line": line})
+
+        state.source_cache = {"files": files, "locations": locations, "styles": styles}
         return state.source_cache
 
     @app.get("/api/file")

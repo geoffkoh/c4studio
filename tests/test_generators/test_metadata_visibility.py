@@ -117,15 +117,19 @@ class TestGraphData:
         )
         # `Relationship` is implicit on every relationship, so metadata goes
         # everywhere; the description only where the tag matches.
-        # `styleTag` names the legend row this edge contributes (PP-174).
+        # `styleTag` names the legend row this edge contributes (PP-174);
+        # `matchedStyles` every rule that matched, for the details card
+        # (PP-230).
         assert _edge(workspace, "u", "api") == {
             "label": "",
             "technology": "",
             "styleTag": "Sensitive",
+            "matchedStyles": ["Sensitive", "Relationship"],
         }
         assert _edge(workspace, "api", "db") == {
             "label": "Reads/writes",
             "technology": "",
+            "matchedStyles": ["Relationship"],
         }
 
     def test_unset_properties_change_nothing(self) -> None:

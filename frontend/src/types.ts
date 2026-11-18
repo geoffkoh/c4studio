@@ -74,6 +74,9 @@ export interface GNode {
     properties?: Record<string, string>;
     /** From a `c4studio.badge` element style property (PP-208). */
     badgeColor?: string;
+    /** Every element style rule that matched, in resolution order; the
+        last wins where they overlap (PP-230). */
+    matchedStyles?: string[];
   };
   /** Present on nodes nested inside a boundary group node. */
   parentId?: string;
@@ -157,6 +160,9 @@ export interface GEdge {
   /** On a line merged by collapsing a group, whose descriptions differ:
       the `marker` of the entry in `notes` it stands for (PP-229). */
   note?: number;
+  /** Every relationship style rule that matched, `Relationship` included,
+      in resolution order (PP-230). */
+  matchedStyles?: string[];
   /** Manual bend points in flow coordinates, from the layout sidecar. */
   waypoints?: [number, number][];
   /** Set once re-routed by dragging a segment (PP-196): `waypoints` are
@@ -477,10 +483,21 @@ export interface SourceLocation {
   line: number;
 }
 
+/** Where a style rule is written, from GET /api/source (PP-230). A
+    theme's rules come from a URL and never appear. */
+export interface StyleLocation {
+  kind: "element" | "relationship";
+  tag: string;
+  path: string;
+  line: number;
+}
+
 /** Response body from GET /api/source. */
 export interface SourceResult {
   files: SourceFile[];
   locations: Record<string, SourceLocation>;
+  /** Every style rule in source order; a tag may appear more than once. */
+  styles: StyleLocation[];
 }
 
 export interface Workspace {

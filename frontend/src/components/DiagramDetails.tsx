@@ -3,7 +3,7 @@ import type { Edge, Node } from "reactflow";
 
 import { noteLine } from "@c4studio/diagram-core";
 
-import type { GraphData, ImpactResult } from "../types";
+import type { GraphData, ImpactResult, StyleLocation } from "../types";
 import { ElementDetails, KIND_LABELS } from "./ElementDetails";
 
 interface DiagramDetailsProps {
@@ -14,6 +14,9 @@ interface DiagramDetailsProps {
   payload: GraphData | null;
   onSelectNode: (id: string) => void;
   onShowDefinition?: (elementId: string) => void;
+  /** Where each style rule is written, and the way to it (PP-230). */
+  styleLocations?: StyleLocation[];
+  onShowStyle?: (kind: StyleLocation["kind"], tag: string) => void;
   /** The impact overlay (PP-193); absent where it is not offered. */
   impact?: {
     shown: ImpactResult | null;
@@ -39,6 +42,8 @@ export function DiagramDetails({
   payload,
   onSelectNode,
   onShowDefinition,
+  styleLocations,
+  onShowStyle,
   impact,
   onClose,
 }: DiagramDetailsProps) {
@@ -91,6 +96,12 @@ export function DiagramDetails({
         onShowDefinition={onShowDefinition ? () => onShowDefinition(id) : undefined}
         onClose={onClose}
       >
+        <StyleSection
+          kind="element"
+          tags={node.data.matchedStyles ?? []}
+          locations={styleLocations}
+          onShow={onShowStyle}
+        />
         {impact ? <ImpactSection id={id} {...impact} /> : null}
       </ElementDetails>
     ) : null;
@@ -112,6 +123,12 @@ export function DiagramDetails({
         properties={rel?.properties}
         onClose={onClose}
       >
+        <StyleSection
+          kind="relationship"
+          tags={edge.matchedStyles ?? []}
+          locations={styleLocations}
+          onShow={onShowStyle}
+        />
         {rel ? null : note ? (
           <ul className="details__merged" aria-label="Relationships this line stands for">
             {note.relationships.map((relationship, index) => (
@@ -155,6 +172,61 @@ export function DiagramDetails({
 function dependentsText(count: number): string {
   if (count === 0) return "Nothing depends on it";
   return `${count} ${count === 1 ? "depends" : "depend"} on it`;
+}
+
+/**
+ * The style rules that paint the selection (PP-230), in resolution order:
+ * where they overlap, the last wins. A rule written in this workspace's
+ * files opens the editor at it; one with no file came from a theme, and
+ * says so rather than offering a jump that would land nowhere.
+ */
+function StyleSection({
+  kind,
+  tags,
+  locations,
+  onShow,
+}: {
+  kind: StyleLocation["kind"];
+  tags: string[];
+  locations?: StyleLocation[];
+  onShow?: (kind: StyleLocation["kind"], tag: string) => void;
+}) {
+  if (tags.length === 0) return null;
+  const written = new Set(
+    (locations ?? []).filter((rule) => rule.kind === kind).map((rule) => rule.tag),
+  );
+  return (
+    <>
+      <h4 className="details__heading">Styled by</h4>
+      <div className="details__tags" aria-label="Styles that paint this">
+        {tags.map((tag) =>
+          written.has(tag) && onShow ? (
+            <button
+              key={tag}
+              className="details__tag details__tag--link"
+              title={`Open the “${tag}” style in the source`}
+              onClick={() => onShow(kind, tag)}
+            >
+              {tag} ↗
+            </button>
+          ) : (
+            <span
+              key={tag}
+              className="details__tag"
+              title={
+                written.has(tag)
+                  ? undefined
+                  : "From a theme: not written in this workspace's files"
+              }
+            >
+              {tag}
+              {written.has(tag) ? "" : " · theme"}
+            </span>
+          ),
+        )}
+      </div>
+    </>
+  );
 }
 
 /**

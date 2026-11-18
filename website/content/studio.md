@@ -53,7 +53,7 @@ A relationship style with `routing Orthogonal` is drawn with the same router, wh
 
 **Named layouts.** **Layouts ▾** saves the current arrangement of a view under a name, loads one back, or deletes one. Use it to keep a "for the board" and a "for the team" version of the same view.
 
-**Details.** Select an element or a line and press `i`, or **Details**, for a card with its description, technology, tags, properties and relationships. An element with properties shows a small ⓘ badge. Click it to open the card.
+**Details.** Select an element or a line and press `i`, or **Details**, for a card with its description, technology, tags, properties and relationships. An element with properties shows a small ⓘ badge. Click it to open the card. Under **Styled by**, the card names every style that paints the selection, in the order they apply: where two set the same property, the later wins. Click a style written in your files to open the editor at it. A style marked *theme* comes from a theme and has no line to open.
 
 **Hover and animation.** Hovering an element highlights its relationships. **View ▾ › Animate** (`a`) makes them march, which helps you follow a busy diagram. It respects your system's reduced-motion setting.
 
