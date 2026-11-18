@@ -8,9 +8,10 @@ open right now, and what to do next.
 **Keep it current.** It is only worth reading if it is true, so update it
 when you finish a run of work, not when you remember.
 
-Last updated: **9 November 2026**, after the 0.4.0 release (PP-216), the
-project site (PP-217), handle-free exports (PP-219) and layouts from
-workspace JSON (PP-220); before that **30 October 2026**, after the interface run
+Last updated: **18 November 2026**, after control-free exports (PP-227)
+and the picomatch advisory on PP-213; before that **9 November 2026**,
+after the 0.4.0 release (PP-216), the project site (PP-217), handle-free
+exports (PP-219) and layouts from workspace JSON (PP-220); before that **30 October 2026**, after the interface run
 (PP-195 … PP-208, PP-206) and the October roadmap review: dynamic-view
 step ids (PP-198), `routing Orthogonal` (PP-209), `workspace extends`
 (PP-210), impact in the Studio (PP-193), the diff as a PR comment
@@ -27,7 +28,7 @@ folded into Diagrams as an editor panel (PP-214).
 | VS Code extension | **0.3.1**, packaged as `.vsix` only. Not on the Marketplace, and versioned independently of the Python package |
 | `main` | Green. Four CI jobs: Python gate, bundle + layout, VS Code extension packaging, and the `render` dogfood |
 | Open PRs | **None** |
-| Open `PP` tickets | PP-192 (drive the `.vsix` for a day — needs a human), PP-213 (npm half), PP-211 (parked) — see *Open now* |
+| Open `PP` tickets | PP-192 (drive the `.vsix` for a day — needs a human), PP-213 (picomatch, no fix published), PP-211 (parked) — see *Open now* |
 | Site | **[geoffkoh.github.io/c4studio](https://geoffkoh.github.io/c4studio/)**, built by `website/build.py`, deployed by `pages.yml` on merge (PP-217) |
 | Frontend runtime | React **19**, TypeScript **7**, Vite **8**, marked **18**. `reactflow` stays on **11** — see below |
 
@@ -86,8 +87,8 @@ previously survived until a reload.
 
 ### Image parity: `c4 render` against the Studio export
 
-A side-by-side check on hedge_fund found these differences. All but the
-last have been fixed:
+A side-by-side check on hedge_fund found these differences. All are
+fixed:
 
 - The export drew connection handles as black dots (PP-219 and PP-221,
   fixed).
@@ -104,8 +105,10 @@ last have been fixed:
   `scripts/measure-glyphs.mjs` at each drawn size, and breaks after
   hyphens as the browser does. `e2e/text-wrap.spec.ts` checks every box
   against the canvas, on macOS only: the table is SF Pro.
-- The export still carries the Studio's ⊕ drill mark, ＋ expand and
-  − collapse controls.
+- The export carried the Studio's ⊕ drill mark, ＋ expand and
+  − collapse controls (PP-227, fixed). They are marked `export-hidden`,
+  the same marker the properties badge and line handles use, and
+  `e2e/export-node-controls.spec.ts` checks the exported SVG.
 
 ### 0.4.0 on PyPI (PP-216)
 
@@ -135,12 +138,14 @@ the Studio's look changes.
 
 ## Open now
 
-- **PP-213, one advisory left:** `@azure/msal-node` (high, none
-  critical) in `editors/vscode`, through `@vscode/vsce` →
-  `@azure/identity`, which pins `^6` in every release; the fix is 7.1.0.
-  Dev-only — `vsce publish` authenticates with it, `vsce package` does
-  not. Wait for `@azure/identity` to move rather than force an
-  `overrides` across a major. Everything else was fixed in PR #265.
+- **PP-213, waiting on picomatch:** the `@azure/msal-node` advisory
+  this was held open for cleared with PP-226. A new one has landed
+  since: GHSA-fc5q-39xc-vjpf, a high ReDoS in `picomatch`, reported
+  against **every** version, so there is nothing to upgrade to yet. It
+  reaches the root install through `vite` → `tinyglobby`/`fdir` (5
+  findings) and `editors/vscode` (4). Build tooling only; nothing
+  ships it. `npm audit fix --force` offers to *downgrade* `vite` to
+  6.2.7, which is not a fix. Bump once picomatch publishes one.
 - **PP-211 (parked):** the diagram diff's visual overlay, split from
   PP-194. Worth it once a team reviews diagrams in PRs.
 
@@ -253,97 +258,10 @@ interface run; fuller context is in the tickets they name.
 - **`highlight.spec.ts` "perspective vocabulary" fails locally**, on
   `main` too, and passes in CI. It is not caused by your change.
   Investigating it is still open.
-- **The `jira` skill is workspace-level**, so `/jira` fails from inside
-  this repo. Call `jira_helper.py` directly — CLAUDE.md has the commands.
-- **Stock runners' Python is older than 3.13.** A bare `pipx install
-  c4studio` in a workflow fails resolution. The README's CI snippets did
-  exactly that until PP-217; set up Python first, as the action does.
-- **A new `c4studio.*` key, CLI option or action input fails
-  `tests/test_website.py`** until the site documents it. That is the
-  design, not a flaky test: add it to the matching page in
-  `website/content/`.
-## Traps worth not rediscovering
-
-Each of these cost time. The first few are from 13 September, the next
-from the perspectives run, and the e2e ones near the end from the October
-interface run; fuller context is in the tickets they name.
-
-- **A check that cannot fail looks exactly like a check that passed.**
-  Three happened in one day: a mutation test whose mutation did not compile
-  (so the bundle never rebuilt and the *old* one was tested); a
-  cross-branch comparison script with the wrong function name and its
-  errors going to `/dev/null`, which diffed two empty files and reported
-  "identical"; and `uv build` using the locally-installed uv's bundled
-  backend, so a PR widening the `uv_build` bound never exercised the new
-  range. Make a check go red on purpose before trusting it green.
-- **`astral-sh/setup-uv` has no rolling major tag.** It dropped them in v8,
-  so `@v10` does not resolve — pin exactly (`v10.1.0`). The other four
-  actions still publish `refs/tags/v7`. Verified, not assumed.
-- **UP042 is a behaviour change wearing a modernisation costume.**
-  Rewriting `(str, Enum)` as `StrEnum` changes `str()` and f-string output
-  from `ViewType.SYSTEM_CONTEXT` to the bare value — which is what
-  `c4 list-views` prints. JSON is identical either way, which is what would
-  let it through review. Ignored in `pyproject.toml`, with the reasoning.
-- **Check `../structurizr` before believing a ticket.** Two of the four
-  parser tickets described the wrong bug, and one grep settled both.
-- **"It builds" is not evidence for a framework bump.** React 19 compiled
-  and type-checked cleanly against a React Flow version whose maintainers
-  say does not support it. What settled it was driving the canvas and
-  watching the console. Equally: when a probe turns up errors, run the same
-  probe on the version you are moving *from* before blaming the bump —
-  three 409s here were pre-existing.
-- **CodeMirror only renders its viewport, and that bites three ways.** A
-  token 100 lines down fails with `Received: 0`, indistinguishable from
-  the bug being tested for; the editor keeps a scroll position across a
-  file switch, so a search that only scrolls *down* never finds a line
-  above it; and `scrollTop = 0` does not hold, because CodeMirror restores
-  its own scroll a frame later. `e2e/highlight.spec.ts` went red three
-  separate times on these. It now presses the editor's `Mod-Home` binding
-  and **re-scrolls inside the polling loop**, so a count of zero means
-  "not painted" rather than "not on screen" (PP-177).
-- **The tokenizer drops `-` and `/`.** `!docs api-docs/sub` reaches the
-  parser as three bare identifiers with nothing to say what separated
-  them, so a path can never be rebuilt from tokens — read it from the raw
-  line. A token-level first attempt silently looked for a directory
-  called `api` (PP-185).
-- **A skipped construct must not consume its enclosing scope**, and the
-  parser broke its own rule: a bare `advance()` on an unknown *block* left
-  its closing brace to end the enclosing view, dropping everything after
-  it. Reach for `_skip_unknown`, which is brace-balanced (PP-186).
-- **Deleting a merged branch closes the PR stacked on it.** GitHub does
-  not retarget; it closes, and a closed PR cannot be reopened while its
-  base branch is gone. Push the base branch back to reopen, repoint at
-  `main`, *then* delete. Retarget the next PR in a stack **before**
-  merging the one below it.
-- **e2e tests write to the developer's `samples/`.** The Playwright
-  server serves `samples/`, so any test that drags, expands or saves
-  rewrites a real sidecar. Answer layout, expansion and named-layout
-  writes with `page.route` (see `rerouting.spec.ts` and
-  `named-layouts.spec.ts`), and check `shasum samples/*.layout.json`
-  before and after a run. A full-suite run used to rewrite
-  `logistics_network.layout.json` with identical content. No single spec
-  does it, and it is harmless, but it makes `git status` lie about who
-  touched it. The reverse also bites: those sidecars are gitignored, so
-  CI has none. A test that passes locally because a view has saved
-  positions fails in CI, where the view auto-lays out (PP-197's load
-  test did exactly that). To reproduce CI, move the sidecar aside for
-  the run.
-- **Wait for the view, not for *a* legend.** The default landscape view
-  also has a legend, so an opener that waits for any legend races the
-  view switch. Wait for the view's own title node:
-  `.react-flow__node` with `hasText: /^Delivery Platform – Containers$/`.
-- **Hover emphasis remounts the hovered edge.** It raises the edge into
-  another layer, and React Flow remounts it. A drag whose window
-  listeners were removed on unmount died after a few pixels. Listeners
-  that must outlive a hover must not be torn down by the edge's unmount
-  (PP-196).
-- **The edge label layer sits above the edges**, so a label over a drag
-  handle makes it ungrabbable. `handlePoint` moves the handle clear of
-  the measured label. Tests pick a handle that `elementFromPoint`
-  confirms is on top.
-- **`highlight.spec.ts` "perspective vocabulary" fails locally**, on
-  `main` too, and passes in CI. It is not caused by your change.
-  Investigating it is still open.
+- **`export-edge-handles.spec.ts` "a bend point's handle" is flaky**,
+  on `main` too: 5 of 20 repeats failed locally on 18 Nov, with the
+  export holding no waypoint (`Received: 0`) although the canvas had
+  one. Not yet investigated.
 - **The `jira` skill is workspace-level**, so `/jira` fails from inside
   this repo. Call `jira_helper.py` directly — CLAUDE.md has the commands.
 - **Stock runners' Python is older than 3.13.** A bare `pipx install
