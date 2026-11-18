@@ -154,6 +154,9 @@ export interface GEdge {
     technology: string;
     properties: Record<string, string>;
   };
+  /** On a line merged by collapsing a group, whose descriptions differ:
+      the `marker` of the entry in `notes` it stands for (PP-229). */
+  note?: number;
   /** Manual bend points in flow coordinates, from the layout sidecar. */
   waypoints?: [number, number][];
   /** Set once re-routed by dragging a segment (PP-196): `waypoints` are
@@ -180,6 +183,18 @@ export interface GEdge {
   perspectives?: GPerspective[];
 }
 
+/** One numbered marker on merged lines, and the relationships it stands
+    for. Mirrors `MergedNote` in diagram-core's `notes.ts`. */
+export interface GMergedNote {
+  marker: number;
+  relationships: {
+    source: string;
+    target: string;
+    description: string;
+    technology: string;
+  }[];
+}
+
 /** Response body from GET /api/views/{key}/graph. */
 export interface GraphData {
   nodes: GNode[];
@@ -192,6 +207,9 @@ export interface GraphData {
   nodeSeparation?: number;
   /** Distinct element styles used by this view, for the legend. */
   legend?: GLegendEntry[];
+  /** What each merged line's `[n]` stands for, keyed in the legend
+      (PP-229). */
+  notes?: GMergedNote[];
   /** Every perspective name in the model, sorted; offered by the picker. */
   perspectives?: string[];
   /** Expansion state the server applied — the request's explicit lists, or

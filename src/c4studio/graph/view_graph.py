@@ -1357,9 +1357,11 @@ def _collapse_group_nodes(data: GraphData, collapse: set[str]) -> None:
     standing in for its members; members — including nested groups — are
     removed, and edges touching a member are lifted to the outermost
     collapsed ancestor. Lifted edges that end up parallel merge into one,
-    labelled with the relationship count when their labels disagree,
     keeping the first edge's id so persisted waypoints and label offsets
-    stay attached to something real.
+    stay attached to something real. When the merged labels disagree the
+    line reads as a count with a numbered marker, ``3 relationships [1]``,
+    and ``data["notes"]`` holds what each number stands for (PP-229): an
+    exported image has no hover or details card to say it otherwise.
     """
     nodes = data["nodes"]
     group_ids = {
@@ -1413,8 +1415,11 @@ def _collapse_group_nodes(data: GraphData, collapse: set[str]) -> None:
         kept.append(node)
     data["nodes"] = kept
 
+    # Names before the members go: a note says which element each merged
+    # relationship really runs between.
+    names = {node["id"]: str(node["data"].get("label", "")) for node in nodes}
     merged: dict[tuple[str, str], GraphEdge] = {}
-    merge_counts: dict[tuple[str, str], int] = {}
+    members: dict[tuple[str, str], list[dict[str, str]]] = {}
     edges: list[GraphEdge] = []
     for edge in data["edges"]:
         source = swallowed.get(edge["source"], edge["source"])
@@ -1422,11 +1427,15 @@ def _collapse_group_nodes(data: GraphData, collapse: set[str]) -> None:
         if source == target and source in group_ids:
             continue  # internal to a collapsed group
         key = (source, target)
-        existing = merged.get(key)
-        if existing is not None:
-            merge_counts[key] += 1
-            if existing["data"].get("label") != edge["data"].get("label"):
-                existing["data"]["label"] = f"{merge_counts[key]} relationships"
+        members.setdefault(key, []).append(
+            {
+                "source": names.get(edge["source"], edge["source"]),
+                "target": names.get(edge["target"], edge["target"]),
+                "description": str(edge["data"].get("label", "")),
+                "technology": str(edge["data"].get("technology", "")),
+            }
+        )
+        if key in merged:
             continue
         if (source, target) != (edge["source"], edge["target"]):
             # Now a lift onto the group: it stands for its members'
@@ -1435,9 +1444,19 @@ def _collapse_group_nodes(data: GraphData, collapse: set[str]) -> None:
         edge["source"] = source
         edge["target"] = target
         merged[key] = edge
-        merge_counts[key] = 1
         edges.append(edge)
     data["edges"] = edges
+
+    notes: list[dict[str, Any]] = []
+    for edge in edges:
+        relationships = members[(edge["source"], edge["target"])]
+        if len({r["description"] for r in relationships}) <= 1:
+            continue  # one label says it all
+        marker = len(notes) + 1
+        edge["data"]["label"] = f"{len(relationships)} relationships [{marker}]"
+        edge["data"]["note"] = marker
+        notes.append({"marker": marker, "relationships": relationships})
+    data["notes"] = notes
 
 
 def _view_graph_data(

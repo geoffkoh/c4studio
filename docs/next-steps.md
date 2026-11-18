@@ -9,8 +9,8 @@ open right now, and what to do next.
 when you finish a run of work, not when you remember.
 
 Last updated: **18 November 2026**, after control-free exports (PP-227),
-Structurizr's text size in JSON layouts (PP-228) and the picomatch
-advisory on PP-213; before that **9 November 2026**,
+Structurizr's text size in JSON layouts (PP-228), a key to merged lines
+(PP-229) and the picomatch advisory on PP-213; before that **9 November 2026**,
 after the 0.4.0 release (PP-216), the project site (PP-217), handle-free
 exports (PP-219) and layouts from workspace JSON (PP-220); before that **30 October 2026**, after the interface run
 (PP-195 … PP-208, PP-206) and the October roadmap review: dynamic-view
@@ -61,6 +61,22 @@ Unreleased, with an entry in `MIGRATION.md`.
 parser never fetches. `c4 render` has no way to pick a named layout yet;
 parked on 18 Nov. The options A–D the earlier note pointed to are not
 in PP-220 itself, so they need re-deriving when it is picked up.
+
+### A key to merged lines (PP-229)
+
+Collapsing a group merges the lines between its members and one other
+element. When their descriptions differ, the line used to read
+"3 relationships" and nothing anywhere said which, least of all an
+exported image. It now reads `3 relationships [1]`, and the legend lists
+each relationship `[1]` stands for. The graph layer
+(`_collapse_group_nodes`) builds `notes`, wording comes from
+`diagram-core/src/notes.ts`, and the details card shows the same list for
+a selected merged line. The key is a section of the legend panel rather
+than chrome of its own: the Studio places chrome before it is drawn, so
+it could not stack a separate box under a legend of unknown height. That
+also means `c4 render --no-legend` leaves the key out. Concatenating the
+descriptions onto the line was considered and rejected: it brings back
+the clutter collapsing removes, and nothing fits in a 160px label.
 
 ### Structurizr's text in Structurizr's boxes (PP-228)
 

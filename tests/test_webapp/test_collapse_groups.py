@@ -75,10 +75,72 @@ def test_edges_lift_and_merge(workspace_data: JsonDict) -> None:
     edges = {(e["source"], e["target"]): e for e in workspace_data["edges"]}
     # web -> api and web -> worker merge into one lifted edge.
     merged = edges[("web", GROUP_ID)]
-    assert merged["data"]["label"] == "2 relationships"
+    assert merged["data"]["label"] == "2 relationships [1]"
     # api -> worker was internal to the group and disappears.
     assert (GROUP_ID, GROUP_ID) not in edges
     assert ("u", "web") in edges
+
+
+def test_a_merged_line_s_marker_is_keyed_in_the_notes(workspace_data: JsonDict) -> None:
+    # PP-229: an exported image has no hover, so what [1] stands for is
+    # spelled out beside the legend, member by member.
+    edges = {(e["source"], e["target"]): e for e in workspace_data["edges"]}
+    assert edges[("web", GROUP_ID)]["data"]["note"] == 1
+    assert workspace_data["notes"] == [
+        {
+            "marker": 1,
+            "relationships": [
+                {
+                    "source": "Web",
+                    "target": "API",
+                    "description": "Calls",
+                    "technology": "HTTPS",
+                },
+                {
+                    "source": "Web",
+                    "target": "Worker",
+                    "description": "Queues work for",
+                    "technology": "",
+                },
+            ],
+        }
+    ]
+
+
+def test_lines_that_say_the_same_need_no_note() -> None:
+    ws = parse_dsl(DSL.replace('"Queues work for"', '"Calls"'))
+    view = next(v for v in ws.views if v.key == "Containers")
+    data = build_view_graph(ws, view, collapse={GROUP_ID})
+    edges = {(e["source"], e["target"]): e for e in data["edges"]}
+    assert edges[("web", GROUP_ID)]["data"]["label"] == "Calls"
+    assert "note" not in edges[("web", GROUP_ID)]["data"]
+    assert data["notes"] == []
+
+
+def test_markers_number_in_line_order() -> None:
+    ws = parse_dsl(
+        DSL.replace(
+            'u -> web "Uses"',
+            'u -> web "Uses"\n        u -> api "Reads"\n        u -> worker "Pokes"',
+        )
+    )
+    view = next(v for v in ws.views if v.key == "Containers")
+    data = build_view_graph(ws, view, collapse={GROUP_ID})
+    labels = sorted(
+        e["data"]["label"] for e in data["edges"] if e["target"] == GROUP_ID
+    )
+    assert labels == ["2 relationships [1]", "2 relationships [2]"]
+    assert [n["marker"] for n in data["notes"]] == [1, 2]
+
+
+def test_the_payload_carries_the_notes(client: TestClient) -> None:
+    payload = client.get(
+        "/api/views/Containers/graph", params={"collapse": GROUP_ID}
+    ).json()
+    merged = next(e for e in payload["edges"] if e["target"] == GROUP_ID)
+    assert merged["note"] == 1
+    assert payload["notes"][0]["marker"] == 1
+    assert len(payload["notes"][0]["relationships"]) == 2
 
 
 def test_the_legend_gains_a_group_row(workspace_data: JsonDict) -> None:
@@ -158,3 +220,34 @@ def test_reset_layout_clears_expansion_state(
     assert not (tmp_path / "grouped.layout.json").exists()
     data = client.get("/api/views/Containers/graph").json()
     assert data["collapsedIds"] == []
+
+
+def _node_available() -> bool:
+    from c4studio.render import RenderError, node_executable
+
+    try:
+        node_executable()
+    except RenderError:
+        return False
+    return True
+
+
+@pytest.mark.skipif(not _node_available(), reason="no node")
+def test_c4_render_draws_the_key(tmp_path: Path) -> None:
+    from c4studio.render import render_view
+
+    source = tmp_path / "grouped.dsl"
+    source.write_text(DSL, encoding="utf-8")
+    (tmp_path / "grouped.layout.json").write_text(
+        json.dumps({"collapsed": {"Containers": [GROUP_ID]}}), encoding="utf-8"
+    )
+    ws = parse_dsl(DSL)
+    view = next(v for v in ws.views if v.key == "Containers")
+    svg = render_view(ws, view, layout_source=source)
+    assert "2 relationships [1]" in svg
+    assert ">[1]</text>" in svg
+    assert "Web → API: Calls [HTTPS]" in svg
+    assert "Web → Worker: Queues work for" in svg
+    # The key is part of the legend, so leaving the legend out leaves it out.
+    bare = render_view(ws, view, layout_source=source, show_legend=False)
+    assert "Web → API: Calls [HTTPS]" not in bare

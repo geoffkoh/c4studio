@@ -7,6 +7,7 @@ import {
   EDGE_WIDTH,
   type EdgeLineStyle,
 } from "../edgeDefaults";
+import { noteLine, noteMarker, type MergedNote } from "../notes";
 
 /**
  * The diagram's own title and legend, rendered *inside* the React Flow
@@ -44,6 +45,8 @@ export interface ChromeNodeData {
   kind: "title" | "legend";
   title?: string;
   entries?: LegendEntryData[];
+  /** The key to merged lines, under the swatches (PP-229). */
+  notes?: MergedNote[];
 }
 
 /** Widest line a 14px swatch can show and still read as a line. */
@@ -140,16 +143,38 @@ function ChromeNodeComponent({ data }: NodeProps<ChromeNodeData>) {
       </div>
     );
   }
+  const entries = data.entries ?? [];
+  const notes = data.notes ?? [];
   return (
     <div className="legend" title={MOVE_HINT}>
-      {(data.entries ?? []).map((entry, index) => (
-        // Rows can share a label and colour and differ only by shape,
-        // border or kind, so the position is part of the identity.
-        <div className="legend__row" key={`${entry.label}-${index}`}>
-          <Swatch entry={entry} />
-          <span className="legend__label">{entry.label}</span>
+      {entries.length > 0 ? (
+        <div className="legend__rows">
+          {entries.map((entry, index) => (
+            // Rows can share a label and colour and differ only by shape,
+            // border or kind, so the position is part of the identity.
+            <div className="legend__row" key={`${entry.label}-${index}`}>
+              <Swatch entry={entry} />
+              <span className="legend__label">{entry.label}</span>
+            </div>
+          ))}
         </div>
-      ))}
+      ) : null}
+      {notes.length > 0 ? (
+        <div className="legend__notes">
+          {notes.map((note) => (
+            <div className="legend__note" key={note.marker}>
+              <span className="legend__marker">{noteMarker(note.marker)}</span>
+              <div>
+                {note.relationships.map((relationship, index) => (
+                  <div className="legend__note-line" key={index}>
+                    {noteLine(relationship)}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
