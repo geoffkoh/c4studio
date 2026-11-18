@@ -35,27 +35,23 @@ import { type Pins } from "./orthogonal";
 import { asLineStyle, curveOffsets, edgeGeometry, type LineStyle } from "./edgePath";
 import { applyPerspective, type Perspective } from "./perspective";
 import {
-  DESC_GAP,
   EDGE_LABEL_INSET_X,
   EDGE_LABEL_MAX_WIDTH,
   DESC_MAX_LINES,
+  ICON_ALLOWANCE,
   ICON_MARGIN_BOTTOM,
   ICON_MARGIN_TOP,
   ICON_SIZE,
-  LABEL_LEADING,
   LABEL_MAX_LINES,
-  META_GAP,
   META_MAX_LINES,
   NODE_PAD_TOP,
   NODE_WIDTH,
-  LABEL_SIZE,
   PERSON_PAD_TOP,
-  SMALL_LEADING,
-  SMALL_SIZE,
   isPersonNode,
   measureText,
   metaLine,
   nodeHeight,
+  nodeTypography,
   textWidth,
   wrap,
 } from "./nodeMetrics";
@@ -95,6 +91,9 @@ export interface GraphPayloadNode {
     perspectives?: Perspective[];
     /** Set by `applyPerspective`: the value to badge this node with. */
     perspectiveBadge?: string;
+    /** Structurizr's base text size, for an element a workspace JSON
+        layout placed (PP-228). */
+    fontSize?: number;
   };
 }
 
@@ -409,6 +408,13 @@ function shapeMarkup(node: Placed, fill: string): string {
   }
 }
 
+/**
+ * Where a line's baseline sits below the middle of its line box, per pixel
+ * of font size: the font's ascent less half its height, as CSS centres the
+ * glyphs in the box. SF Pro's ascent is 0.952em and descent 0.241em.
+ */
+const LINE_BOX_BASELINE = 0.952 - (0.952 + 0.241) / 2;
+
 function paintNode(node: Placed): string {
   const fill = fillOf(node.data);
   const colour = node.data.textColor || TEXT_COLOUR;
@@ -430,7 +436,33 @@ function paintNode(node: Placed): string {
 
   const centreX = node.x + node.width / 2;
   const innerWidth = textWidth(node.data, node.width);
-  let cursor = body.y + (node.isPerson ? PERSON_PAD_TOP : NODE_PAD_TOP);
+  const type = nodeTypography(node.data);
+  const labelLines = wrap(node.data.label ?? "", innerWidth, type.label, LABEL_MAX_LINES, true);
+  const meta = metaLine(node.data);
+  const metaLines = meta ? wrap(meta, innerWidth, type.meta, META_MAX_LINES) : [];
+  // The box was measured to fit these lines, so the description gets its
+  // full allowance. It used to be handed whatever vertical room a long
+  // name had left over, which is how a three-line name silently cost the
+  // description two of its own.
+  const descriptionLines = node.data.description
+    ? wrap(node.data.description, innerWidth, type.description, DESC_MAX_LINES)
+    : [];
+
+  const padTop = node.isPerson ? PERSON_PAD_TOP : NODE_PAD_TOP;
+  let cursor = body.y + padTop;
+  // A box Structurizr sized keeps its text centred in it, as Structurizr
+  // draws it (PP-228); every other box grew to fit its text, top down.
+  if (node.data.fontSize) {
+    const icon = node.data.icon?.startsWith("data:") ? ICON_ALLOWANCE : 0;
+    const text =
+      icon +
+      labelLines.length * type.labelLeading +
+      (metaLines.length ? type.metaGap + metaLines.length * type.metaLeading : 0) +
+      (descriptionLines.length
+        ? type.descriptionGap + descriptionLines.length * type.descriptionLeading
+        : 0);
+    cursor = body.y + Math.max(padTop, (body.height - text) / 2);
+  }
 
   // Only `data:` URIs are drawn: a remote href would make the exported
   // file depend on the network, which is the point of embedding them.
@@ -443,42 +475,47 @@ function paintNode(node: Placed): string {
     );
     cursor += ICON_MARGIN_TOP + ICON_SIZE + ICON_MARGIN_BOTTOM;
   }
-  cursor += LABEL_SIZE;
-
-  for (const line of wrap(
-    node.data.label ?? "",
-    innerWidth,
-    LABEL_SIZE,
-    LABEL_MAX_LINES,
-    true,
-  )) {
-    parts.push(textLine(line, centreX, cursor, LABEL_SIZE, colour, 1, 600));
-    cursor += LABEL_LEADING;
-  }
-
-  const meta = metaLine(node.data);
-  if (meta) {
-    cursor += META_GAP;
-    for (const line of wrap(meta, innerWidth, SMALL_SIZE, META_MAX_LINES)) {
-      parts.push(textLine(line, centreX, cursor, SMALL_SIZE, colour, 0.85));
-      cursor += SMALL_LEADING;
+  if (node.data.fontSize) {
+    // A box Structurizr sized lays its lines out as CSS does, in line
+    // boxes, so `c4 render` matches the Studio (PP-228). The shortcut
+    // below, tuned at 10 and 13px, drifts by most of a line at 24px once
+    // the fields differ in size.
+    const fields = [
+      [labelLines, type.label, type.labelLeading, 0, 1, 600],
+      [metaLines, type.meta, type.metaLeading, type.metaGap, 0.85, 400],
+      [descriptionLines, type.description, type.descriptionLeading, type.descriptionGap, 0.8, 400],
+    ] as const;
+    for (const [lines, size, leading, gap, opacity, weight] of fields) {
+      if (!lines.length) continue;
+      cursor += gap;
+      for (const line of lines) {
+        const baseline = cursor + leading / 2 + LINE_BOX_BASELINE * size;
+        parts.push(textLine(line, centreX, baseline, size, colour, opacity, weight));
+        cursor += leading;
+      }
     }
-  }
+  } else {
+    cursor += type.label;
 
-  if (node.data.description) {
-    cursor += DESC_GAP - SMALL_LEADING + SMALL_SIZE;
-    // The box was measured to fit these lines, so the description gets its
-    // full allowance. It used to be handed whatever vertical room a long
-    // name had left over, which is how a three-line name silently cost the
-    // description two of its own.
-    for (const line of wrap(
-      node.data.description,
-      innerWidth,
-      SMALL_SIZE,
-      DESC_MAX_LINES,
-    )) {
-      parts.push(textLine(line, centreX, cursor, SMALL_SIZE, colour, 0.8));
-      cursor += SMALL_LEADING;
+    for (const line of labelLines) {
+      parts.push(textLine(line, centreX, cursor, type.label, colour, 1, 600));
+      cursor += type.labelLeading;
+    }
+
+    if (metaLines.length) {
+      cursor += type.metaGap;
+      for (const line of metaLines) {
+        parts.push(textLine(line, centreX, cursor, type.meta, colour, 0.85));
+        cursor += type.metaLeading;
+      }
+    }
+
+    if (descriptionLines.length) {
+      cursor += type.descriptionGap - type.descriptionLeading + type.description;
+      for (const line of descriptionLines) {
+        parts.push(textLine(line, centreX, cursor, type.description, colour, 0.8));
+        cursor += type.descriptionLeading;
+      }
     }
   }
 

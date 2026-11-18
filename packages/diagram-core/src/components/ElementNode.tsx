@@ -8,7 +8,13 @@ import {
   type NodeProps,
 } from "reactflow";
 
-import { NODE_WIDTH, metaLine, nodeContentHeight, nodeTooltip } from "../nodeMetrics";
+import {
+  NODE_WIDTH,
+  metaLine,
+  nodeContentHeight,
+  nodeTooltip,
+  nodeTypography,
+} from "../nodeMetrics";
 
 /** The active perspective as it applies to one item (PP-173). */
 export interface PerspectiveBadge {
@@ -62,6 +68,9 @@ export interface ElementNodeData {
   /** The size a Structurizr JSON layout placed this element at (PP-220);
       absent, the box is sized by its text. */
   boxSize?: { width: number; height: number };
+  /** Structurizr's base text size for an element its JSON layout placed
+      (PP-228); absent, the stylesheet's sizes apply. */
+  fontSize?: number;
   /** Wired by a surface that saves layouts: the node can then be resized
       (PP-224), and this is called when a resize ends. */
   onGeometryChange?: () => void;
@@ -171,6 +180,12 @@ function ElementNodeComponent({ id, data, selected }: NodeProps<ElementNodeData>
     [perspectiveText, overflow, drillHint].filter(Boolean).join("\n\n") ||
     undefined;
 
+  // An element Structurizr placed is drawn in its type, centred in the
+  // box, as Structurizr draws it (PP-228); the rest keep the stylesheet's.
+  const type = data.fontSize ? nodeTypography(data) : null;
+  const typeStyle = (fontSize?: number, marginTop?: number): CSSProperties | undefined =>
+    type ? { fontSize, marginTop } : undefined;
+
   const handleExpand = (event: MouseEvent) => {
     event.stopPropagation();
     data.onToggleExpand?.(id, true);
@@ -209,6 +224,13 @@ function ElementNodeComponent({ id, data, selected }: NodeProps<ElementNodeData>
               boxSizing: "border-box" as const,
             }
           : {}),
+        ...(type
+          ? {
+              display: "flex",
+              flexDirection: "column" as const,
+              justifyContent: "center",
+            }
+          : {}),
       }}
       title={hint}
     >
@@ -216,10 +238,21 @@ function ElementNodeComponent({ id, data, selected }: NodeProps<ElementNodeData>
       {data.icon ? (
         <img className="node__icon" src={data.icon} alt="" loading="lazy" />
       ) : null}
-      <div className="node__label">{data.label}</div>
-      {metaLine(data) ? <div className="node__kind">{metaLine(data)}</div> : null}
+      <div className="node__label" style={typeStyle(type?.label)}>
+        {data.label}
+      </div>
+      {metaLine(data) ? (
+        <div className="node__kind" style={typeStyle(type?.meta, type?.metaGap)}>
+          {metaLine(data)}
+        </div>
+      ) : null}
       {data.description ? (
-        <div className="node__desc">{data.description}</div>
+        <div
+          className="node__desc"
+          style={typeStyle(type?.description, type?.descriptionGap)}
+        >
+          {data.description}
+        </div>
       ) : null}
       {drillable ? <div className="node__drill export-hidden">⊕</div> : null}
       {data.perspective ? (

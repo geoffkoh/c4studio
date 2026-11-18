@@ -194,6 +194,8 @@ def react_flow_graph(
         for ve in view.element_views
         if ve.width is not None and ve.height is not None
     }
+    # Structurizr's text size, for the elements a JSON layout placed (PP-228).
+    font_sizes = {ve.id: ve.font_size for ve in view.element_views if ve.font_size}
 
     nodes: list[ReactFlowNode] = []
     for graph_node in graph_data["nodes"]:
@@ -217,6 +219,8 @@ def react_flow_graph(
         elif data.get("kind") != "boundary" and graph_node["id"] in element_sizes:
             width, height = element_sizes[graph_node["id"]]
             node["size"] = {"width": width, "height": height}
+            if graph_node["id"] in font_sizes:
+                data["fontSize"] = font_sizes[graph_node["id"]]
         nodes.append(node)
 
     edges: list[ReactFlowEdge] = []

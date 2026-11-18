@@ -79,6 +79,10 @@ class ViewElement:
     description: str = ""
     width: int | None = None
     height: int | None = None
+    #: The base text size Structurizr drew this element's box at, set only
+    #: for an element a workspace JSON layout placed (PP-228). Not part of
+    #: Structurizr's ElementView: it is resolved from the element styles.
+    font_size: int | None = None
 
 
 @dataclass

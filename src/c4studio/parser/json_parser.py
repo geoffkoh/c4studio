@@ -778,6 +778,10 @@ def _parse_json_dict(data: dict[str, Any]) -> Workspace:
 #: around.
 STRUCTURIZR_ELEMENT_SIZE = (450, 300)
 
+#: structurizr-ui.js's default element ``fontSize``: the description's size,
+#: with the name drawn at 1.4 times it and the metadata at 0.7.
+STRUCTURIZR_FONT_SIZE = 24
+
 _KIND_TAGS: tuple[tuple[type, str], ...] = (
     (Person, "Person"),
     (SoftwareSystem, "Software System"),
@@ -793,6 +797,9 @@ def _size_positioned_elements(workspace: Workspace) -> None:
     A JSON layout's coordinates are top-left corners of Structurizr's boxes,
     450x300 unless an element style sizes them. Drawn at c4studio's own
     smaller size they would sit apart with lines meeting them off-centre.
+    The text gets Structurizr's size too (PP-228), 24px unless a style's
+    ``fontSize`` says otherwise: c4studio's own 10px reads as an empty box
+    at that scale.
     Deployment nodes are left unsized: they are boundaries here, fitted
     around their contents, as Structurizr draws them.
 
@@ -808,9 +815,12 @@ def _size_positioned_elements(workspace: Workspace) -> None:
             tags = {"Element", *(getattr(element, "tags", None) or [])}
             tags.update(tag for kind, tag in _KIND_TAGS if isinstance(element, kind))
             width, height = STRUCTURIZR_ELEMENT_SIZE
+            font_size = STRUCTURIZR_FONT_SIZE
             # Declaration order, later matches overriding, as Structurizr.
             for style in styles:
                 if style.tag in tags:
                     width = style.width or width
                     height = style.height or height
+                    font_size = style.font_size or font_size
             view_element.width, view_element.height = width, height
+            view_element.font_size = font_size

@@ -9448,6 +9448,41 @@ var SHAPE_EXTRA_PAD_X = {
 	Pipe: 12,
 	Hexagon: 22
 };
+/** c4studio's own type, as `.node` and its children set it. */
+var DEFAULT_TYPOGRAPHY = {
+	label: 13,
+	labelLeading: 16,
+	meta: 10,
+	metaLeading: 13,
+	description: 10,
+	descriptionLeading: 13,
+	metaGap: 3,
+	descriptionGap: 5
+};
+/**
+* The type a node is drawn in (PP-228).
+*
+* An element Structurizr placed is drawn as `structurizr-diagram.js` draws
+* it: the description at `fontSize`, the name at 1.4 times it and the
+* metadata at 0.7. Leadings are the CSS line-heights; the gaps grow in
+* proportion to c4studio's own at its 10px base.
+*/
+function nodeTypography(data) {
+	const base = data.fontSize;
+	if (!base) return DEFAULT_TYPOGRAPHY;
+	const label = Math.round(base * 14) / 10;
+	const meta = Math.round(base * 7) / 10;
+	return {
+		label,
+		labelLeading: label * 1.25,
+		meta,
+		metaLeading: meta * 1.3,
+		description: base,
+		descriptionLeading: base * 1.35,
+		metaGap: 3 * base / 10,
+		descriptionGap: 5 * base / 10
+	};
+}
 /** C4 metadata label per element kind, shown as `[Container: Java]`. */
 var KIND_LABELS = {
 	person: "Person",
@@ -9522,10 +9557,11 @@ function textWidth(data, width = 200) {
 in a column `inner` wide. */
 function nodeTextLines(data, inner = textWidth(data)) {
 	const meta = metaLine(data);
+	const type = nodeTypography(data);
 	return {
-		label: wrap(data.label ?? "", inner, 13, 4, true),
-		meta: meta ? wrap(meta, inner, 10, 2) : [],
-		description: data.description ? wrap(data.description, inner, 10, 4) : []
+		label: wrap(data.label ?? "", inner, type.label, 4, true),
+		meta: meta ? wrap(meta, inner, type.meta, 2) : [],
+		description: data.description ? wrap(data.description, inner, type.description, 4) : []
 	};
 }
 /**
@@ -9534,11 +9570,13 @@ function nodeTextLines(data, inner = textWidth(data)) {
 */
 function nodeContentHeight(data, width = 200) {
 	const lines = nodeTextLines(data, textWidth(data, width) / MEASURE_MARGIN);
-	let height = (isPersonNode(data) ? 20 : 10) + 10;
+	const person = isPersonNode(data);
+	const type = nodeTypography(data);
+	let height = (person ? 20 : 10) + 10;
 	if (data.icon) height += 36;
-	height += lines.label.length * 16;
-	if (lines.meta.length) height += 3 + lines.meta.length * 13;
-	if (lines.description.length) height += 5 + lines.description.length * 13;
+	height += lines.label.length * type.labelLeading;
+	if (lines.meta.length) height += type.metaGap + lines.meta.length * type.metaLeading;
+	if (lines.description.length) height += type.descriptionGap + lines.description.length * type.descriptionLeading;
 	height += SHAPE_EXTRA_HEIGHT[data.shape ?? ""] ?? 0;
 	height += HEIGHT_SLACK;
 	return Math.ceil(height);
@@ -10671,6 +10709,12 @@ function shapeMarkup(node, fill) {
 		}
 	}
 }
+/**
+* Where a line's baseline sits below the middle of its line box, per pixel
+* of font size: the font's ascent less half its height, as CSS centres the
+* glyphs in the box. SF Pro's ascent is 0.952em and descent 0.241em.
+*/
+var LINE_BOX_BASELINE = .952 - 1.193 / 2;
 function paintNode(node) {
 	const fill = fillOf(node.data);
 	const colour = node.data.textColor || TEXT_COLOUR;
@@ -10685,30 +10729,77 @@ function paintNode(node) {
 	parts.push(shapeMarkup(body, fill));
 	const centreX = node.x + node.width / 2;
 	const innerWidth = textWidth(node.data, node.width);
-	let cursor = body.y + (node.isPerson ? 20 : 10);
+	const type = nodeTypography(node.data);
+	const labelLines = wrap(node.data.label ?? "", innerWidth, type.label, 4, true);
+	const meta = metaLine(node.data);
+	const metaLines = meta ? wrap(meta, innerWidth, type.meta, 2) : [];
+	const descriptionLines = node.data.description ? wrap(node.data.description, innerWidth, type.description, 4) : [];
+	const padTop = node.isPerson ? 20 : 10;
+	let cursor = body.y + padTop;
+	if (node.data.fontSize) {
+		const text = (node.data.icon?.startsWith("data:") ? 36 : 0) + labelLines.length * type.labelLeading + (metaLines.length ? type.metaGap + metaLines.length * type.metaLeading : 0) + (descriptionLines.length ? type.descriptionGap + descriptionLines.length * type.descriptionLeading : 0);
+		cursor = body.y + Math.max(padTop, (body.height - text) / 2);
+	}
 	const icon = node.data.icon;
 	if (icon && icon.startsWith("data:")) {
 		parts.push(`<image x="${round(centreX - 15)}" y="${round(cursor + 2)}" width="30" height="30" preserveAspectRatio="xMidYMid meet" href="${escapeXml(icon)}"/>`);
 		cursor += 36;
 	}
-	cursor += 13;
-	for (const line of wrap(node.data.label ?? "", innerWidth, 13, 4, true)) {
-		parts.push(textLine(line, centreX, cursor, 13, colour, 1, 600));
-		cursor += 16;
-	}
-	const meta = metaLine(node.data);
-	if (meta) {
-		cursor += 3;
-		for (const line of wrap(meta, innerWidth, 10, 2)) {
-			parts.push(textLine(line, centreX, cursor, 10, colour, .85));
-			cursor += 13;
+	if (node.data.fontSize) {
+		const fields = [
+			[
+				labelLines,
+				type.label,
+				type.labelLeading,
+				0,
+				1,
+				600
+			],
+			[
+				metaLines,
+				type.meta,
+				type.metaLeading,
+				type.metaGap,
+				.85,
+				400
+			],
+			[
+				descriptionLines,
+				type.description,
+				type.descriptionLeading,
+				type.descriptionGap,
+				.8,
+				400
+			]
+		];
+		for (const [lines, size, leading, gap, opacity, weight] of fields) {
+			if (!lines.length) continue;
+			cursor += gap;
+			for (const line of lines) {
+				const baseline = cursor + leading / 2 + LINE_BOX_BASELINE * size;
+				parts.push(textLine(line, centreX, baseline, size, colour, opacity, weight));
+				cursor += leading;
+			}
 		}
-	}
-	if (node.data.description) {
-		cursor += 2;
-		for (const line of wrap(node.data.description, innerWidth, 10, 4)) {
-			parts.push(textLine(line, centreX, cursor, 10, colour, .8));
-			cursor += 13;
+	} else {
+		cursor += type.label;
+		for (const line of labelLines) {
+			parts.push(textLine(line, centreX, cursor, type.label, colour, 1, 600));
+			cursor += type.labelLeading;
+		}
+		if (metaLines.length) {
+			cursor += type.metaGap;
+			for (const line of metaLines) {
+				parts.push(textLine(line, centreX, cursor, type.meta, colour, .85));
+				cursor += type.metaLeading;
+			}
+		}
+		if (descriptionLines.length) {
+			cursor += type.descriptionGap - type.descriptionLeading + type.description;
+			for (const line of descriptionLines) {
+				parts.push(textLine(line, centreX, cursor, type.description, colour, .8));
+				cursor += type.descriptionLeading;
+			}
 		}
 	}
 	const badge = node.data.perspectiveBadge;

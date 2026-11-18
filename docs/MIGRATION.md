@@ -47,6 +47,10 @@ scratch. The Studio, `c4 render` and `c4 publish` all change for such
 files. A layout sidecar beside the JSON still takes precedence, and
 `--no-layout` ignores only the sidecar, not the layout inside the JSON.
 
+Those boxes are drawn with Structurizr's text as well (PP-228): 24px
+descriptions, names at 1.4 times that and metadata at 0.7, or an element
+style's `fontSize`, centred in the box. DSL views are unchanged.
+
 ---
 
 ## 0.4.0 — lint, diff, impact and a published site (PP-182 … PP-215)

@@ -27,8 +27,14 @@ from typing import Any
 import pytest
 
 from c4studio.generators.json_export import export_json
+from c4studio.graph.view_graph import apply_sizes
 from c4studio.models import Workspace
-from c4studio.parser.json_parser import STRUCTURIZR_ELEMENT_SIZE, parse_json
+from c4studio.parser.dsl import parse_dsl
+from c4studio.parser.json_parser import (
+    STRUCTURIZR_ELEMENT_SIZE,
+    STRUCTURIZR_FONT_SIZE,
+    parse_json,
+)
 from c4studio.render import RenderError, _payload_with_layout, node_executable
 from c4studio.webapp.graph import react_flow_graph
 
@@ -361,3 +367,79 @@ class TestRendered:
         # in one vertical run, as the vertices are.
         x1, y1, x2, y2 = (float(n) for n in bent.groups())
         assert (x2 - x1, y2 - y1) == (0, 100)
+
+
+class TestText:
+    """Structurizr's text size inside Structurizr's boxes (PP-228).
+
+    At 450x300, c4studio's own 10px description reads as an empty box.
+    ``structurizr-ui.js`` defaults ``fontSize`` to 24, which is the size
+    the boxes were laid out around.
+    """
+
+    def test_placed_elements_carry_structurizr_s_size(self) -> None:
+        nodes = _nodes(_workspace(), "cont")
+        assert nodes["3"]["data"]["fontSize"] == STRUCTURIZR_FONT_SIZE
+
+    def test_a_style_s_font_size_wins(self) -> None:
+        document = json.loads(json.dumps(WORKSPACE))
+        styles = document["workspace"]["views"]["configuration"]["styles"]
+        styles["elements"][1]["fontSize"] = 30
+        nodes = _nodes(parse_json(json.dumps(document)), "cont")
+        assert nodes["1"]["data"]["fontSize"] == 30
+        assert nodes["3"]["data"]["fontSize"] == STRUCTURIZR_FONT_SIZE
+
+    def test_a_deployment_node_keeps_its_own(self) -> None:
+        nodes = _nodes(_workspace(), "live")
+        assert "fontSize" not in nodes["8"]["data"]
+
+    def test_an_unplaced_view_keeps_c4studio_s_type(self) -> None:
+        document = json.loads(json.dumps(WORKSPACE))
+        view = document["workspace"]["views"]["containerViews"][0]
+        view["automaticLayout"] = {"rankDirection": "TopBottom"}
+        nodes = _nodes(parse_json(json.dumps(document)), "cont")
+        assert not any("fontSize" in n["data"] for n in nodes.values())
+
+    def test_a_box_resized_in_the_studio_keeps_c4studio_s_type(self) -> None:
+        # A size alone is PP-224's resize, not a Structurizr layout.
+        workspace = parse_dsl(
+            'workspace { model { a = softwareSystem "A" } '
+            "views { systemLandscape all { include * } } }"
+        )
+        view = workspace.views.system_landscape_views[0]
+        apply_sizes(view, {"a": (450, 300)})
+        node = react_flow_graph(workspace, view)["nodes"][0]
+        assert node["size"] == {"width": 450, "height": 300}
+        assert "fontSize" not in node["data"]
+
+    def test_export_writes_no_font_size_of_its_own(self) -> None:
+        exported = json.loads(export_json(_workspace()))
+        elements = exported["workspace"]["views"]["containerViews"][0]["elements"]
+        assert all(set(e) <= {"id", "x", "y"} for e in elements)
+
+    @needs_node
+    def test_it_is_drawn_centred_in_the_box(self) -> None:
+        from c4studio.render import render_view
+
+        document = json.loads(json.dumps(WORKSPACE))
+        containers = document["workspace"]["model"]["softwareSystems"][0]["containers"]
+        for container in containers:
+            container["description"] = "Does the work."
+        workspace = parse_json(json.dumps(document))
+        view = next(v for v in workspace.views if v.key == "cont")
+        svg = render_view(workspace, view, show_title=False, show_legend=False)
+        # Name at 1.4x, metadata at 0.7x, description at the base size.
+        for size in ("33.6", "16.8", "24"):
+            assert f'font-size="{size}"' in svg
+        box = re.search(r'<rect x="[\d.]+" y="([\d.]+)" width="450" height="300"', svg)
+        assert box is not None
+        top = float(box.group(1))
+        baselines = [
+            float(y)
+            for y in re.findall(
+                r'<text x="[\d.]+" y="([\d.]+)"[^>]*font-size="33.6"', svg
+            )
+        ]
+        # The name sits well below the 10px top padding it would have at
+        # c4studio's size, and the text block above the box's middle.
+        assert any(top + 60 < y < top + 150 for y in baselines)
