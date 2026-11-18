@@ -10,7 +10,8 @@ import { expect, test, type Page } from "@playwright/test";
  *
  * The Studio serves `samples/`, which holds no such JSON, so the graph
  * response is rewritten into that shape: every element in one column,
- * 450x300 and 400px apart, and every boundary without position or size.
+ * 450x300 and 400px apart with Structurizr's 24px text (PP-228), and
+ * every boundary without position or size.
  */
 const VIEW = /^E-Commerce – Containers container$/;
 const STEP = 400;
@@ -41,6 +42,7 @@ async function open(page: Page): Promise<Shape> {
       } else {
         node.position = { x: 0, y: STEP * shape.column.length };
         node.size = { width: 450, height: 300 };
+        node.data.fontSize = 24;
         shape.column.push(node.id);
       }
       if (node.parentId) {
@@ -115,4 +117,23 @@ test("an element box fills its stored size, a person's under its head", async ({
     if (!isPerson) expect(body.height).toBeCloseTo(outer.height, 0);
     else expect(body.y + body.height).toBeCloseTo(outer.y + outer.height, 0);
   }
+});
+
+test("an element is drawn in Structurizr's type, centred in its box", async ({ page }) => {
+  // At 450x300, c4studio's own 10px description reads as an empty box
+  // (PP-228). Name 1.4x, metadata 0.7x, description at the 24px base.
+  await open(page);
+  const node = page.locator(".react-flow__node-element .node", { hasText: "Catalog Service" });
+  await expect(node.locator(".node__label")).toHaveCSS("font-size", "33.6px");
+  await expect(node.locator(".node__kind")).toHaveCSS("font-size", "16.8px");
+  await expect(node.locator(".node__desc")).toHaveCSS("font-size", "24px");
+
+  // Centred: as much room above the name as below the description.
+  const outer = (await node.boundingBox())!;
+  const first = (await node.locator(".node__label").boundingBox())!;
+  const last = (await node.locator(".node__desc").boundingBox())!;
+  const above = first.y - outer.y;
+  const below = outer.y + outer.height - (last.y + last.height);
+  expect(above).toBeGreaterThan(outer.height * 0.1);
+  expect(Math.abs(above - below)).toBeLessThan(outer.height * 0.05);
 });

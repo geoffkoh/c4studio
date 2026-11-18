@@ -143,7 +143,7 @@ The DSL describes the model. It does not describe where you dragged each box. Wh
 
 Structurizr keeps layout inside workspace JSON instead. c4studio keeps your DSL free of coordinates, which keeps diffs readable.
 
-A workspace `.json` file that Structurizr has laid out is drawn the way Structurizr drew it, in the Studio, `c4 render` and `c4 publish`. That covers element positions, line bend points, and box sizes, which are 450×300 unless an element style sets `width` or `height`. Boundaries are fitted around their contents, because Structurizr stores no position for them. A view with `automaticLayout`, or with every element at 0,0, which is what Structurizr writes for a view nobody arranged, is laid out afresh, as Structurizr itself does. A sidecar beside the JSON still wins over the layout inside it. `c4 export` writes element positions and bend points back out.
+A workspace `.json` file that Structurizr has laid out is drawn the way Structurizr drew it, in the Studio, `c4 render` and `c4 publish`. That covers element positions, line bend points, and box sizes, which are 450×300 unless an element style sets `width` or `height`. Text in those boxes is Structurizr's size too: 24px descriptions unless a style sets `fontSize`, with the name larger and the metadata smaller, centred in the box. Boundaries are fitted around their contents, because Structurizr stores no position for them. A view with `automaticLayout`, or with every element at 0,0, which is what Structurizr writes for a view nobody arranged, is laid out afresh, as Structurizr itself does. A sidecar beside the JSON still wins over the layout inside it. `c4 export` writes element positions and bend points back out.
 
 ## Dynamic perspectives
 

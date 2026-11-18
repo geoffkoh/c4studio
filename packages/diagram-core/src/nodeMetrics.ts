@@ -149,6 +149,61 @@ export interface NodeTextData {
   shape?: string;
   icon?: string;
   showMetadata?: boolean;
+  /** Structurizr's base text size, for an element a workspace JSON layout
+      placed (PP-228); absent, the node uses c4studio's own type. */
+  fontSize?: number;
+}
+
+/** The sizes a node's three text fields are drawn at, and the space
+    between them. */
+export interface NodeTypography {
+  label: number;
+  labelLeading: number;
+  meta: number;
+  metaLeading: number;
+  description: number;
+  descriptionLeading: number;
+  metaGap: number;
+  descriptionGap: number;
+}
+
+/** c4studio's own type, as `.node` and its children set it. */
+export const DEFAULT_TYPOGRAPHY: NodeTypography = {
+  label: LABEL_SIZE,
+  labelLeading: LABEL_LEADING,
+  meta: SMALL_SIZE,
+  metaLeading: SMALL_LEADING,
+  description: SMALL_SIZE,
+  descriptionLeading: SMALL_LEADING,
+  metaGap: META_GAP,
+  descriptionGap: DESC_GAP,
+};
+
+/**
+ * The type a node is drawn in (PP-228).
+ *
+ * An element Structurizr placed is drawn as `structurizr-diagram.js` draws
+ * it: the description at `fontSize`, the name at 1.4 times it and the
+ * metadata at 0.7. Leadings are the CSS line-heights; the gaps grow in
+ * proportion to c4studio's own at its 10px base.
+ */
+export function nodeTypography(data: NodeTextData): NodeTypography {
+  const base = data.fontSize;
+  if (!base) return DEFAULT_TYPOGRAPHY;
+  // To a tenth of a pixel: 24 × 0.7 is 16.799999999999997 in floating
+  // point, which would otherwise be written into every exported file.
+  const label = Math.round(base * 14) / 10;
+  const meta = Math.round(base * 7) / 10;
+  return {
+    label,
+    labelLeading: label * 1.25,
+    meta,
+    metaLeading: meta * 1.3,
+    description: base,
+    descriptionLeading: base * 1.35,
+    metaGap: (META_GAP * base) / SMALL_SIZE,
+    descriptionGap: (DESC_GAP * base) / SMALL_SIZE,
+  };
 }
 
 /** C4 metadata label per element kind, shown as `[Container: Java]`. */
@@ -253,11 +308,12 @@ export function nodeTextLines(
   description: string[];
 } {
   const meta = metaLine(data);
+  const type = nodeTypography(data);
   return {
-    label: wrap(data.label ?? "", inner, LABEL_SIZE, LABEL_MAX_LINES, true),
-    meta: meta ? wrap(meta, inner, SMALL_SIZE, META_MAX_LINES) : [],
+    label: wrap(data.label ?? "", inner, type.label, LABEL_MAX_LINES, true),
+    meta: meta ? wrap(meta, inner, type.meta, META_MAX_LINES) : [],
     description: data.description
-      ? wrap(data.description, inner, SMALL_SIZE, DESC_MAX_LINES)
+      ? wrap(data.description, inner, type.description, DESC_MAX_LINES)
       : [],
   };
 }
@@ -269,15 +325,16 @@ export function nodeTextLines(
 export function nodeContentHeight(data: NodeTextData, width: number = NODE_WIDTH): number {
   const lines = nodeTextLines(data, textWidth(data, width) / MEASURE_MARGIN);
   const person = isPersonNode(data);
+  const type = nodeTypography(data);
 
   let height = (person ? PERSON_PAD_TOP : NODE_PAD_TOP) + NODE_PAD_BOTTOM;
   if (data.icon) height += ICON_ALLOWANCE;
-  height += lines.label.length * LABEL_LEADING;
+  height += lines.label.length * type.labelLeading;
   if (lines.meta.length) {
-    height += META_GAP + lines.meta.length * SMALL_LEADING;
+    height += type.metaGap + lines.meta.length * type.metaLeading;
   }
   if (lines.description.length) {
-    height += DESC_GAP + lines.description.length * SMALL_LEADING;
+    height += type.descriptionGap + lines.description.length * type.descriptionLeading;
   }
   height += SHAPE_EXTRA_HEIGHT[data.shape ?? ""] ?? 0;
   height += HEIGHT_SLACK;

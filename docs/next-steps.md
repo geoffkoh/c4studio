@@ -8,8 +8,9 @@ open right now, and what to do next.
 **Keep it current.** It is only worth reading if it is true, so update it
 when you finish a run of work, not when you remember.
 
-Last updated: **18 November 2026**, after control-free exports (PP-227)
-and the picomatch advisory on PP-213; before that **9 November 2026**,
+Last updated: **18 November 2026**, after control-free exports (PP-227),
+Structurizr's text size in JSON layouts (PP-228) and the picomatch
+advisory on PP-213; before that **9 November 2026**,
 after the 0.4.0 release (PP-216), the project site (PP-217), handle-free
 exports (PP-219) and layouts from workspace JSON (PP-220); before that **30 October 2026**, after the interface run
 (PP-195 … PP-208, PP-206) and the October roadmap review: dynamic-view
@@ -56,11 +57,25 @@ position, so both renderers now fit them around their children
 Checked against upstream's `spring-petclinic/workspace.json`.
 Unreleased, with an entry in `MIGRATION.md`.
 
-**Not done:** text stays c4studio-sized, so Structurizr's large boxes
-read empty, because upstream's default font is 24px. Sizes from a remote
-theme are not applied, since the parser never fetches. `c4 render` has
-no way to pick a named layout yet; options A–D are in the PP-220
-discussion.
+**Not done:** sizes from a remote theme are not applied, since the
+parser never fetches. `c4 render` has no way to pick a named layout yet;
+parked on 18 Nov. The options A–D the earlier note pointed to are not
+in PP-220 itself, so they need re-deriving when it is picked up.
+
+### Structurizr's text in Structurizr's boxes (PP-228)
+
+The last gap from PP-220: a JSON layout's 450×300 boxes held c4studio's
+10px text and read empty. An element a JSON layout placed now carries
+Structurizr's `fontSize` (24, or its style's), resolved in
+`json_parser.py` beside the box size and kept on `ViewElement.font_size`,
+which is not an upstream field and is never exported. `nodeTypography`
+in `nodeMetrics.ts` turns it into upstream's ratios (name 1.4×, metadata
+0.7×), and both renderers centre the text in the box. A box resized in
+the Studio (PP-224) has a size but no font size, so DSL views keep
+c4studio's type, and `c4 render` output for every DSL sample is
+byte-identical to before. `c4 render` lays those boxes' lines out in CSS
+line boxes. Its old shortcut, tuned at 10 and 13px, put the description
+16px too close to the metadata at 24px.
 
 ### Find in the source editor (PP-225)
 
