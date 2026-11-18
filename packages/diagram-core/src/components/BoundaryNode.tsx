@@ -122,7 +122,7 @@ function BoundaryNodeComponent({ id, data, selected }: NodeProps<BoundaryNodeDat
       </div>
       {collapsible ? (
         <button
-          className="boundary__collapse"
+          className="boundary__collapse export-hidden"
           title={data.expanded ? "Collapse back in place" : "Collapse group"}
           onClick={handleCollapse}
           onDoubleClick={(event) => event.stopPropagation()}

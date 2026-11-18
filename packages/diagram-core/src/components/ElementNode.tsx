@@ -221,7 +221,7 @@ function ElementNodeComponent({ id, data, selected }: NodeProps<ElementNodeData>
       {data.description ? (
         <div className="node__desc">{data.description}</div>
       ) : null}
-      {drillable ? <div className="node__drill">⊕</div> : null}
+      {drillable ? <div className="node__drill export-hidden">⊕</div> : null}
       {data.perspective ? (
         // Absolutely placed on the border, so it never changes the size
         // the layout measured the box at.
@@ -231,7 +231,7 @@ function ElementNodeComponent({ id, data, selected }: NodeProps<ElementNodeData>
       ) : null}
       {expandable ? (
         <button
-          className="node__expand"
+          className="node__expand export-hidden"
           title="Expand components in place"
           onClick={handleExpand}
           onDoubleClick={(event) => event.stopPropagation()}
