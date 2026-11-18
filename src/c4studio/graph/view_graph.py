@@ -427,9 +427,14 @@ def _apply_styles(workspace: Workspace, nodes: list[GraphNode]) -> None:
         tags = {"Element", implicit, *data.get("tags", [])}
         show_metadata = True
         show_description = True
+        # Every rule that matched, in resolution order, for the details
+        # card to name and jump to (PP-230).
+        matched: list[str] = []
         for style in styles:
             if style.tag not in tags:
                 continue
+            if style.tag not in matched:
+                matched.append(style.tag)
             # Remember the most specific rule that matched, so the legend
             # can name the style ("Datastore") rather than the C4 kind
             # ("Container"). `Element` is the catch-all and names nothing.
@@ -467,6 +472,8 @@ def _apply_styles(workspace: Workspace, nodes: list[GraphNode]) -> None:
                 show_metadata = style.metadata
             if style.description is not None:
                 show_description = style.description
+        if matched:
+            data["matchedStyles"] = matched
         if not show_metadata:
             data["showMetadata"] = False
             data["technology"] = ""
@@ -627,10 +634,15 @@ def _edge_paint(styles: list[RelationshipStyle], rel: Relationship) -> dict[str,
         return paint
     tags = {"Relationship", *rel.tags}
     matched: list[str] = []
+    # Every rule that matched, `Relationship` included, for the details
+    # card (PP-230); `matched` names the legend row and leaves it out.
+    applied: list[str] = []
     routing: Routing | None = None
     for style in styles:
         if style.tag not in tags or style.color_scheme == ColorScheme.DARK:
             continue
+        if style.tag not in applied:
+            applied.append(style.tag)
         # What the legend row is called. Upstream's `createTagsList` joins
         # every matched tag, dropping the implicit `Relationship` — a
         # relationship styled as both `Async` and `New` gets one row saying
@@ -662,6 +674,8 @@ def _edge_paint(styles: list[RelationshipStyle], rel: Relationship) -> dict[str,
         paint["styleRouting"] = "orthogonal"
     if matched:
         paint["styleTag"] = ", ".join(matched)
+    if applied:
+        paint["matchedStyles"] = applied
     return paint
 
 

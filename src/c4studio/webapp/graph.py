@@ -245,6 +245,9 @@ def react_flow_graph(
                 edge[field] = edge_data[field]
         if "perspectives" in edge_data:
             edge["perspectives"] = edge_data["perspectives"]
+        # The style rules that paint the line, for the details card (PP-230).
+        if "matchedStyles" in edge_data:
+            edge["matchedStyles"] = edge_data["matchedStyles"]
         # Which of ``notes`` a merged line's marker refers to (PP-229).
         if "note" in edge_data:
             edge["note"] = edge_data["note"]

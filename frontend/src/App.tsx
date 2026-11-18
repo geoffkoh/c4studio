@@ -414,10 +414,23 @@ export default function App() {
     [showEditor],
   );
 
+  /** A style chip in the details card (PP-230): the editor, at the rule. */
+  const handleShowStyle = useCallback(
+    (kind: "element" | "relationship", tag: string) => {
+      setCodeFocus({ style: { kind, tag }, nonce: Date.now() });
+      showEditor();
+    },
+    [showEditor],
+  );
+
   // A stable object, so the pane's effects do not re-run on every render.
   const diagramDetails = useMemo(
-    () => ({ onShowDefinition: handleShowDefinition, loadImpact: getImpact }),
-    [handleShowDefinition],
+    () => ({
+      onShowDefinition: handleShowDefinition,
+      onShowStyle: handleShowStyle,
+      loadImpact: getImpact,
+    }),
+    [handleShowDefinition, handleShowStyle],
   );
 
   /** A file picked in the tree: show it in the editor, whatever it is.
@@ -498,6 +511,7 @@ export default function App() {
       resetLayout={deleteLayout}
       layouts={NAMED_LAYOUTS}
       details={diagramDetails}
+      styleLocations={source.data?.styles}
     />
   );
 

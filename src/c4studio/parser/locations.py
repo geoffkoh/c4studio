@@ -153,3 +153,55 @@ def element_locations(root: str | Path) -> dict[str, tuple[Path, int]]:
             i += 1
 
     return locations
+
+
+#: The style rules a ``styles`` block holds, by the kind of thing they paint.
+_STYLE_KINDS = frozenset({"element", "relationship"})
+
+
+def style_locations(root: str | Path) -> list[tuple[str, str, Path, int]]:
+    """Return ``(kind, tag, source_file, line)`` for every style rule (PP-230).
+
+    ``kind`` is ``"element"`` or ``"relationship"``. Every rule is listed,
+    in source order across the root and its ``!include`` fragments: two
+    rules for one tag both apply, the later winning where they overlap,
+    so a caller jumping to "the" style wants the last. A theme's styles
+    come from a URL, not a file, and so never appear here.
+    """
+    found: list[tuple[str, str, Path, int]] = []
+    for path in collect_source_files(root):
+        if path.suffix.lower() not in _DSL_SUFFIXES:
+            continue
+        try:
+            tokens = _tokenize(path.read_text(encoding="utf-8", errors="replace"))
+        except OSError:
+            continue
+        depth = 0
+        # Depth just inside the current `styles { ... }`; a rule is only a
+        # rule directly at that depth, not inside another rule's body.
+        styles_depth: int | None = None
+        for i, tok in enumerate(tokens):
+            if tok.type == LBRACE:
+                depth += 1
+            elif tok.type == RBRACE:
+                depth -= 1
+                if styles_depth is not None and depth < styles_depth:
+                    styles_depth = None
+            elif tok.type == IDENT and styles_depth is None:
+                nxt = tokens[i + 1] if i + 1 < len(tokens) else None
+                if (
+                    tok.value.lower() == "styles"
+                    and nxt is not None
+                    and nxt.type == LBRACE
+                ):
+                    styles_depth = depth + 1
+            elif (
+                tok.type == IDENT
+                and depth == styles_depth
+                and tok.value.lower() in _STYLE_KINDS
+                and i + 1 < len(tokens)
+                and tokens[i + 1].type in (STRING, IDENT)
+            ):
+                tag = tokens[i + 1].value.strip('"')
+                found.append((tok.value.lower(), tag, path, tok.line))
+    return found

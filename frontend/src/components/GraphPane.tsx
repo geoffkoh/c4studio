@@ -69,6 +69,7 @@ import type {
   GPerspective,
   GraphData,
   ImpactResult,
+  StyleLocation,
   ViewInfo,
   Workspace,
 } from "../types";
@@ -227,7 +228,12 @@ interface GraphPaneProps {
     /** What else a change to the element involves (PP-193); the card
         offers the overlay only when this is given. */
     loadImpact?: (elementId: string) => Promise<ImpactResult>;
+    /** Open the source at a style rule (PP-230). */
+    onShowStyle?: (kind: StyleLocation["kind"], tag: string) => void;
   };
+  /** Where each style rule is written, from the source listing (PP-230).
+      Its own prop: `details` is kept stable, and this changes on a save. */
+  styleLocations?: StyleLocation[];
 }
 
 /** Convert the API graph payload into React Flow nodes/edges. */
@@ -424,6 +430,7 @@ export function GraphPane({
   resetLayout,
   layouts,
   details,
+  styleLocations,
 }: GraphPaneProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
@@ -2083,6 +2090,8 @@ export function GraphPane({
               payload={payload}
               onSelectNode={selectOnly}
               onShowDefinition={details.onShowDefinition}
+              styleLocations={styleLocations}
+              onShowStyle={details.onShowStyle}
               impact={
                 loadImpact
                   ? {
