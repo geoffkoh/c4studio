@@ -49,7 +49,7 @@ Every `systemLandscape`, `systemContext`, `container`, `component`, `dynamic` an
 
 A relationship style with `routing Orthogonal` is drawn with the same router, whatever the toolbar says.
 
-**Expanding and collapsing.** The **+** on a container expands its components in place, without leaving the view. A group's boundary has a control to collapse it to a single box.
+**Expanding and collapsing.** The **+** on a container expands its components in place, without leaving the view. A group's boundary has a control to collapse it to a single box. Lines between the group's members and the same element then merge into one. If their descriptions differ, the line reads `3 relationships [1]`, and the legend lists what `[1]` stands for, one relationship per line. The key is part of the legend, so it is in exported images and `c4 render` output too. Selecting a merged line shows the same list in the details card.
 
 **Named layouts.** **Layouts ▾** saves the current arrangement of a view under a name, loads one back, or deletes one. Use it to keep a "for the board" and a "for the team" version of the same view.
 

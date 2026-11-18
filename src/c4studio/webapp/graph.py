@@ -245,6 +245,9 @@ def react_flow_graph(
                 edge[field] = edge_data[field]
         if "perspectives" in edge_data:
             edge["perspectives"] = edge_data["perspectives"]
+        # Which of ``notes`` a merged line's marker refers to (PP-229).
+        if "note" in edge_data:
+            edge["note"] = edge_data["note"]
         # What the details card shows for a selected line (PP-205). Absent
         # when the line stands for no single relationship.
         rel = _relationship_for(
@@ -278,6 +281,9 @@ def react_flow_graph(
         # Derived once in the graph layer so the viewer, the toolbar export
         # and headless render all show the same legend (PP-99).
         "legend": graph_data.get("legend", []),
+        # What each merged line's ``[n]`` stands for, keyed in the legend
+        # so an exported image can be read without a hover (PP-229).
+        "notes": graph_data.get("notes", []),
         # Every name in the model, not just this view's, so the picker
         # offers the same list on every view (PP-173).
         "perspectives": perspective_names(workspace),

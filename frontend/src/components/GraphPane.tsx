@@ -346,12 +346,14 @@ async function toFlow(
       deletable: false,
     });
   }
-  if (data.legend && data.legend.length > 0) {
+  // The key to merged lines rides in the legend panel (PP-229), so a view
+  // with notes has a legend even when it has no styles to explain.
+  if ((data.legend?.length ?? 0) > 0 || (data.notes?.length ?? 0) > 0) {
     chrome.push({
       id: `${CHROME_PREFIX}legend`,
       type: "chrome",
       position: chromePosition("legend"),
-      data: { kind: "legend", entries: data.legend },
+      data: { kind: "legend", entries: data.legend, notes: data.notes },
       draggable: true,
       selectable: false,
       deletable: false,

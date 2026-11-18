@@ -10393,6 +10393,14 @@ function edgeGeometry(input) {
 	};
 	return bezier(s, sideOf(source, s), t, sideOf(target, t));
 }
+// src/notes.ts
+/** `Order Service → Kafka: Publishes events [Avro]`, leaving out the
+parts a relationship does not have. */
+function noteLine(relationship) {
+	return `${`${relationship.source} → ${relationship.target}`}${relationship.description ? `: ${relationship.description}` : ""}${relationship.technology ? ` [${relationship.technology}]` : ""}`;
+}
+/** The marker as the line's label prints it. */
+var noteMarker = (marker) => `[${marker}]`;
 // src/perspective.ts
 /** Swatch colour for a value that no `Perspective:` style painted. */
 var UNSTYLED_COLOUR = "#90a4ae";
@@ -10602,6 +10610,12 @@ var LEGEND_MAX_ROWS = 6;
 var BADGE_SIZE = 10;
 var BADGE_HEIGHT = 16;
 var LEGEND_MAX_LABEL_LINES = 2;
+var NOTE_LINE_WIDTH = 420;
+var NOTE_MAX_LINES = 3;
+var NOTE_GAP = 6;
+var NOTE_RULE_GAP = 8;
+var NOTE_MARKER_GAP = 6;
+var NOTE_LEADING = 13;
 var ARROW = 10;
 var EDGE_LABEL_SIZE = 10;
 /** `normal` line height at 10px, as the canvas lays a wrapped label out. */
@@ -10925,14 +10939,19 @@ function legendSwatch(entry, x, y) {
 * deployment view with a dozen service styles grows sideways instead of
 * doubling the height of the image.
 */
-function paintLegend(entries, x, y) {
+function paintLegend(entries, notes, x, y) {
 	const labelWidth = 186;
 	const labels = entries.map((entry) => wrap(entry.label, labelWidth, LEGEND_LABEL_SIZE, LEGEND_MAX_LABEL_LINES));
 	const rows = Math.min(entries.length, LEGEND_MAX_ROWS);
 	const columns = Math.ceil(entries.length / LEGEND_MAX_ROWS);
 	const rowHeight = labels.some((lines) => lines.length > 1) ? 35 : LEGEND_ROW;
-	const width = columns * LEGEND_COLUMN_WIDTH + 24;
-	const height = rows * rowHeight + 24;
+	const rowsHeight = rows * rowHeight;
+	const markerWidth = Math.max(0, ...notes.map((note) => measureText(noteMarker(note.marker), LEGEND_LABEL_SIZE, true)));
+	const noteLines = notes.map((note) => note.relationships.flatMap((relationship) => wrap(noteLine(relationship), NOTE_LINE_WIDTH, LEGEND_LABEL_SIZE, NOTE_MAX_LINES)));
+	const notesWidth = notes.length ? markerWidth + NOTE_MARKER_GAP + Math.max(...noteLines.flat().map((line) => measureText(line, LEGEND_LABEL_SIZE))) : 0;
+	const notesHeight = notes.length ? noteLines.reduce((sum, lines) => sum + lines.length * NOTE_LEADING, 0) + (notes.length - 1) * NOTE_GAP + (entries.length ? 16 : 0) : 0;
+	const width = Math.max(entries.length ? columns * LEGEND_COLUMN_WIDTH : 0, notesWidth) + 24;
+	const height = rowsHeight + notesHeight + 24;
 	const parts = [`<rect x="${round(x)}" y="${round(y)}" width="${round(width)}" height="${round(height)}" rx="6" fill="#ffffff" stroke="${EDGE_LABEL_BORDER}"/>`];
 	entries.forEach((entry, index) => {
 		const column = Math.floor(index / LEGEND_MAX_ROWS);
@@ -10943,6 +10962,21 @@ function paintLegend(entries, x, y) {
 		labels[index].forEach((line, lineIndex) => {
 			parts.push(textLine(line, cellX + LEGEND_SWATCH + 8, cellY + LEGEND_SWATCH - 2 + lineIndex * 13, LEGEND_LABEL_SIZE, LEGEND_LABEL_COLOUR, 1, 400, "start"));
 		});
+	});
+	let noteY = y + LEGEND_PAD + rowsHeight;
+	if (notes.length && entries.length) {
+		noteY += NOTE_RULE_GAP;
+		parts.push(`<line x1="${round(x + LEGEND_PAD)}" y1="${round(noteY)}" x2="${round(x + width - LEGEND_PAD)}" y2="${round(noteY)}" stroke="${EDGE_LABEL_BORDER}"/>`);
+		noteY += NOTE_RULE_GAP;
+	}
+	notes.forEach((note, index) => {
+		const textX = x + LEGEND_PAD + markerWidth + NOTE_MARKER_GAP;
+		const baseline = noteY + LEGEND_LABEL_SIZE;
+		parts.push(textLine(noteMarker(note.marker), x + LEGEND_PAD, baseline, LEGEND_LABEL_SIZE, LEGEND_LABEL_COLOUR, 1, 600, "start"));
+		noteLines[index].forEach((line, lineIndex) => {
+			parts.push(textLine(line, textX, baseline + lineIndex * NOTE_LEADING, LEGEND_LABEL_SIZE, LEGEND_LABEL_COLOUR, 1, 400, "start"));
+		});
+		noteY += noteLines[index].length * NOTE_LEADING + NOTE_GAP;
 	});
 	return {
 		markup: parts.join(""),
@@ -10994,10 +11028,11 @@ async function renderSvg(payload, options = {}) {
 	const title = options.title ?? "";
 	const drawTitle = title !== "" && options.showTitle !== false;
 	const entries = payload.legend ?? [];
-	const drawLegend = entries.length > 0 && options.showLegend !== false;
+	const notes = payload.notes ?? [];
+	const drawLegend = (entries.length > 0 || notes.length > 0) && options.showLegend !== false;
 	const draggedTitle = drawTitle ? payload.chrome?.title : void 0;
 	const draggedLegend = drawLegend ? payload.chrome?.legend : void 0;
-	const legendSize = drawLegend ? paintLegend(entries, 0, 0) : null;
+	const legendSize = drawLegend ? paintLegend(entries, notes, 0, 0) : null;
 	const titleWidth = measureText(title, TITLE_SIZE, true);
 	let minX = Math.min(...boxes.map((b) => b.x));
 	let minY = Math.min(...boxes.map((b) => b.y));
@@ -11014,7 +11049,7 @@ async function renderSvg(payload, options = {}) {
 	const diagramWidth = maxX - minX;
 	const diagramHeight = maxY - minY;
 	const titleHeight = drawTitle && !draggedTitle ? 38 : 0;
-	const legend = drawLegend && !draggedLegend ? paintLegend(entries, padding, padding + titleHeight + diagramHeight + LEGEND_GAP) : null;
+	const legend = drawLegend && !draggedLegend ? paintLegend(entries, notes, padding, padding + titleHeight + diagramHeight + LEGEND_GAP) : null;
 	const width = round(Math.max(diagramWidth, legend ? legend.width : 0) + 2 * padding);
 	const height = round(titleHeight + diagramHeight + (legend ? LEGEND_GAP + legend.height : 0) + 2 * padding);
 	const shift = `translate(${round(padding - minX)},${round(padding + titleHeight - minY)})`;
@@ -11027,7 +11062,7 @@ async function renderSvg(payload, options = {}) {
 		...payload.edges.map((edge) => paintEdge(edge, placed, lineStyle, offsets.get(edge.id))),
 		...leaves.map(paintNode),
 		draggedTitle ? textLine(title, draggedTitle[0], draggedTitle[1] + TITLE_SIZE, TITLE_SIZE, TITLE_COLOUR, 1, 600, "start") : "",
-		draggedLegend && legendSize ? paintLegend(entries, draggedLegend[0], draggedLegend[1]).markup : ""
+		draggedLegend && legendSize ? paintLegend(entries, notes, draggedLegend[0], draggedLegend[1]).markup : ""
 	].join("");
 	const heading = drawTitle && !draggedTitle ? textLine(title, padding, padding + TITLE_SIZE, TITLE_SIZE, TITLE_COLOUR, 1, 600, "start") : "";
 	const background = options.background === null ? "" : `<rect width="100%" height="100%" fill="${options.background ?? "#ffffff"}"/>`;

@@ -33,6 +33,7 @@ import {
 } from "./layout";
 import { type Pins } from "./orthogonal";
 import { asLineStyle, curveOffsets, edgeGeometry, type LineStyle } from "./edgePath";
+import { noteLine, noteMarker, type MergedNote } from "./notes";
 import { applyPerspective, type Perspective } from "./perspective";
 import {
   EDGE_LABEL_INSET_X,
@@ -146,6 +147,9 @@ export interface GraphPayload {
   nodeSeparation?: number;
   /** Distinct styles used by this view, derived in the graph layer. */
   legend?: LegendEntry[];
+  /** What each merged line's `[n]` stands for (PP-229), keyed in the
+      legend panel under its swatches. */
+  notes?: MergedNote[];
   /** Dragged title/legend positions from the layout sidecar, in diagram
       coordinates, keyed "title" / "legend". Absent chrome keeps the
       placement this renderer computes (PP-180). */
@@ -213,6 +217,15 @@ const BADGE_HEIGHT = 16;
 //: caption is prose and does not, so rows take a second line when any
 //: label needs it. Uniform across the grid, so the rows stay aligned.
 const LEGEND_MAX_LABEL_LINES = 2;
+// The key to merged lines under the swatches (PP-229), matching
+// `.legend__notes` in the web app: 420px lines, 6px between entries, and
+// an 8px rule above it when there are swatches.
+const NOTE_LINE_WIDTH = 420;
+const NOTE_MAX_LINES = 3;
+const NOTE_GAP = 6;
+const NOTE_RULE_GAP = 8;
+const NOTE_MARKER_GAP = 6;
+const NOTE_LEADING = LEGEND_LABEL_SIZE + 2;
 
 // From edgeDefaults.ts, which deliberately imports no reactflow so this
 // headless path can share it. They used to be separate copies.
@@ -799,6 +812,7 @@ function legendSwatch(entry: LegendEntry, x: number, y: number): string {
  */
 function paintLegend(
   entries: LegendEntry[],
+  notes: MergedNote[],
   x: number,
   y: number,
 ): { markup: string; width: number; height: number } {
@@ -811,8 +825,35 @@ function paintLegend(
   const rowHeight = labels.some((lines) => lines.length > 1)
     ? LEGEND_ROW + LEGEND_LABEL_SIZE + 2
     : LEGEND_ROW;
-  const width = columns * LEGEND_COLUMN_WIDTH + 2 * LEGEND_PAD;
-  const height = rows * rowHeight + 2 * LEGEND_PAD;
+  const rowsHeight = rows * rowHeight;
+
+  // Each note: its marker, then one wrapped paragraph per relationship.
+  const markerWidth = Math.max(
+    0,
+    ...notes.map((note) => measureText(noteMarker(note.marker), LEGEND_LABEL_SIZE, true)),
+  );
+  const noteLines = notes.map((note) =>
+    note.relationships.flatMap((relationship) =>
+      wrap(noteLine(relationship), NOTE_LINE_WIDTH, LEGEND_LABEL_SIZE, NOTE_MAX_LINES),
+    ),
+  );
+  const notesWidth = notes.length
+    ? markerWidth +
+      NOTE_MARKER_GAP +
+      Math.max(
+        ...noteLines.flat().map((line) => measureText(line, LEGEND_LABEL_SIZE)),
+      )
+    : 0;
+  const notesHeight = notes.length
+    ? noteLines.reduce((sum, lines) => sum + lines.length * NOTE_LEADING, 0) +
+      (notes.length - 1) * NOTE_GAP +
+      (entries.length ? 2 * NOTE_RULE_GAP : 0)
+    : 0;
+
+  const width =
+    Math.max(entries.length ? columns * LEGEND_COLUMN_WIDTH : 0, notesWidth) +
+    2 * LEGEND_PAD;
+  const height = rowsHeight + notesHeight + 2 * LEGEND_PAD;
 
   const parts = [
     `<rect x="${round(x)}" y="${round(y)}" width="${round(width)}" height="${round(height)}" ` +
@@ -838,6 +879,47 @@ function paintLegend(
         ),
       );
     });
+  });
+
+  let noteY = y + LEGEND_PAD + rowsHeight;
+  if (notes.length && entries.length) {
+    noteY += NOTE_RULE_GAP;
+    parts.push(
+      `<line x1="${round(x + LEGEND_PAD)}" y1="${round(noteY)}" ` +
+        `x2="${round(x + width - LEGEND_PAD)}" y2="${round(noteY)}" stroke="${EDGE_LABEL_BORDER}"/>`,
+    );
+    noteY += NOTE_RULE_GAP;
+  }
+  notes.forEach((note, index) => {
+    const textX = x + LEGEND_PAD + markerWidth + NOTE_MARKER_GAP;
+    const baseline = noteY + LEGEND_LABEL_SIZE;
+    parts.push(
+      textLine(
+        noteMarker(note.marker),
+        x + LEGEND_PAD,
+        baseline,
+        LEGEND_LABEL_SIZE,
+        LEGEND_LABEL_COLOUR,
+        1,
+        600,
+        "start",
+      ),
+    );
+    noteLines[index].forEach((line, lineIndex) => {
+      parts.push(
+        textLine(
+          line,
+          textX,
+          baseline + lineIndex * NOTE_LEADING,
+          LEGEND_LABEL_SIZE,
+          LEGEND_LABEL_COLOUR,
+          1,
+          400,
+          "start",
+        ),
+      );
+    });
+    noteY += noteLines[index].length * NOTE_LEADING + NOTE_GAP;
   });
   return { markup: parts.join(""), width, height };
 }
@@ -897,7 +979,9 @@ export async function renderSvg(
   const title = options.title ?? "";
   const drawTitle = title !== "" && options.showTitle !== false;
   const entries = payload.legend ?? [];
-  const drawLegend = entries.length > 0 && options.showLegend !== false;
+  const notes = payload.notes ?? [];
+  const drawLegend =
+    (entries.length > 0 || notes.length > 0) && options.showLegend !== false;
 
   // Chrome the user dragged in the Studio is in diagram coordinates and
   // may sit anywhere — including over the diagram, which is a choice
@@ -908,7 +992,7 @@ export async function renderSvg(
   const draggedLegend = drawLegend ? payload.chrome?.legend : undefined;
   // Measured by painting it once; the result is a string, so this costs
   // nothing worth avoiding.
-  const legendSize = drawLegend ? paintLegend(entries, 0, 0) : null;
+  const legendSize = drawLegend ? paintLegend(entries, notes, 0, 0) : null;
   const titleWidth = measureText(title, TITLE_SIZE, true);
 
   let minX = Math.min(...boxes.map((b) => b.x));
@@ -940,6 +1024,7 @@ export async function renderSvg(
     drawLegend && !draggedLegend
       ? paintLegend(
           entries,
+          notes,
           padding,
           padding + titleHeight + diagramHeight + LEGEND_GAP,
         )
@@ -985,7 +1070,7 @@ export async function renderSvg(
         )
       : "",
     draggedLegend && legendSize
-      ? paintLegend(entries, draggedLegend[0], draggedLegend[1]).markup
+      ? paintLegend(entries, notes, draggedLegend[0], draggedLegend[1]).markup
       : "",
   ].join("");
 

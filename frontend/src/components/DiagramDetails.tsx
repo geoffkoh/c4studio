@@ -1,6 +1,8 @@
 import { useMemo, type KeyboardEvent } from "react";
 import type { Edge, Node } from "reactflow";
 
+import { noteLine } from "@c4studio/diagram-core";
+
 import type { GraphData, ImpactResult } from "../types";
 import { ElementDetails, KIND_LABELS } from "./ElementDetails";
 
@@ -95,6 +97,12 @@ export function DiagramDetails({
   } else if (count === 1) {
     const edge = edgeById.get(selectedEdges[0].id);
     const rel = edge?.relationship;
+    // A line merged by collapsing a group lists what it stands for: the
+    // same entries as the legend's key (PP-229).
+    const note =
+      edge?.note !== undefined
+        ? payload?.notes?.find((candidate) => candidate.marker === edge.note)
+        : undefined;
     body = edge ? (
       <ElementDetails
         name={`${label(edge.source)} → ${label(edge.target)}`}
@@ -104,7 +112,13 @@ export function DiagramDetails({
         properties={rel?.properties}
         onClose={onClose}
       >
-        {rel ? null : (
+        {rel ? null : note ? (
+          <ul className="details__merged" aria-label="Relationships this line stands for">
+            {note.relationships.map((relationship, index) => (
+              <li key={index}>{noteLine(relationship)}</li>
+            ))}
+          </ul>
+        ) : (
           <p className="details__note">
             Drawn for relationships between elements inside these two, so it
             has no details of its own.

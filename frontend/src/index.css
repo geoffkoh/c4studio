@@ -1049,6 +1049,15 @@ button {
   cursor: pointer;
 }
 
+/* A merged line's relationships (PP-229), as the legend's key words them. */
+.details__merged {
+  margin: 0 24px 0 0;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text);
+}
+
 .details__impact {
   margin: 0 0 8px;
   font-size: 13px;
@@ -2793,11 +2802,43 @@ button {
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 10px 12px;
+  pointer-events: none;
+}
+
+.legend__rows {
   display: grid;
   grid-auto-flow: column;
   grid-template-rows: repeat(6, auto);
   gap: 6px 22px;
-  pointer-events: none;
+}
+
+/* The key to merged lines (PP-229), under the swatches: what each
+   "3 relationships [1]" stands for, readable in an exported image. */
+.legend__notes {
+  display: grid;
+  gap: 6px;
+  font-size: 11px;
+  color: #44546f;
+}
+
+.legend__rows + .legend__notes {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.legend__note {
+  display: flex;
+  gap: 6px;
+}
+
+.legend__marker {
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.legend__note-line {
+  max-width: 420px;
 }
 
 .legend__row {

@@ -119,3 +119,4 @@ export {
   type ChromeNodeData,
   type LegendEntryData,
 } from "./components/ChromeNode";
+export { noteLine, noteMarker, type MergedNote, type MergedRelationship } from "./notes";
