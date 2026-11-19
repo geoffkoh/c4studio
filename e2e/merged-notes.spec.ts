@@ -73,25 +73,10 @@ test("the details card lists what a merged line stands for", async ({ page }) =>
   const numbered = await collapse(page);
   await page.getByRole("button", { name: "Details" }).click();
 
-  const point = await page.evaluate((ids) => {
-    for (const id of ids) {
-      const path = document.getElementById(id) as SVGPathElement | null;
-      const group = path?.closest(".react-flow__edge");
-      const m = path?.getScreenCTM();
-      if (!path || !group || !m) continue;
-      const length = path.getTotalLength();
-      for (let i = 1; i < 40; i++) {
-        const p = path.getPointAtLength((length * i) / 40);
-        const x = p.x * m.a + p.y * m.c + m.e;
-        const y = p.x * m.b + p.y * m.d + m.f;
-        const hit = document.elementFromPoint(x, y);
-        if (hit && group.contains(hit) && !hit.closest("foreignObject")) return { x, y };
-      }
-    }
-    return null;
-  }, numbered);
-  expect(point, "no merged line with an uncovered point").not.toBeNull();
-  await page.mouse.click(point!.x, point!.y);
+  expect(numbered.length).toBeGreaterThan(0);
+  // Its label selects it. A bare point on the line is not reliable: on
+  // CI's fonts every point sampled along these short lines was covered.
+  await page.getByText(/relationships \[1\]$/).click();
 
   const list = page.getByRole("list", { name: "Relationships this line stands for" });
   await expect(list).toBeVisible();
