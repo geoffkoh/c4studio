@@ -15,6 +15,7 @@ from c4studio.graph.view_graph import (
     PREVIOUS_IDS,
     build_view_graph,
     effective_layout,
+    implicit_tag,
     perspective_names,
     rank_direction,
     shown_properties,
@@ -26,6 +27,7 @@ from c4studio.models import (
     ViewType,
     Workspace,
 )
+from c4studio.style_edit import element_tag_counts, relationship_tag_counts
 
 #: What the frontend laid out with before spacing was plumbed through, and
 #: still the look of any view that declares no autoLayout.
@@ -49,6 +51,14 @@ _SUPPORTED_TYPES = frozenset(
         ViewType.FILTERED,
     }
 )
+
+
+def _style_tag_counts(workspace: Workspace) -> dict[str, dict[str, int]]:
+    """Model-wide tag counts, implicit tags included (PP-231)."""
+    return {
+        "element": dict(element_tag_counts(workspace)),
+        "relationship": dict(relationship_tag_counts(workspace)),
+    }
 
 
 def is_supported(view: View) -> bool:
@@ -202,6 +212,11 @@ def react_flow_graph(
         data = dict(graph_node.get("data", {}))
         # Tag-based style backgrounds win over the built-in kind palette.
         data["color"] = data.get("background") or KIND_COLOURS.get(data.get("kind", ""))
+        # The tag a style for "all of this kind" names, for the details card
+        # when no more specific rule matched (PP-231).
+        kind_tag = implicit_tag(data.get("kind", ""))
+        if kind_tag:
+            data["kindTag"] = kind_tag
         # For the details card (PP-205); only when there are any, so a
         # view without properties sends what it always did.
         element = workspace.find_element(graph_node["id"])
@@ -248,6 +263,8 @@ def react_flow_graph(
         # The style rules that paint the line, for the details card (PP-230).
         if "matchedStyles" in edge_data:
             edge["matchedStyles"] = edge_data["matchedStyles"]
+        if "styleOrigins" in edge_data:
+            edge["styleOrigins"] = edge_data["styleOrigins"]
         # Which of ``notes`` a merged line's marker refers to (PP-229).
         if "note" in edge_data:
             edge["note"] = edge_data["note"]
@@ -287,6 +304,10 @@ def react_flow_graph(
         # What each merged line's ``[n]`` stands for, keyed in the legend
         # so an exported image can be read without a hover (PP-229).
         "notes": graph_data.get("notes", []),
+        # How many elements and lines across the model carry each tag this
+        # view's styles matched, so the details card can say how far a
+        # recolour reaches before it is made (PP-231).
+        "styleTagCounts": _style_tag_counts(workspace),
         # Every name in the model, not just this view's, so the picker
         # offers the same list on every view (PP-173).
         "perspectives": perspective_names(workspace),

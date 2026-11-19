@@ -18,11 +18,13 @@ import {
   listLayouts,
   listViews,
   loadFile,
+  planStyleEdit,
   renameSource,
   saveExpansion,
   saveLayout,
   saveLineStyle,
   saveNamedLayout,
+  saveConflict,
   saveSource,
 } from "./api";
 import type {
@@ -30,11 +32,12 @@ import type {
   DslDiagnostic,
   SaveSourceResult,
   SourceEntry,
+  StyleEditRequest,
   ViewInfo,
   Workspace,
 } from "./types";
 import { completionModel } from "./dslComplete";
-import { anyDirty } from "./sourceBuffers";
+import { anyDirty, isDirty } from "./sourceBuffers";
 import { buildTrail } from "./navigation";
 import { isTypingTarget } from "./shortcuts";
 import { DocsPane } from "./components/DocsPane";
@@ -423,14 +426,62 @@ export default function App() {
     [showEditor],
   );
 
+  // Read when a style edit is made, without re-creating the handler (and
+  // so the details object below) on every keystroke in the editor.
+  const sourceRef = useRef(source);
+  sourceRef.current = source;
+
+  /** A colour changed in the details card (PP-231). The server works out
+      the text; each file is then saved through the editor's own save path,
+      or — when it has unsaved edits — the change joins them in the buffer
+      rather than being saved underneath them. */
+  const handleEditStyle = useCallback(
+    async (edit: StyleEditRequest): Promise<string> => {
+      const { state, data } = sourceRef.current;
+      const unsaved: Record<string, string> = {};
+      for (const [path, buffer] of Object.entries(state.buffers)) {
+        if (isDirty(buffer)) unsaved[path] = buffer.text;
+      }
+      const plan = await planStyleEdit(edit, unsaved);
+      if (plan.files.length === 0) return "Nothing to change";
+      const outcomes: string[] = [];
+      for (const file of plan.files) {
+        const buffer = sourceRef.current.state.buffers[file.path];
+        if (buffer && isDirty(buffer)) {
+          sourceRef.current.edit(file.path, file.content);
+          outcomes.push(`Added to unsaved changes in ${file.path}: save to apply`);
+          continue;
+        }
+        const fingerprint =
+          buffer?.fingerprint ??
+          data?.files.find((candidate) => candidate.path === file.path)?.fingerprint ??
+          null;
+        try {
+          const result = await saveSource(file.path, file.content, fingerprint);
+          if (buffer) sourceRef.current.markSaved(file.path, file.content, result.fingerprint);
+          handleSaved(result);
+          outcomes.push(`Saved to ${file.path}`);
+        } catch (err: unknown) {
+          if (saveConflict(err)) {
+            throw new Error(`${file.path} changed on disk. Reload it and try again.`);
+          }
+          throw err;
+        }
+      }
+      return outcomes.join(". ");
+    },
+    [handleSaved],
+  );
+
   // A stable object, so the pane's effects do not re-run on every render.
   const diagramDetails = useMemo(
     () => ({
       onShowDefinition: handleShowDefinition,
       onShowStyle: handleShowStyle,
+      onEditStyle: readOnly ? undefined : handleEditStyle,
       loadImpact: getImpact,
     }),
-    [handleShowDefinition, handleShowStyle],
+    [handleShowDefinition, handleShowStyle, handleEditStyle, readOnly],
   );
 
   /** A file picked in the tree: show it in the editor, whatever it is.

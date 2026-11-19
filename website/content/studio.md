@@ -55,6 +55,13 @@ A relationship style with `routing Orthogonal` is drawn with the same router, wh
 
 **Details.** Select an element or a line and press `i`, or **Details**, for a card with its description, technology, tags, properties and relationships. An element with properties shows a small ⓘ badge. Click it to open the card. Under **Styled by**, the card names every style that paints the selection, in the order they apply: where two set the same property, the later wins. Click a style written in your files to open the editor at it. A style marked *theme* comes from a theme and has no line to open.
 
+**Changing colours.** In the Studio, **Edit style** beside *Styled by* opens colour pickers: background, text and border for a box; colour and dash pattern for a line. Each row says where the value comes from now: *from Database*, *theme* or *default*. A change is written to the workspace's `styles` block, so teammates, `c4 render` and Structurizr all see it. The layout file never holds a colour. Before you pick, choose which boxes change:
+
+- **All "Database" (3)** edits the style for the element's most specific tag, and the count says how many elements across the model carry it. If your files have no style for that tag yet, one is added after the others.
+- **Only this** gives the element a tag of its own (its name) and a style for it. Picking again later reuses that tag.
+
+The diagram repaints as you drag; the DSL is written when the picker closes, through the same save as the editor. If the file has unsaved edits, the change joins them in the editor instead, for you to save. **×** on a row set by the style being edited removes that line. Viewer mode does not offer any of this.
+
 **Hover and animation.** Hovering an element highlights its relationships. **View ▾ › Animate** (`a`) makes them march, which helps you follow a busy diagram. It respects your system's reduced-motion setting.
 
 **Export.** **Export ▾** saves the view as PNG (`p`) or SVG (`s`), exactly as it looks on screen. For CI, use [`c4 render`](cli.html#c4-render) instead.
