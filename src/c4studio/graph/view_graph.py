@@ -397,6 +397,11 @@ _IMPLICIT_TAGS: dict[str, str] = {
 }
 
 
+def implicit_tag(kind: str) -> str | None:
+    """The tag every element of a graph node ``kind`` carries implicitly."""
+    return _IMPLICIT_TAGS.get(kind)
+
+
 def _apply_styles(workspace: Workspace, nodes: list[GraphNode]) -> None:
     """Overlay tag-based element styles onto node data, in place.
 
@@ -413,10 +418,8 @@ def _apply_styles(workspace: Workspace, nodes: list[GraphNode]) -> None:
     renderer from the element kind, though, so suppressing it also needs
     the explicit ``showMetadata`` flag.
     """
-    styles = [
-        *theme_styles(workspace).element_styles,
-        *workspace.views.configuration.styles.element_styles,
-    ]
+    themed = theme_styles(workspace).element_styles
+    styles = [*themed, *workspace.views.configuration.styles.element_styles]
     if not styles:
         return
     for node in nodes:
@@ -430,11 +433,24 @@ def _apply_styles(workspace: Workspace, nodes: list[GraphNode]) -> None:
         # Every rule that matched, in resolution order, for the details
         # card to name and jump to (PP-230).
         matched: list[str] = []
-        for style in styles:
-            if style.tag not in tags:
+        # Which rule set each colour the card edits (PP-231), so it can say
+        # "from Database" or "theme", and edit the rule that actually wins.
+        origins: dict[str, dict[str, Any]] = {}
+        for index, style in enumerate(styles):
+            # One scheme is painted, as for lines: a `dark` variant must not
+            # win over the colour the rule itself sets.
+            if style.tag not in tags or style.color_scheme == ColorScheme.DARK:
                 continue
             if style.tag not in matched:
                 matched.append(style.tag)
+            origin = {"tag": style.tag, "theme": index < len(themed)}
+            for prop, value in (
+                ("background", style.background),
+                ("color", style.color),
+                ("stroke", style.stroke),
+            ):
+                if value:
+                    origins[prop] = origin
             # Remember the most specific rule that matched, so the legend
             # can name the style ("Datastore") rather than the C4 kind
             # ("Container"). `Element` is the catch-all and names nothing.
@@ -474,6 +490,8 @@ def _apply_styles(workspace: Workspace, nodes: list[GraphNode]) -> None:
                 show_description = style.description
         if matched:
             data["matchedStyles"] = matched
+        if origins:
+            data["styleOrigins"] = origins
         if not show_metadata:
             data["showMetadata"] = False
             data["technology"] = ""
@@ -637,12 +655,20 @@ def _edge_paint(styles: list[RelationshipStyle], rel: Relationship) -> dict[str,
     # Every rule that matched, `Relationship` included, for the details
     # card (PP-230); `matched` names the legend row and leaves it out.
     applied: list[str] = []
+    # Which rule set the colour and the dash pattern (PP-231). Whether it
+    # came from a theme is the details card's to work out: the rules here
+    # arrive already merged.
+    origins: dict[str, str] = {}
     routing: Routing | None = None
     for style in styles:
         if style.tag not in tags or style.color_scheme == ColorScheme.DARK:
             continue
         if style.tag not in applied:
             applied.append(style.tag)
+        if style.color:
+            origins["color"] = style.tag
+        if style.style is not None or style.dashed is not None:
+            origins["style"] = style.tag
         # What the legend row is called. Upstream's `createTagsList` joins
         # every matched tag, dropping the implicit `Relationship` — a
         # relationship styled as both `Async` and `New` gets one row saying
@@ -676,6 +702,8 @@ def _edge_paint(styles: list[RelationshipStyle], rel: Relationship) -> dict[str,
         paint["styleTag"] = ", ".join(matched)
     if applied:
         paint["matchedStyles"] = applied
+    if origins:
+        paint["styleOrigins"] = origins
     return paint
 
 

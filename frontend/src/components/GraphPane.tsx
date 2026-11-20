@@ -69,6 +69,7 @@ import type {
   GPerspective,
   GraphData,
   ImpactResult,
+  StyleEditRequest,
   StyleLocation,
   ViewInfo,
   Workspace,
@@ -80,6 +81,7 @@ import {
 } from "./EdgeContextMenu";
 import { KeyboardShortcuts } from "./KeyboardShortcuts";
 import { DiagramDetails } from "./DiagramDetails";
+import type { StylePreview } from "./StyleEditor";
 import { LayoutsMenu, type LayoutsApi } from "./LayoutsMenu";
 import { SelectionTools } from "./SelectionTools";
 import { ToolbarMenu } from "./ToolbarMenu";
@@ -230,6 +232,8 @@ interface GraphPaneProps {
     loadImpact?: (elementId: string) => Promise<ImpactResult>;
     /** Open the source at a style rule (PP-230). */
     onShowStyle?: (kind: StyleLocation["kind"], tag: string) => void;
+    /** Recolour from the card (PP-231); absent in Viewer mode. */
+    onEditStyle?: (edit: StyleEditRequest) => Promise<string>;
   };
   /** Where each style rule is written, from the source listing (PP-230).
       Its own prop: `details` is kept stable, and this changes on a save. */
@@ -646,6 +650,41 @@ export function GraphPane({
   );
   // Only where there is a card to show.
   const showDetails = details ? handleShowDetails : undefined;
+
+  /** A colour being picked in the card, painted before it is written
+      (PP-231). The reload that follows the edit replaces it with what the
+      DSL now says; an edit left unsaved in the editor keeps it until then. */
+  const handleStylePreview = useCallback(
+    (preview: StylePreview) => {
+      const ids = new Set(preview.ids);
+      if (preview.kind === "element") {
+        const fields =
+          preview.property === "background"
+            ? { color: preview.value, background: preview.value }
+            : preview.property === "color"
+              ? { textColor: preview.value }
+              : { stroke: preview.value };
+        setNodes((current) =>
+          current.map((n) => (ids.has(n.id) ? { ...n, data: { ...n.data, ...fields } } : n)),
+        );
+        return;
+      }
+      const drawn = new Map((payload?.edges ?? []).map((e) => [e.id, e]));
+      const field =
+        preview.property === "color" ? { color: preview.value } : { lineStyle: preview.value };
+      setEdges((current) =>
+        current.map((e) =>
+          ids.has(e.id) ? { ...e, ...edgePaint({ ...drawn.get(e.id), ...field }) } : e,
+        ),
+      );
+    },
+    [payload, setEdges, setNodes],
+  );
+  const onEditStyle = details?.onEditStyle;
+  const styleEditing = useMemo(
+    () => (onEditStyle ? { onEdit: onEditStyle, onPreview: handleStylePreview } : undefined),
+    [onEditStyle, handleStylePreview],
+  );
 
   const handleInteraction = useCallback((mode: Interaction) => {
     setInteraction(mode);
@@ -2092,6 +2131,7 @@ export function GraphPane({
               onShowDefinition={details.onShowDefinition}
               styleLocations={styleLocations}
               onShowStyle={details.onShowStyle}
+              styleEditing={styleEditing}
               impact={
                 loadImpact
                   ? {

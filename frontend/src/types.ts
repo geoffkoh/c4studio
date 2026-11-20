@@ -77,6 +77,12 @@ export interface GNode {
     /** Every element style rule that matched, in resolution order; the
         last wins where they overlap (PP-230). */
     matchedStyles?: string[];
+    /** The tag every element of this kind carries implicitly
+        (`Container`…): what "all of these" styles when no more specific
+        rule matched (PP-231). */
+    kindTag?: string;
+    /** Which rule set each colour the card edits (PP-231). */
+    styleOrigins?: Partial<Record<"background" | "color" | "stroke", GStyleOrigin>>;
   };
   /** Present on nodes nested inside a boundary group node. */
   parentId?: string;
@@ -163,6 +169,9 @@ export interface GEdge {
   /** Every relationship style rule that matched, `Relationship` included,
       in resolution order (PP-230). */
   matchedStyles?: string[];
+  /** The tag of the rule that set the colour and the dash pattern
+      (PP-231). */
+  styleOrigins?: Partial<Record<"color" | "style", string>>;
   /** Manual bend points in flow coordinates, from the layout sidecar. */
   waypoints?: [number, number][];
   /** Set once re-routed by dragging a segment (PP-196): `waypoints` are
@@ -216,6 +225,12 @@ export interface GraphData {
   /** What each merged line's `[n]` stands for, keyed in the legend
       (PP-229). */
   notes?: GMergedNote[];
+  /** How many model elements and relationships carry each tag, the
+      implicit ones (`Element`, `Container`…) included (PP-231). */
+  styleTagCounts?: {
+    element: Record<string, number>;
+    relationship: Record<string, number>;
+  };
   /** Every perspective name in the model, sorted; offered by the picker. */
   perspectives?: string[];
   /** Expansion state the server applied — the request's explicit lists, or
@@ -481,6 +496,30 @@ export interface SourceFile {
 export interface SourceLocation {
   path: string;
   line: number;
+}
+
+/** The rule that set one of an element's colours (PP-231). */
+export interface GStyleOrigin {
+  tag: string;
+  /** From a theme rather than the workspace's own styles. */
+  theme: boolean;
+}
+
+/** Body for POST /api/style (PP-231): one of `tag` and `element`. */
+export interface StyleEditRequest {
+  kind: "element" | "relationship";
+  property: string;
+  /** `null` removes the property from the rule. */
+  value: string | null;
+  tag?: string;
+  element?: string;
+}
+
+/** Response from POST /api/style: each changed file's new text. */
+export interface StyleEditPlan {
+  files: { path: string; content: string }[];
+  tag: string;
+  newTag: boolean;
 }
 
 /** Where a style rule is written, from GET /api/source (PP-230). A

@@ -598,6 +598,36 @@ unrecognised name warns with `unknown-style-property`.
 > distinguishes nothing — mark a special relationship with `style Solid`, a
 > colour, or a thickness.
 
+### What the Studio writes when you recolour
+
+The Studio's details card edits these rules for you (PP-231). Recolouring
+every element with a tag sets a property in that tag's last rule. Recolouring
+**one** element gives it a tag of its own, named after it, in a `tags`
+statement in its body; that adds to the tags on its definition line rather
+than replacing them. A rule for that tag goes after every other rule, so it
+wins:
+
+```dsl
+// in: model
+platform = softwareSystem "Delivery Platform" {
+    db = container "Shipment Database" "System of record" "PostgreSQL" "Database" {
+        tags "Shipment Database"
+    }
+}
+```
+
+```dsl
+// in: views
+styles {
+    element "Database" {
+        shape Cylinder
+    }
+    element "Shipment Database" {
+        background #2e7d32
+    }
+}
+```
+
 ### The legend follows the styles
 
 The legend is generated, never written: one row per element style actually

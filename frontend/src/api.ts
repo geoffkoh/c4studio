@@ -21,6 +21,8 @@ import type {
   TemplateInfo,
   SourceResult,
   StatusResult,
+  StyleEditPlan,
+  StyleEditRequest,
   ViewInfo,
   Workspace,
 } from "./types";
@@ -164,6 +166,19 @@ export function saveSource(
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ path, content, fingerprint, force }),
+  });
+}
+
+/** POST /api/style -> the text edit that recolours an element or a line
+    (PP-231). Writes nothing: the caller saves or buffers each file. */
+export function planStyleEdit(
+  edit: StyleEditRequest,
+  buffers: Record<string, string>,
+): Promise<StyleEditPlan> {
+  return request<StyleEditPlan>("/api/style", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...edit, buffers }),
   });
 }
 

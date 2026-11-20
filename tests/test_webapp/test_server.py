@@ -105,6 +105,8 @@ def test_view_graph_has_nodes_and_edges(client: TestClient) -> None:
         "technology",
         "description",
         "tags",
+        # What "all of this kind" styles, for the details card (PP-231).
+        "kindTag",
     }
 
 

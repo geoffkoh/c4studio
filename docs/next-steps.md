@@ -292,7 +292,16 @@ interface run; fuller context is in the tickets they name.
 - **`export-edge-handles.spec.ts` "a bend point's handle" is flaky**,
   on `main` too: 5 of 20 repeats failed locally on 18 Nov, with the
   export holding no waypoint (`Received: 0`) although the canvas had
-  one. Not yet investigated.
+  one. Not yet investigated. Its sibling "a Step line's end and run
+  handles" fails the same way now and then.
+- **`line-style.spec.ts` "a view's saved style outranks this browser's
+  default" is flaky**, on a clean `main` too: 2 of 3 repeats failed
+  locally on 19 Nov (`Expected: > 0, Received: 0`).
+- **Your own sample sidecars break Studio tests.** The suite runs over
+  `samples/`, so a group you collapsed in `logistics_network.layout.json`
+  hides boxes the tests click, and about 15 specs time out. Move the
+  sidecar aside for the run and put it back (check `shasum` before and
+  after) rather than reading those failures as a regression.
 - **The `jira` skill is workspace-level**, so `/jira` fails from inside
   this repo. Call `jira_helper.py` directly — CLAUDE.md has the commands.
 - **Stock runners' Python is older than 3.13.** A bare `pipx install

@@ -1,10 +1,11 @@
-import { useMemo, type KeyboardEvent } from "react";
+import { useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
 import type { Edge, Node } from "reactflow";
 
 import { noteLine } from "@c4studio/diagram-core";
 
-import type { GraphData, ImpactResult, StyleLocation } from "../types";
+import type { GraphData, ImpactResult, StyleEditRequest, StyleLocation } from "../types";
 import { ElementDetails, KIND_LABELS } from "./ElementDetails";
+import { StyleEditor, type StylePreview, type StyleTarget } from "./StyleEditor";
 
 interface DiagramDetailsProps {
   /** React Flow's nodes and edges: what is selected lives on these. */
@@ -17,6 +18,12 @@ interface DiagramDetailsProps {
   /** Where each style rule is written, and the way to it (PP-230). */
   styleLocations?: StyleLocation[];
   onShowStyle?: (kind: StyleLocation["kind"], tag: string) => void;
+  /** Recolouring from the card (PP-231); absent in Viewer mode, where the
+      server refuses DSL writes, so nothing offers them. */
+  styleEditing?: {
+    onEdit: (edit: StyleEditRequest) => Promise<string>;
+    onPreview: (preview: StylePreview) => void;
+  };
   /** The impact overlay (PP-193); absent where it is not offered. */
   impact?: {
     shown: ImpactResult | null;
@@ -44,9 +51,24 @@ export function DiagramDetails({
   onShowDefinition,
   styleLocations,
   onShowStyle,
+  styleEditing,
   impact,
   onClose,
 }: DiagramDetailsProps) {
+  const editorFor = (target: StyleTarget) =>
+    styleEditing ? (
+      <StyleEditor
+        // A fresh editor per selection, so a scope chosen for one element
+        // never carries over to the next.
+        key={target.kind === "element" ? target.node.id : target.edge.id}
+        target={target}
+        payload={payload}
+        locations={styleLocations ?? []}
+        onEdit={styleEditing.onEdit}
+        onPreview={styleEditing.onPreview}
+      />
+    ) : undefined;
+
   // Elements only: boundaries and the title/legend chrome are layout,
   // not things with details of their own.
   const selectedNodes = nodes.filter((n) => n.selected && n.type === "element");
@@ -101,6 +123,7 @@ export function DiagramDetails({
           tags={node.data.matchedStyles ?? []}
           locations={styleLocations}
           onShow={onShowStyle}
+          editor={editorFor({ kind: "element", node })}
         />
         {impact ? <ImpactSection id={id} {...impact} /> : null}
       </ElementDetails>
@@ -128,6 +151,7 @@ export function DiagramDetails({
           tags={edge.matchedStyles ?? []}
           locations={styleLocations}
           onShow={onShowStyle}
+          editor={editorFor({ kind: "relationship", edge })}
         />
         {rel ? null : note ? (
           <ul className="details__merged" aria-label="Relationships this line stands for">
@@ -185,19 +209,40 @@ function StyleSection({
   tags,
   locations,
   onShow,
+  editor,
 }: {
   kind: StyleLocation["kind"];
   tags: string[];
   locations?: StyleLocation[];
   onShow?: (kind: StyleLocation["kind"], tag: string) => void;
+  /** The colour pickers (PP-231), behind a toggle: most selections are
+      for arranging, and the card is short of room beside the editor. */
+  editor?: ReactNode;
 }) {
-  if (tags.length === 0) return null;
+  const [editing, setEditing] = useState(storedEditing);
+  if (tags.length === 0 && !editor) return null;
+  const toggle = () => {
+    setEditing(!editing);
+    try {
+      sessionStorage.setItem(STYLE_EDIT_KEY, editing ? "" : "1");
+    } catch {
+      // Storage refused (private window): the toggle still works.
+    }
+  };
   const written = new Set(
     (locations ?? []).filter((rule) => rule.kind === kind).map((rule) => rule.tag),
   );
   return (
     <>
-      <h4 className="details__heading">Styled by</h4>
+      <h4 className="details__heading details__heading--split">
+        Styled by
+        {editor ? (
+          <button className="details__toggle" aria-expanded={editing} onClick={toggle}>
+            {editing ? "Done" : "Edit style"}
+          </button>
+        ) : null}
+      </h4>
+      {tags.length === 0 ? <p className="details__note">No styles: the built-in look.</p> : null}
       <div className="details__tags" aria-label="Styles that paint this">
         {tags.map((tag) =>
           written.has(tag) && onShow ? (
@@ -225,8 +270,20 @@ function StyleSection({
           ),
         )}
       </div>
+      {editor && editing ? editor : null}
     </>
   );
+}
+
+/** Whether the pickers were left open, this browser session. */
+const STYLE_EDIT_KEY = "c4studio.styleEdit";
+
+function storedEditing(): boolean {
+  try {
+    return sessionStorage.getItem(STYLE_EDIT_KEY) === "1";
+  } catch {
+    return false;
+  }
 }
 
 /**

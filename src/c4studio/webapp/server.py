@@ -91,6 +91,16 @@ from c4studio.layout_sidecar import (
 from c4studio.models import View, Workspace
 from c4studio.parser.dsl import ParseError, parse_dsl
 from c4studio.parser.locations import element_locations, style_locations
+from c4studio.style_edit import (
+    StyleEditError,
+    add_element_tag,
+    add_rule,
+    element_tag_counts,
+    is_own_tag,
+    own_tag_name,
+    relationship_tag_counts,
+    set_rule_property,
+)
 from c4studio.webapp import assistant as assistant_module
 from c4studio.webapp import graph, model_graph
 from c4studio.webapp.loader import (
@@ -250,6 +260,24 @@ class CheckRequest(BaseModel):
     # buffer that is part of the loaded workspace is checked in its
     # context, anything else on its own.
     root: str | None = None
+
+
+class StyleEditRequest(BaseModel):
+    """Body for ``POST /api/style`` (PP-231).
+
+    Exactly one of ``tag`` (every element or line carrying it) and
+    ``element`` (that element alone) names what to recolour.
+    """
+
+    kind: str
+    property: str
+    # ``None`` removes the property from the rule, back to what it inherits.
+    value: str | None = None
+    tag: str | None = None
+    element: str | None = None
+    # The editor's unsaved text by path: the edit is made to what the user
+    # is looking at, not to the file underneath their changes.
+    buffers: dict[str, str] = {}
 
 
 class SaveSourceRequest(BaseModel):
@@ -1399,6 +1427,138 @@ def create_app(
 
         state.source_cache = {"files": files, "locations": locations, "styles": styles}
         return state.source_cache
+
+    @app.post("/api/style")
+    def plan_style_edit(
+        body: StyleEditRequest, state: AppState = Depends(_require_writable)
+    ) -> dict[str, Any]:
+        """Work out the text edit that recolours an element or a line (PP-231).
+
+        Writes nothing. The response is each changed file's new text, which
+        the client saves through ``PUT /api/source`` — conflict detection,
+        diagnostics and the live reload included — or, for a file with
+        unsaved edits, puts into the editor's buffer instead.
+
+        ``tag`` edits the last rule for that tag, or adds one after every
+        other rule. ``element`` uses a tag only that element carries when a
+        rule for it exists; otherwise it gives the element a new tag (its
+        own name) and adds a rule for it.
+        """
+        workspace = _require_workspace(state)
+        root_path = state.current_path
+        if root_path is None or root_path.suffix.lower() not in (
+            ".dsl",
+            ".structurizr",
+        ):
+            raise HTTPException(
+                status_code=409, detail="Only a DSL workspace can be restyled"
+            )
+        if (body.tag is None) == (body.element is None):
+            raise HTTPException(
+                status_code=422, detail="Give exactly one of tag and element"
+            )
+
+        def relative(path: Path) -> str:
+            try:
+                return path.relative_to(state.root).as_posix()
+            except ValueError:
+                return path.name
+
+        rules = [
+            (kind, tag, relative(path))
+            for kind, tag, path, _ in style_locations(root_path)
+        ]
+        texts: dict[str, str] = {}
+        originals: dict[str, str] = {}
+
+        def text_of(rel: str) -> str:
+            if rel not in texts:
+                if rel in body.buffers:
+                    originals[rel] = body.buffers[rel]
+                else:
+                    originals[rel], _ = _read_source(_safe_resolve(state.root, rel))
+                texts[rel] = originals[rel]
+            return texts[rel]
+
+        def rule_file(tag: str) -> str:
+            # The tag's last rule; for a new rule, the file holding the last
+            # rule of all, so the new one is declared after it and wins.
+            for kind, rule_tag, rel in reversed(rules):
+                if kind == body.kind and rule_tag == tag:
+                    return rel
+            return rules[-1][2] if rules else relative(root_path)
+
+        tag = body.tag
+        new_tag = False
+        if body.element is not None:
+            if body.kind != "element":
+                raise HTTPException(
+                    status_code=422, detail="Only an element can be restyled alone"
+                )
+            element = workspace.find_element(body.element)
+            if element is None:
+                raise HTTPException(
+                    status_code=404, detail=f"No element {body.element!r}"
+                )
+            counts = element_tag_counts(workspace)
+            written = {rule_tag for kind, rule_tag, _ in rules if kind == "element"}
+            # Reuse only a tag made for this element by an earlier "only
+            # this": a generic tag that one element happens to carry today
+            # (`Database`) would pass the colour to the next one tagged.
+            own = [
+                t
+                for t in element.tags
+                if is_own_tag(t, element.name) and counts[t] == 1 and t in written
+            ]
+            if own:
+                tag = own[-1]
+            else:
+                location = element_locations(root_path).get(body.element)
+                if location is None:
+                    raise HTTPException(
+                        status_code=409, detail="The element's definition was not found"
+                    )
+                defined_in = relative(location[0])
+                if defined_in in body.buffers:
+                    raise HTTPException(
+                        status_code=409,
+                        detail=f"Save {defined_in} first: it has unsaved changes",
+                    )
+                taken = (
+                    set(counts)
+                    | set(relationship_tag_counts(workspace))
+                    | {rule_tag for _, rule_tag, _ in rules}
+                )
+                tag = own_tag_name(element.name, taken)
+                new_tag = True
+                try:
+                    texts[defined_in] = add_element_tag(
+                        text_of(defined_in), location[1], tag
+                    )
+                except StyleEditError as exc:
+                    raise HTTPException(status_code=409, detail=str(exc)) from exc
+        assert tag is not None
+
+        target = rule_file(tag)
+        try:
+            before = text_of(target)
+            if new_tag:
+                texts[target] = add_rule(
+                    before, body.kind, tag, body.property, body.value
+                )
+            else:
+                texts[target] = set_rule_property(
+                    before, body.kind, tag, body.property, body.value
+                )
+        except StyleEditError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+        files = [
+            {"path": rel, "content": content}
+            for rel, content in texts.items()
+            if content != originals[rel]
+        ]
+        return {"files": files, "tag": tag, "newTag": new_tag}
 
     @app.get("/api/file")
     def get_file(path: str, state: AppState = Depends(_get_state)) -> dict[str, Any]:
