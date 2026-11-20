@@ -120,3 +120,4 @@ export {
   type LegendEntryData,
 } from "./components/ChromeNode";
 export { noteLine, noteMarker, type MergedNote, type MergedRelationship } from "./notes";
+export { LOGO_GAP, LOGO_HEIGHT, logoWidth, type WorkspaceLogo } from "./logo";

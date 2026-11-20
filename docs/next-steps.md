@@ -304,6 +304,8 @@ interface run; fuller context is in the tickets they name.
   and an edit adds a new rule in the root file (which then wins) instead of
   editing the fragment. A fragment with its own `styles { }` works. Found
   writing PP-233's tests; not yet ticketed.
+- **`style-sources.spec.ts` "a style chip opens the editor…" failed once**
+  in a full local run on 20 Nov and passed 16 of 16 repeats on its own.
 - **`route-steps.spec.ts` "right-click offers Add step here" is flaky in
   CI**: it failed once on PR #290 ("no uncovered horizontal handle") and
   passed on re-run and locally. Like `merged-notes` before PP-229's fix,

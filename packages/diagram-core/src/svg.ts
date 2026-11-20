@@ -33,6 +33,7 @@ import {
 } from "./layout";
 import { type Pins } from "./orthogonal";
 import { asLineStyle, curveOffsets, edgeGeometry, type LineStyle } from "./edgePath";
+import { LOGO_GAP, LOGO_HEIGHT, logoWidth, type WorkspaceLogo } from "./logo";
 import { noteLine, noteMarker, type MergedNote } from "./notes";
 import { applyPerspective, type Perspective } from "./perspective";
 import {
@@ -157,6 +158,9 @@ export interface GraphPayload {
   /** The view's line style from the layout sidecar (PP-222); Bezier when
       absent, as in the Studio. */
   lineStyle?: string;
+  /** The workspace logo, drawn before the title (PP-237). Embedded as a
+      `data:` URI by the Python side, as node icons are. */
+  workspaceIcon?: WorkspaceLogo;
 }
 
 export interface RenderOptions {
@@ -256,6 +260,31 @@ interface Placed {
 // ---------------------------------------------------------------------------
 // Text
 // ---------------------------------------------------------------------------
+
+/**
+ * The title row from its top-left corner: the logo, then the text centred
+ * on it, as `.diagram-title` lays them out with flexbox in the Studio.
+ */
+function paintTitle(
+  title: string,
+  logo: WorkspaceLogo | undefined,
+  x: number,
+  y: number,
+): string {
+  if (!logo) {
+    return textLine(title, x, y + TITLE_SIZE, TITLE_SIZE, TITLE_COLOUR, 1, 600, "start");
+  }
+  const width = logoWidth(logo);
+  const row = Math.max(TITLE_SIZE, LOGO_HEIGHT);
+  // The text's baseline sits about a third of its size below the middle.
+  const baseline = y + row / 2 + TITLE_SIZE * 0.35;
+  return (
+    `<image x="${round(x)}" y="${round(y + (row - LOGO_HEIGHT) / 2)}" ` +
+    `width="${round(width)}" height="${LOGO_HEIGHT}" ` +
+    `preserveAspectRatio="xMidYMid meet" href="${escapeXml(logo.src)}"/>` +
+    textLine(title, x + width + LOGO_GAP, baseline, TITLE_SIZE, TITLE_COLOUR, 1, 600, "start")
+  );
+}
 
 function escapeXml(text: string): string {
   return text
@@ -993,7 +1022,15 @@ export async function renderSvg(
   // Measured by painting it once; the result is a string, so this costs
   // nothing worth avoiding.
   const legendSize = drawLegend ? paintLegend(entries, notes, 0, 0) : null;
-  const titleWidth = measureText(title, TITLE_SIZE, true);
+  // The logo rides with the title: before it in the band, or wherever the
+  // title was dragged. Only a `data:` URI is drawn, as for node icons.
+  const logo =
+    drawTitle && payload.workspaceIcon?.src.startsWith("data:")
+      ? payload.workspaceIcon
+      : undefined;
+  const logoSpace = logo ? logoWidth(logo) + LOGO_GAP : 0;
+  const titleRow = logo ? Math.max(TITLE_SIZE, LOGO_HEIGHT) : TITLE_SIZE;
+  const titleWidth = logoSpace + measureText(title, TITLE_SIZE, true);
 
   let minX = Math.min(...boxes.map((b) => b.x));
   let minY = Math.min(...boxes.map((b) => b.y));
@@ -1006,7 +1043,7 @@ export async function renderSvg(
     maxY = Math.max(maxY, y + h);
   };
   if (draggedTitle) {
-    include(draggedTitle[0], draggedTitle[1], titleWidth, TITLE_SIZE);
+    include(draggedTitle[0], draggedTitle[1], titleWidth, titleRow);
   }
   if (draggedLegend && legendSize) {
     include(
@@ -1019,7 +1056,7 @@ export async function renderSvg(
   const diagramWidth = maxX - minX;
   const diagramHeight = maxY - minY;
 
-  const titleHeight = drawTitle && !draggedTitle ? TITLE_SIZE + TITLE_GAP : 0;
+  const titleHeight = drawTitle && !draggedTitle ? titleRow + TITLE_GAP : 0;
   const legend =
     drawLegend && !draggedLegend
       ? paintLegend(
@@ -1057,18 +1094,7 @@ export async function renderSvg(
     // Dragged chrome rides inside the diagram's own transform, which is
     // what makes its stored coordinates mean the same thing here as on
     // the canvas they were dragged on.
-    draggedTitle
-      ? textLine(
-          title,
-          draggedTitle[0],
-          draggedTitle[1] + TITLE_SIZE,
-          TITLE_SIZE,
-          TITLE_COLOUR,
-          1,
-          600,
-          "start",
-        )
-      : "",
+    draggedTitle ? paintTitle(title, logo, draggedTitle[0], draggedTitle[1]) : "",
     draggedLegend && legendSize
       ? paintLegend(entries, notes, draggedLegend[0], draggedLegend[1]).markup
       : "",
@@ -1076,18 +1102,8 @@ export async function renderSvg(
 
   // Only the band; a dragged title is painted with the body, in the
   // diagram's own coordinates.
-  const heading = drawTitle && !draggedTitle
-    ? textLine(
-        title,
-        padding,
-        padding + TITLE_SIZE,
-        TITLE_SIZE,
-        TITLE_COLOUR,
-        1,
-        600,
-        "start",
-      )
-    : "";
+  const heading =
+    drawTitle && !draggedTitle ? paintTitle(title, logo, padding, padding) : "";
 
   const background =
     options.background === null

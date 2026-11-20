@@ -6,6 +6,8 @@ export type AppPage =
 
 interface TopBarProps {
   workspaceName: string | null;
+  /** The workspace logo (PP-237), before its name. */
+  workspaceIcon?: string | null;
   filePath: string | null;
   page: AppPage;
   onPageChange: (page: AppPage) => void;
@@ -36,6 +38,7 @@ export function TopBar({
   sidebarOpen,
   onToggleSidebar,
   workspaceName,
+  workspaceIcon,
   filePath,
   page,
   onPageChange,
@@ -93,6 +96,7 @@ export function TopBar({
       <span className="topbar__file">
         {filePath ? (
           <>
+            {workspaceIcon ? <img className="topbar__logo" src={workspaceIcon} alt="" /> : null}
             <strong>{workspaceName ?? filePath}</strong>
             {workspaceName ? ` — ${filePath}` : null}
           </>

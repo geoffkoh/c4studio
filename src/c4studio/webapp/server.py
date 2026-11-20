@@ -28,7 +28,7 @@ from pydantic import BaseModel
 
 from c4studio import templates
 from c4studio.diagnostics import Diagnostic, Severity
-from c4studio.graph.view_graph import apply_positions, apply_sizes
+from c4studio.graph.view_graph import apply_positions, apply_sizes, workspace_icon
 from c4studio.icon_library import ICON_FOLDER, IMAGE_SUFFIXES
 from c4studio.icon_library import scan as scan_icons
 from c4studio.impact import analyse as analyse_impact
@@ -1806,6 +1806,9 @@ def create_app(
         workspace = _require_workspace(state)
         if state.workspace_cache is None:
             state.workspace_cache = dataclasses.asdict(workspace)
+            # The logo the top bar shows (PP-237), resolved here so the
+            # client need not repeat the theme-then-workspace style order.
+            state.workspace_cache["icon"] = workspace_icon(workspace) or None
         return state.workspace_cache
 
     @app.get("/api/views")

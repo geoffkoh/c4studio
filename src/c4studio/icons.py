@@ -16,9 +16,12 @@ from __future__ import annotations
 import base64
 import logging
 import mimetypes
+import re
+import struct
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote
 from urllib.request import urlopen
 
 logger = logging.getLogger(__name__)
@@ -132,4 +135,93 @@ def inline_icons(payload: dict[str, Any]) -> int:
             continue
         data["icon"] = inlined
         embedded += 1
+    # The workspace logo (PP-237) is a theme's URL as often as a file. Once
+    # embedded it can be measured, which the renderer needs to size it.
+    logo = payload.get("workspaceIcon")
+    if isinstance(logo, dict) and logo.get("src"):
+        inlined = data_uri(logo["src"])
+        if inlined is None:
+            payload.pop("workspaceIcon")
+        else:
+            logo["src"] = inlined
+            size = image_size(inlined)
+            if size is not None and "aspect" not in logo:
+                logo["aspect"] = round(size[0] / size[1], 4)
     return embedded
+
+
+_SVG_LENGTH = re.compile(r"^\s*([0-9.]+)\s*(px)?\s*$")
+
+
+def _svg_size(svg: str) -> tuple[float, float] | None:
+    """An SVG's drawn size: its ``viewBox``, else plain ``width``/``height``."""
+    root = re.search(r"<svg\b[^>]*>", svg, re.IGNORECASE)
+    if root is None:
+        return None
+    tag = root.group(0)
+    view_box = re.search(r'viewBox\s*=\s*["\']([^"\']+)["\']', tag)
+    if view_box:
+        parts = view_box.group(1).replace(",", " ").split()
+        if len(parts) == 4:
+            try:
+                width, height = float(parts[2]), float(parts[3])
+            except ValueError:
+                return None
+            return (width, height) if width > 0 and height > 0 else None
+    sizes: list[float] = []
+    for name in ("width", "height"):
+        found = re.search(rf'\b{name}\s*=\s*["\']([^"\']+)["\']', tag)
+        length = _SVG_LENGTH.match(found.group(1)) if found else None
+        if length is None:
+            return None
+        sizes.append(float(length.group(1)))
+    return (sizes[0], sizes[1]) if sizes[0] > 0 and sizes[1] > 0 else None
+
+
+def _jpeg_size(data: bytes) -> tuple[float, float] | None:
+    """Walk JPEG segments to the first start-of-frame marker."""
+    index = 2
+    while index + 9 <= len(data):
+        if data[index] != 0xFF:
+            return None
+        marker = data[index + 1]
+        length = struct.unpack(">H", data[index + 2 : index + 4])[0]
+        # SOF0-SOF15, less DHT (C4), JPG (C8) and DAC (CC).
+        if 0xC0 <= marker <= 0xCF and marker not in (0xC4, 0xC8, 0xCC):
+            height, width = struct.unpack(">HH", data[index + 5 : index + 9])
+            return (float(width), float(height)) if width and height else None
+        index += 2 + length
+    return None
+
+
+def image_size(uri: str) -> tuple[float, float] | None:
+    """The intrinsic size of a ``data:`` image, read from its header.
+
+    For the workspace logo (PP-237): the headless renderer has no DOM to
+    measure an image with, and a logo drawn in a square box would shrink
+    a wide wordmark to nothing. PNG, GIF, JPEG and SVG are read; anything
+    else, or a URL not yet embedded, is None and the caller assumes a
+    square.
+    """
+    if not uri.startswith("data:") or "," not in uri:
+        return None
+    header, _, payload = uri.partition(",")
+    try:
+        if header.endswith(";base64"):
+            data = base64.b64decode(payload, validate=False)
+        else:
+            data = unquote(payload).encode("utf-8")
+    except ValueError:
+        return None
+    media_type = header[5:].split(";")[0].lower()
+    if media_type == "image/svg+xml":
+        return _svg_size(data.decode("utf-8", errors="replace"))
+    if data[:8] == b"\x89PNG\r\n\x1a\n" and len(data) >= 24:
+        width, height = struct.unpack(">II", data[16:24])
+        return (float(width), float(height)) if width and height else None
+    if data[:6] in (b"GIF87a", b"GIF89a") and len(data) >= 10:
+        width, height = struct.unpack("<HH", data[6:10])
+        return (float(width), float(height)) if width and height else None
+    if data[:2] == b"\xff\xd8":
+        return _jpeg_size(data)
+    return None

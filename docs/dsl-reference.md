@@ -609,6 +609,21 @@ element "AWS Lambda" {
 Editing an icon file does not reload the diagram by itself; save the DSL
 to pick up the change.
 
+**The workspace logo is a style too** (PP-237): `Workspace:Icon`, a tag
+no element carries, read only for its `icon`. This is how upstream
+replaced `branding { logo }` in 2026. The logo is drawn before every
+diagram's title, 28 px tall at its own proportions, in the Studio, exports,
+`c4 render`, `c4 publish` (beside the site's name too) and the VS Code
+preview, and before the workspace's name in the Studio's top bar. A
+`dark { icon … }` variant parses but is not drawn, as for every style.
+`c4 lint` does not report the style as unused.
+
+```text
+element "Workspace:Icon" {
+    icon "brand/logo.svg"
+}
+```
+
 **Relationship style properties.** Painted: `color`, `style`
 (`Solid`/`Dashed`/`Dotted`), `thickness`, `opacity`, `metadata`,
 `description`. Parsed but not drawn: `routing`, `position`, `width`,

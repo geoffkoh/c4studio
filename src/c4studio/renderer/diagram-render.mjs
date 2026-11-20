@@ -10393,6 +10393,13 @@ function edgeGeometry(input) {
 	};
 	return bezier(s, sideOf(source, s), t, sideOf(target, t));
 }
+/** A wordmark can be very wide; past this it would crowd the title out. */
+var LOGO_MAX_WIDTH = 240;
+/** Drawn width for a logo of this aspect, at `LOGO_HEIGHT`. */
+function logoWidth(logo) {
+	const aspect = logo.aspect && logo.aspect > 0 ? logo.aspect : 1;
+	return Math.min(28 * aspect, LOGO_MAX_WIDTH);
+}
 // src/notes.ts
 /** `Order Service → Kafka: Publishes events [Avro]`, leaving out the
 parts a relationship does not have. */
@@ -10599,6 +10606,7 @@ var BOUNDARY_LABEL_SIZE = 12;
 var BOUNDARY_LABEL_COLOUR = "#546e7a";
 var TITLE_SIZE = 18;
 var TITLE_COLOUR = "#172b4d";
+var TITLE_GAP = 20;
 var LEGEND_SWATCH = 14;
 var LEGEND_ROW = 22;
 var LEGEND_LABEL_SIZE = 11;
@@ -10623,6 +10631,17 @@ var EDGE_LABEL_LEADING = 12;
 var EDGE_LABEL_COLOUR = "#6b7684";
 var EDGE_LABEL_BG = "rgba(255,255,255,0.92)";
 var EDGE_LABEL_BORDER = "#e2e5ea";
+/**
+* The title row from its top-left corner: the logo, then the text centred
+* on it, as `.diagram-title` lays them out with flexbox in the Studio.
+*/
+function paintTitle(title, logo, x, y) {
+	if (!logo) return textLine(title, x, y + TITLE_SIZE, TITLE_SIZE, TITLE_COLOUR, 1, 600, "start");
+	const width = logoWidth(logo);
+	const row = Math.max(TITLE_SIZE, 28);
+	const baseline = y + row / 2 + TITLE_SIZE * .35;
+	return `<image x="${round(x)}" y="${round(y + (row - 28) / 2)}" width="${round(width)}" height="28" preserveAspectRatio="xMidYMid meet" href="${escapeXml(logo.src)}"/>` + textLine(title, x + width + 10, baseline, TITLE_SIZE, TITLE_COLOUR, 1, 600, "start");
+}
 function escapeXml(text) {
 	return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
@@ -11033,7 +11052,10 @@ async function renderSvg(payload, options = {}) {
 	const draggedTitle = drawTitle ? payload.chrome?.title : void 0;
 	const draggedLegend = drawLegend ? payload.chrome?.legend : void 0;
 	const legendSize = drawLegend ? paintLegend(entries, notes, 0, 0) : null;
-	const titleWidth = measureText(title, TITLE_SIZE, true);
+	const logo = drawTitle && payload.workspaceIcon?.src.startsWith("data:") ? payload.workspaceIcon : void 0;
+	const logoSpace = logo ? logoWidth(logo) + 10 : 0;
+	const titleRow = logo ? Math.max(TITLE_SIZE, 28) : TITLE_SIZE;
+	const titleWidth = logoSpace + measureText(title, TITLE_SIZE, true);
 	let minX = Math.min(...boxes.map((b) => b.x));
 	let minY = Math.min(...boxes.map((b) => b.y));
 	let maxX = Math.max(...boxes.map((b) => b.x + b.width));
@@ -11044,11 +11066,11 @@ async function renderSvg(payload, options = {}) {
 		maxX = Math.max(maxX, x + w);
 		maxY = Math.max(maxY, y + h);
 	};
-	if (draggedTitle) include(draggedTitle[0], draggedTitle[1], titleWidth, TITLE_SIZE);
+	if (draggedTitle) include(draggedTitle[0], draggedTitle[1], titleWidth, titleRow);
 	if (draggedLegend && legendSize) include(draggedLegend[0], draggedLegend[1], legendSize.width, legendSize.height);
 	const diagramWidth = maxX - minX;
 	const diagramHeight = maxY - minY;
-	const titleHeight = drawTitle && !draggedTitle ? 38 : 0;
+	const titleHeight = drawTitle && !draggedTitle ? titleRow + TITLE_GAP : 0;
 	const legend = drawLegend && !draggedLegend ? paintLegend(entries, notes, padding, padding + titleHeight + diagramHeight + LEGEND_GAP) : null;
 	const width = round(Math.max(diagramWidth, legend ? legend.width : 0) + 2 * padding);
 	const height = round(titleHeight + diagramHeight + (legend ? LEGEND_GAP + legend.height : 0) + 2 * padding);
@@ -11061,10 +11083,10 @@ async function renderSvg(payload, options = {}) {
 		...boundaries.map(paintBoundary),
 		...payload.edges.map((edge) => paintEdge(edge, placed, lineStyle, offsets.get(edge.id))),
 		...leaves.map(paintNode),
-		draggedTitle ? textLine(title, draggedTitle[0], draggedTitle[1] + TITLE_SIZE, TITLE_SIZE, TITLE_COLOUR, 1, 600, "start") : "",
+		draggedTitle ? paintTitle(title, logo, draggedTitle[0], draggedTitle[1]) : "",
 		draggedLegend && legendSize ? paintLegend(entries, notes, draggedLegend[0], draggedLegend[1]).markup : ""
 	].join("");
-	const heading = drawTitle && !draggedTitle ? textLine(title, padding, padding + TITLE_SIZE, TITLE_SIZE, TITLE_COLOUR, 1, 600, "start") : "";
+	const heading = drawTitle && !draggedTitle ? paintTitle(title, logo, padding, padding) : "";
 	const background = options.background === null ? "" : `<rect width="100%" height="100%" fill="${options.background ?? "#ffffff"}"/>`;
 	const titleTag = title ? `<title>${escapeXml(title)}</title>` : "";
 	return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" font-family="${FONT}">` + titleTag + `<defs>${arrowMarkerDefs(payload.edges)}</defs>` + background + heading + `<g transform="${shift}">${body}</g>` + (legend ? legend.markup : "") + `</svg>\n`;
