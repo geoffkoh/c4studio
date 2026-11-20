@@ -582,6 +582,33 @@ styles {
 `fontSize`, `iconPosition` — each warns with `ignored-style-property`. An
 unrecognised name warns with `unknown-style-property`.
 
+**`icon` takes a URL or a file** (PP-232). A path that is not a URL is
+relative to the file the style is written in — an `!include`-d fragment
+resolves against itself — and the image is embedded in the model as a
+`data:` URI when the DSL is read, as upstream does. So an icon downloaded
+into the repo draws in the Studio, `c4 render`, `c4 publish` and the VS
+Code preview with no network, and a JSON export carries the image rather
+than a path. PNG, JPEG, GIF, SVG and WebP up to 256 KB are read; a file
+that is missing or unusable warns with `icon-not-found`, and the box draws
+without it. Quote a URL: `//` starts a comment anywhere on a line here, so
+an unquoted `icon https://…` keeps only `https` (and warns). An icon pack
+(AWS Architecture Icons, Font Awesome Free, Simple Icons) is just files,
+so the usual layout is a folder beside the workspace, committed with it:
+
+```text
+workspace.dsl
+icons/aws/Arch_AWS-Lambda_48.svg
+```
+
+```text
+element "AWS Lambda" {
+    icon "icons/aws/Arch_AWS-Lambda_48.svg"
+}
+```
+
+Editing an icon file does not reload the diagram by itself; save the DSL
+to pick up the change.
+
 **Relationship style properties.** Painted: `color`, `style`
 (`Solid`/`Dashed`/`Dotted`), `thickness`, `opacity`, `metadata`,
 `description`. Parsed but not drawn: `routing`, `position`, `width`,

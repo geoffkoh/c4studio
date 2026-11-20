@@ -297,6 +297,11 @@ interface run; fuller context is in the tickets they name.
 - **`line-style.spec.ts` "a view's saved style outranks this browser's
   default" is flaky**, on a clean `main` too: 2 of 3 repeats failed
   locally on 19 Nov (`Expected: > 0, Received: 0`).
+- **`route-steps.spec.ts` "right-click offers Add step here" is flaky in
+  CI**: it failed once on PR #290 ("no uncovered horizontal handle") and
+  passed on re-run and locally. Like `merged-notes` before PP-229's fix,
+  it samples for an uncovered point; pick the target by a stable handle
+  instead of geometry if it recurs.
 - **Your own sample sidecars break Studio tests.** The suite runs over
   `samples/`, so a group you collapsed in `logistics_network.layout.json`
   hides boxes the tests click, and about 15 specs time out. Move the

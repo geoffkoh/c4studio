@@ -82,7 +82,9 @@ export interface GNode {
         rule matched (PP-231). */
     kindTag?: string;
     /** Which rule set each colour the card edits (PP-231). */
-    styleOrigins?: Partial<Record<"background" | "color" | "stroke", GStyleOrigin>>;
+    styleOrigins?: Partial<Record<"background" | "color" | "stroke" | "icon", GStyleOrigin>>;
+    /** The style's `icon` as written; `icon` is the embedded image (PP-232). */
+    iconSource?: string;
   };
   /** Present on nodes nested inside a boundary group node. */
   parentId?: string;

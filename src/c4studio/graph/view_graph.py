@@ -448,6 +448,7 @@ def _apply_styles(workspace: Workspace, nodes: list[GraphNode]) -> None:
                 ("background", style.background),
                 ("color", style.color),
                 ("stroke", style.stroke),
+                ("icon", style.icon),
             ):
                 if value:
                     origins[prop] = origin
@@ -473,6 +474,12 @@ def _apply_styles(workspace: Workspace, nodes: list[GraphNode]) -> None:
                 data["shape"] = style.shape.value
             if style.icon:
                 data["icon"] = style.icon
+                # The path as written, for the details card (PP-232): what
+                # is drawn is the embedded image. A theme's icon has none.
+                if style.icon_source:
+                    data["iconSource"] = style.icon_source
+                else:
+                    data.pop("iconSource", None)
             # Outline properties. `border dashed` is the conventional way to
             # mark something as planned or new, so dropping these made the
             # legend claim a distinction the diagram never drew (PP-107).
