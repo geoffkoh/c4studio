@@ -249,6 +249,11 @@ workspace "NorthWind Logistics" "Parcel network: booking, routing, tracking and 
         }
 
         styles {
+            // The workspace logo, beside every diagram's title: no element
+            // carries the tag, the style is read for its icon.
+            element "Workspace:Icon" {
+                icon "brand/northwind-logo.svg"
+            }
             element "Person" {
                 shape Person
                 background #1b5e20

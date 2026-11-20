@@ -573,6 +573,7 @@ export default function App() {
     <div className="app">
       <TopBar
         workspaceName={workspace?.name ?? null}
+        workspaceIcon={workspace?.icon}
         filePath={currentPath}
         page={page}
         onPageChange={setPage}

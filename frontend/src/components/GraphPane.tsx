@@ -350,7 +350,7 @@ async function toFlow(
       id: `${CHROME_PREFIX}title`,
       type: "chrome",
       position: chromePosition("title"),
-      data: { kind: "title", title },
+      data: { kind: "title", title, logo: data.workspaceIcon },
       draggable: true,
       selectable: false,
       deletable: false,

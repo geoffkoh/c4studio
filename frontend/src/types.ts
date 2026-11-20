@@ -236,6 +236,8 @@ export interface GraphData {
     relationship: Record<string, number>;
   };
   /** Every perspective name in the model, sorted; offered by the picker. */
+  /** The `Workspace:Icon` logo drawn before the title (PP-237). */
+  workspaceIcon?: { src: string; aspect?: number };
   perspectives?: string[];
   /** Expansion state the server applied — the request's explicit lists, or
       the layout sidecar's saved state when the request named none. Clients
@@ -566,6 +568,8 @@ export interface SourceResult {
 export interface Workspace {
   name: string;
   description: string;
+  /** The `Workspace:Icon` style's icon, for the top bar (PP-237). */
+  icon?: string | null;
   model: WorkspaceModel;
   documentation: WorkspaceDocumentation;
 }

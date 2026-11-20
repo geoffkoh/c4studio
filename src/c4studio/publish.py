@@ -26,7 +26,12 @@ import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
-from c4studio.graph.view_graph import build_view_graph, shown_properties
+from c4studio.graph.view_graph import (
+    build_view_graph,
+    shown_properties,
+    workspace_icon,
+)
+from c4studio.icons import data_uri
 from c4studio.markdown import render as render_markdown
 from c4studio.models import View, Workspace
 from c4studio.render import render_view
@@ -59,6 +64,7 @@ nav {
   overflow-y: auto;
 }
 nav h1 { font-size: 16px; margin: 0 0 4px; }
+nav h1 .logo { display: block; max-width: 100%; max-height: 40px; margin-bottom: 8px; }
 nav .subtitle { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
 nav h2 {
   font-size: 11px;
@@ -144,6 +150,22 @@ def _slug(text: str) -> str:
     return cleaned.lower() or "untitled"
 
 
+def _logo(workspace: Workspace) -> str:
+    """The ``Workspace:Icon`` logo before the site's name, if there is one.
+
+    Upstream shows it on its static site too (PP-237). Embedded as the
+    renderer embeds icons, so the site keeps working offline; a logo that
+    cannot be fetched is left out rather than drawn broken.
+    """
+    icon = workspace_icon(workspace)
+    if not icon:
+        return ""
+    embedded = data_uri(icon)
+    if embedded is None:
+        return ""
+    return f'<img class="logo" src="{html.escape(embedded)}" alt="">'
+
+
 def _nav(pages: list[Page], current: str, workspace: Workspace) -> str:
     """The navigation column, identical on every page."""
     groups: dict[str, list[Page]] = {}
@@ -152,7 +174,7 @@ def _nav(pages: list[Page], current: str, workspace: Workspace) -> str:
 
     parts = [
         "<nav>",
-        f"<h1>{html.escape(workspace.name or 'Workspace')}</h1>",
+        f"<h1>{_logo(workspace)}{html.escape(workspace.name or 'Workspace')}</h1>",
     ]
     if workspace.description:
         parts.append(

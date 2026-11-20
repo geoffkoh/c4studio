@@ -19,7 +19,9 @@ from c4studio.graph.view_graph import (
     perspective_names,
     rank_direction,
     shown_properties,
+    workspace_icon,
 )
+from c4studio.icons import image_size
 from c4studio.models import (
     Relationship,
     RelationshipView,
@@ -172,6 +174,24 @@ def _attach_vertices(
             edge["waypoints"] = [[vertex.x, vertex.y] for vertex in rv.vertices]
 
 
+def _workspace_icon_payload(workspace: Workspace) -> dict[str, Any]:
+    """The logo drawn beside the title (PP-237), with its proportions.
+
+    ``aspect`` is width over height, read from the image itself: the
+    headless renderer has no DOM to measure it with. Absent when it cannot
+    be read (a theme's URL, until ``c4 render`` embeds it), and the
+    renderers fall back to a square.
+    """
+    icon = workspace_icon(workspace)
+    if not icon:
+        return {}
+    logo: dict[str, Any] = {"src": icon}
+    size = image_size(icon)
+    if size is not None:
+        logo["aspect"] = round(size[0] / size[1], 4)
+    return {"workspaceIcon": logo}
+
+
 def react_flow_graph(
     workspace: Workspace,
     view: View,
@@ -311,6 +331,7 @@ def react_flow_graph(
         # Every name in the model, not just this view's, so the picker
         # offers the same list on every view (PP-173).
         "perspectives": perspective_names(workspace),
+        **_workspace_icon_payload(workspace),
         "rankDirection": direction,
         "rankSeparation": rank_separation,
         "nodeSeparation": node_separation,

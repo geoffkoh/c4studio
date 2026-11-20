@@ -397,6 +397,34 @@ _IMPLICIT_TAGS: dict[str, str] = {
 }
 
 
+#: The element style upstream takes the workspace logo from: no element
+#: carries the tag, the style exists only for its ``icon`` (PP-237).
+#: structurizr-application 2026.02.01 replaced ``branding { logo }`` with it.
+WORKSPACE_ICON_TAG = "Workspace:Icon"
+
+
+def workspace_icon(workspace: Workspace) -> str:
+    """The workspace's logo: the ``Workspace:Icon`` style's icon, or ``""``.
+
+    Resolved as any style is: theme rules first, then the workspace's own,
+    the last to set an icon winning; ``dark`` variants are skipped, as the
+    viewer paints one scheme. A file is already a ``data:`` URI (PP-232).
+    """
+    styles = [
+        *theme_styles(workspace).element_styles,
+        *workspace.views.configuration.styles.element_styles,
+    ]
+    icon = ""
+    for style in styles:
+        if (
+            style.tag == WORKSPACE_ICON_TAG
+            and style.icon
+            and style.color_scheme != ColorScheme.DARK
+        ):
+            icon = style.icon
+    return icon
+
+
 def implicit_tag(kind: str) -> str | None:
     """The tag every element of a graph node ``kind`` carries implicitly."""
     return _IMPLICIT_TAGS.get(kind)

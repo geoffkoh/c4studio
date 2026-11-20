@@ -26,7 +26,11 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from c4studio.diagnostics import Diagnostic, Severity
-from c4studio.graph.view_graph import BADGE_COLOUR_PROPERTY, HEX_COLOUR
+from c4studio.graph.view_graph import (
+    BADGE_COLOUR_PROPERTY,
+    HEX_COLOUR,
+    WORKSPACE_ICON_TAG,
+)
 from c4studio.models import (
     Component,
     Container,
@@ -324,6 +328,9 @@ class UnusedStyle:
             # A `Perspective:` style is matched by perspective name, not by
             # a tag any element carries, so it is never "unused" here.
             if style.tag.startswith("Perspective:"):
+                continue
+            # Nor is the workspace logo's: it is read for its icon (PP-237).
+            if style.tag == WORKSPACE_ICON_TAG:
                 continue
             if style.tag not in element_tags:
                 yield "", f"element style {style.tag!r} matches no element"

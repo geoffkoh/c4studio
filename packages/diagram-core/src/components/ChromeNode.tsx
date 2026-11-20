@@ -7,6 +7,7 @@ import {
   EDGE_WIDTH,
   type EdgeLineStyle,
 } from "../edgeDefaults";
+import { LOGO_GAP, LOGO_HEIGHT, logoWidth, type WorkspaceLogo } from "../logo";
 import { noteLine, noteMarker, type MergedNote } from "../notes";
 
 /**
@@ -44,6 +45,8 @@ export interface LegendEntryData {
 export interface ChromeNodeData {
   kind: "title" | "legend";
   title?: string;
+  /** The workspace logo, drawn before the title (PP-237). */
+  logo?: WorkspaceLogo;
   entries?: LegendEntryData[];
   /** The key to merged lines, under the swatches (PP-229). */
   notes?: MergedNote[];
@@ -139,6 +142,14 @@ function ChromeNodeComponent({ data }: NodeProps<ChromeNodeData>) {
   if (data.kind === "title") {
     return (
       <div className="diagram-title" title={MOVE_HINT}>
+        {data.logo ? (
+          <img
+            className="diagram-title__logo"
+            src={data.logo.src}
+            alt=""
+            style={{ width: logoWidth(data.logo), height: LOGO_HEIGHT, marginRight: LOGO_GAP }}
+          />
+        ) : null}
         {data.title}
       </div>
     );

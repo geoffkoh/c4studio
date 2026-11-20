@@ -74,6 +74,15 @@ button {
   cursor: default;
 }
 
+/* The workspace logo (PP-237): text height, so the bar does not grow. */
+.topbar__logo {
+  height: 18px;
+  max-width: 96px;
+  margin-right: 6px;
+  vertical-align: -4px;
+  object-fit: contain;
+}
+
 .topbar__file {
   color: var(--muted);
   font-size: 13px;
@@ -3149,11 +3158,19 @@ button {
 /* These live inside the React Flow viewport, not in a Panel, so PNG/SVG
    export captures them along with the nodes. */
 .diagram-title {
+  display: flex;
+  align-items: center;
   font-size: 18px;
   font-weight: 600;
   color: #172b4d;
   white-space: nowrap;
   pointer-events: none;
+}
+
+/* The workspace logo (PP-237); sized inline from the shared logo rule. */
+.diagram-title__logo {
+  flex: none;
+  object-fit: contain;
 }
 
 .legend {
