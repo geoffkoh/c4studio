@@ -119,6 +119,9 @@ const DETAILS_HINT_STORAGE_KEY = "c4studio.detailsHint";
 // as the grid being snapped to rather than as unrelated decoration.
 const SNAP_GRID: [number, number] = [16, 16];
 
+// Screen pixels a press must travel before it is a drag rather than a click.
+const NODE_DRAG_THRESHOLD = 3;
+
 // Upstream's `structurizr.perspective.interval` default: 60s.
 const PERSPECTIVE_REFRESH_MS = 60_000;
 
@@ -775,6 +778,7 @@ export function GraphPane({
   // persist to the sidecar — undragged chrome keeps following the computed
   // placement as the diagram changes shape. Seeded from the payload so a
   // node-drag save cannot drop positions restored from disk.
+  const dragStartRef = useRef<{ id: string; x: number; y: number } | null>(null);
   const movedChromeRef = useRef<{ key: string; ids: Set<string> }>({
     key: "",
     ids: new Set(),
@@ -1885,7 +1889,23 @@ export function GraphPane({
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onNodeDoubleClick={handleNodeDoubleClick}
+        // React Flow's default of 0 makes every click a zero-length drag:
+        // a click on the title pinned it in the sidecar and cleared the
+        // selection (PP-242). A few pixels separates a click from a drag.
+        nodeDragThreshold={NODE_DRAG_THRESHOLD}
+        onNodeDragStart={(_, node) => {
+          dragStartRef.current = { id: node.id, ...node.position };
+        }}
         onNodeDragStop={(_, node) => {
+          const start = dragStartRef.current;
+          dragStartRef.current = null;
+          // Snapping can put a short drag back where it began.
+          const moved =
+            start === null ||
+            start.id !== node.id ||
+            start.x !== node.position.x ||
+            start.y !== node.position.y;
+          if (!moved) return;
           // A dragged title/legend starts persisting; everything else
           // keeps following the computed placement.
           if (isChromeNode(node.id)) {
