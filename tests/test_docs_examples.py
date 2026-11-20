@@ -129,6 +129,11 @@ def _scaffold(root: Path) -> None:
         '{"name": "Corporate", "elements": [{"tag": "Element", "background": "#334155"}]}',
         "utf-8",
     )
+    # A style's icon is read and embedded at parse time (PP-232).
+    (root / "icons" / "outline").mkdir(parents=True)
+    (root / "icons" / "outline" / "Queue.svg").write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"/>', "utf-8"
+    )
     (root / "shared").mkdir()
     (root / "shared" / "base.dsl").write_text(
         'workspace "Shop" {\n    model {\n'

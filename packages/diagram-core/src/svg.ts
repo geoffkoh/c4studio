@@ -82,6 +82,8 @@ export interface GraphPayloadNode {
     showMetadata?: boolean;
     /** A `data:` URI — the Python side embeds theme icons before render. */
     icon?: string;
+    /** Paint the icon in this one colour (`c4studio.iconTint`, PP-234). */
+    iconTint?: string;
     /** Outline properties from the element style: "Solid" | "Dashed" | "Dotted". */
     border?: string;
     stroke?: string;
@@ -510,10 +512,11 @@ function paintNode(node: Placed): string {
   // file depend on the network, which is the point of embedding them.
   const icon = node.data.icon;
   if (icon && icon.startsWith("data:")) {
+    const tint = node.data.iconTint ? ` filter="url(#${tintFilterId(node.data.iconTint)})"` : "";
     parts.push(
       `<image x="${round(centreX - ICON_SIZE / 2)}" y="${round(cursor + ICON_MARGIN_TOP)}" ` +
         `width="${ICON_SIZE}" height="${ICON_SIZE}" preserveAspectRatio="xMidYMid meet" ` +
-        `href="${escapeXml(icon)}"/>`,
+        `href="${escapeXml(icon)}"${tint}/>`,
     );
     cursor += ICON_MARGIN_TOP + ICON_SIZE + ICON_MARGIN_BOTTOM;
   }
@@ -616,6 +619,31 @@ function paintBoundary(node: Placed): string {
     `font-family="${FONT}" font-size="${BOUNDARY_LABEL_SIZE}" font-weight="600" ` +
     `fill="${BOUNDARY_LABEL_COLOUR}">${label}${type}</text>`;
   return fade ? `<g${fade}>${markup}</g>` : markup;
+}
+
+/** One tint filter per icon colour (PP-234). */
+function tintFilterId(colour: string): string {
+  return `tint-${colour.replace(/[^A-Za-z0-9]/g, "")}`;
+}
+
+/**
+ * Flood the icon's own alpha with the tint: the Studio's CSS mask in SVG
+ * 1.1 terms, which every SVG viewer draws, where `mask-type="alpha"` is
+ * SVG 2 and not.
+ */
+function tintFilterDefs(nodes: GraphPayloadNode[]): string {
+  const colours = new Set<string>();
+  for (const node of nodes) {
+    if (node.data.iconTint && node.data.icon?.startsWith("data:")) colours.add(node.data.iconTint);
+  }
+  return [...colours]
+    .map(
+      (colour) =>
+        `<filter id="${tintFilterId(colour)}" color-interpolation-filters="sRGB">` +
+        `<feFlood flood-color="${escapeXml(colour)}"/>` +
+        `<feComposite in2="SourceAlpha" operator="in"/></filter>`,
+    )
+    .join("");
 }
 
 /** One arrowhead marker per line colour, so heads match their lines. */
@@ -1115,7 +1143,7 @@ export async function renderSvg(
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" ` +
     `viewBox="0 0 ${width} ${height}" font-family="${FONT}">` +
     titleTag +
-    `<defs>${arrowMarkerDefs(payload.edges)}</defs>` +
+    `<defs>${arrowMarkerDefs(payload.edges)}${tintFilterDefs(payload.nodes)}</defs>` +
     background +
     heading +
     `<g transform="${shift}">${body}</g>` +

@@ -29,7 +29,9 @@ from c4studio.diagnostics import Diagnostic, Severity
 from c4studio.graph.view_graph import (
     BADGE_COLOUR_PROPERTY,
     HEX_COLOUR,
+    ICON_TINT_PROPERTY,
     WORKSPACE_ICON_TAG,
+    icon_tint_is_valid,
 )
 from c4studio.models import (
     Component,
@@ -365,6 +367,27 @@ class InvalidBadgeColour:
                 yield "", message
 
 
+class InvalidIconTint:
+    """An icon tint that is not ``true``, ``false`` or a hex colour.
+
+    Ignored when drawn, so without this a typo would look like a setting
+    that does nothing (PP-234).
+    """
+
+    code = "invalid-icon-tint"
+    summary = "c4studio.iconTint is not true, false or a #rgb/#rrggbb colour"
+
+    def check(self, workspace: Workspace) -> Iterable[tuple[str, str]]:
+        for style in workspace.views.configuration.styles.element_styles:
+            value = style.properties.get(ICON_TINT_PROPERTY)
+            if value is not None and not icon_tint_is_valid(value):
+                message = (
+                    f"element style {style.tag!r}: {ICON_TINT_PROPERTY} "
+                    f"{value!r} is not true, false or a #rgb/#rrggbb colour"
+                )
+                yield "", message
+
+
 class NamingConvention:
     """Element names that do not match a configured pattern.
 
@@ -403,6 +426,7 @@ def default_rules(config: LintConfig) -> list[Rule]:
         DuplicateRelationship(),
         UnusedStyle(),
         InvalidBadgeColour(),
+        InvalidIconTint(),
         NamingConvention(config.naming),
     ]
     return [rule for rule in rules if config.wants(rule.code)]

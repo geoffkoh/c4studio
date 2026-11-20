@@ -87,6 +87,8 @@ export interface GNode {
     icon?: string;
     /** The style's `icon` as written; `icon` is the embedded image (PP-232). */
     iconSource?: string;
+    /** The icon drawn in this one colour (`c4studio.iconTint`, PP-234). */
+    iconTint?: string;
   };
   /** Present on nodes nested inside a boundary group node. */
   parentId?: string;

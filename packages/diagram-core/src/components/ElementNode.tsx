@@ -40,6 +40,8 @@ export interface ElementNodeData {
   showMetadata?: boolean;
   /** Icon image URL (e.g. a cloud-provider service logo from a theme). */
   icon?: string;
+  /** Paint the icon in this one colour (PP-234), keeping its shape. */
+  iconTint?: string;
   /** Outline from the element style: "Solid" | "Dashed" | "Dotted". */
   border?: string;
   stroke?: string;
@@ -105,6 +107,16 @@ export function readableOn(colour: string): string | null {
     return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
   });
   return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.179 ? "#1c2530" : "#ffffff";
+}
+
+/**
+ * A tinted icon: the image as an alpha mask over a fill of `tint`, so its
+ * shape survives and its colours do not. Inline rather than a class, as
+ * the image differs per node; html-to-image copies it into exports.
+ */
+function tintStyle(icon: string, tint: string): CSSProperties {
+  const mask = `url("${icon.replace(/"/g, "%22")}") center / contain no-repeat`;
+  return { backgroundColor: tint, mask, WebkitMask: mask };
 }
 
 /** CSS modifier class per Structurizr shape; unlisted shapes use the default. */
@@ -235,7 +247,14 @@ function ElementNodeComponent({ id, data, selected }: NodeProps<ElementNodeData>
       title={hint}
     >
       <Handle type="target" position={Position.Top} />
-      {data.icon ? (
+      {data.icon && data.iconTint ? (
+        // The image is the mask, the tint its fill: a one-colour glyph
+        // takes the box's colour instead of staying black (PP-234).
+        <span
+          className="node__icon node__icon--tint"
+          style={tintStyle(data.icon, data.iconTint)}
+        />
+      ) : data.icon ? (
         <img className="node__icon" src={data.icon} alt="" loading="lazy" />
       ) : null}
       <div className="node__label" style={typeStyle(type?.label)}>

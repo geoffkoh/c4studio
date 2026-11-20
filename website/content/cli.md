@@ -33,6 +33,7 @@ c4 <command> --help
 | `duplicate-relationship` | The same relationship declared twice. |
 | `unused-style` | A style whose tag nothing carries. It is invisible otherwise, because the legend only lists the styles in use. Tags that come from a theme are not reported. |
 | `invalid-badge-colour` | A `c4studio.badge` value that is not a hex colour. |
+| `invalid-icon-tint` | A `c4studio.iconTint` value that is not `true`, `false` or a hex colour. |
 | `naming-convention` | A name that does not match the pattern configured for its element type. Off until you configure a pattern. |
 
 Configure the rules in `c4studio.lint.json` beside the workspace, or pass `--config`:
