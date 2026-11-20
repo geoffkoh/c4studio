@@ -196,3 +196,25 @@ class TestTags:
         assert is_own_tag("DB", "DB")
         assert not is_own_tag("Database", "DB")
         assert not is_own_tag("DB copy", "DB")
+
+
+class TestIcon:
+    def test_an_icon_is_written_quoted(self) -> None:
+        text = set_rule_property(DSL, "element", "Database", "icon", "icons/db.svg")
+        assert '                icon "icons/db.svg"\n            }\n' in text
+
+    def test_an_icon_replaces_the_one_there(self) -> None:
+        once = set_rule_property(DSL, "element", "Database", "icon", "icons/a.svg")
+        twice = set_rule_property(once, "element", "Database", "icon", "icons/b.svg")
+        assert 'icon "icons/b.svg"' in twice
+        assert "icons/a.svg" not in twice
+        assert len(twice.splitlines()) == len(once.splitlines())
+
+    def test_a_new_rule_can_hold_an_icon(self) -> None:
+        text = set_rule_property(DSL, "element", "Lambda", "icon", "icons/l.svg")
+        assert 'element "Lambda" {\n                icon "icons/l.svg"\n' in text
+
+    @pytest.mark.parametrize("value", ["", 'a"b.svg', "a\\b.svg", "a\nb.svg"])
+    def test_what_cannot_be_quoted_is_refused(self, value: str) -> None:
+        with pytest.raises(StyleEditError):
+            set_rule_property(DSL, "element", "Database", "icon", value)

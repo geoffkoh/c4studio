@@ -83,6 +83,8 @@ export interface GNode {
     kindTag?: string;
     /** Which rule set each colour the card edits (PP-231). */
     styleOrigins?: Partial<Record<"background" | "color" | "stroke" | "icon", GStyleOrigin>>;
+    /** The icon drawn: a `data:` URI for a file, else a theme's URL. */
+    icon?: string;
     /** The style's `icon` as written; `icon` is the embedded image (PP-232). */
     iconSource?: string;
   };
@@ -515,6 +517,26 @@ export interface StyleEditRequest {
   value: string | null;
   tag?: string;
   element?: string;
+}
+
+/** One icon the picker offers, from GET /api/icons (PP-233). */
+export interface LibraryIcon {
+  /** Relative to the root, as the API's other paths are. */
+  path: string;
+  /** What a person would call it: "Lambda", "database (solid)". */
+  name: string;
+  /** The first folder under icons/, or "" for loose files. */
+  pack: string;
+  /** A style already names it. */
+  used: boolean;
+}
+
+/** Response from GET /api/icons: `icons/` beside the workspace. */
+export interface IconLibrary {
+  folder: string;
+  exists: boolean;
+  truncated: boolean;
+  icons: LibraryIcon[];
 }
 
 /** Response from POST /api/style: each changed file's new text. */

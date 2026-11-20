@@ -26,7 +26,7 @@ from c4studio.parser.dsl import IDENT, LBRACE, RBRACE, STRING, Token, _tokenize
 #: The style properties the card edits, by rule kind. ``style`` is the
 #: relationship's dash pattern (Solid, Dashed, Dotted).
 EDITABLE: dict[str, frozenset[str]] = {
-    "element": frozenset({"background", "color", "stroke"}),
+    "element": frozenset({"background", "color", "stroke", "icon"}),
     "relationship": frozenset({"color", "style"}),
 }
 
@@ -50,6 +50,12 @@ def check_value(kind: str, prop: str, value: str | None) -> str | None:
         raise StyleEditError(f"{kind} style property {prop!r} is not editable")
     if value is None:
         return None
+    if prop == "icon":
+        # A path relative to the rule's file, or a URL: written quoted, so
+        # a quote, a backslash or a line break could not be.
+        if not value or any(c in value for c in '"\\\n\r'):
+            raise StyleEditError(f"icon must be a path or a URL: {value!r}")
+        return f'"{value}"'
     if prop == "style":
         if value.lower() not in _DASH:
             raise StyleEditError(
@@ -217,13 +223,14 @@ def set_rule_property(
         StyleEditError: for an invalid value, or when removing from a rule
             that does not exist.
     """
+    raw = value
     value = check_value(kind, prop, value)
     doc = _Text.of(text)
     rules = _rules(doc, kind, tag)
     if not rules:
         if value is None:
             return text
-        return add_rule(text, kind, tag, prop, value)
+        return add_rule(text, kind, tag, prop, raw)
     open_, close = rules[-1]
     tokens = doc.tokens
     # A property statement sits directly in the rule body, first on its line.

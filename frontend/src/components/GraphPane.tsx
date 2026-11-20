@@ -658,20 +658,36 @@ export function GraphPane({
     (preview: StylePreview) => {
       const ids = new Set(preview.ids);
       if (preview.kind === "element") {
-        const fields =
-          preview.property === "background"
-            ? { color: preview.value, background: preview.value }
-            : preview.property === "color"
-              ? { textColor: preview.value }
-              : { stroke: preview.value };
+        const drawn = new Map((payload?.nodes ?? []).map((n) => [n.id, n.data]));
+        // `null` ends a preview: each box gets back what the payload drew.
+        const fields = (id: string) => {
+          const value = preview.value;
+          const was = drawn.get(id);
+          switch (preview.property) {
+            case "background":
+              return value === null
+                ? { color: was?.color, background: was?.background }
+                : { color: value, background: value };
+            case "color":
+              return { textColor: value ?? was?.textColor };
+            case "icon":
+              return { icon: value ?? was?.icon };
+            default:
+              return { stroke: value ?? was?.stroke };
+          }
+        };
         setNodes((current) =>
-          current.map((n) => (ids.has(n.id) ? { ...n, data: { ...n.data, ...fields } } : n)),
+          current.map((n) => (ids.has(n.id) ? { ...n, data: { ...n.data, ...fields(n.id) } } : n)),
         );
         return;
       }
       const drawn = new Map((payload?.edges ?? []).map((e) => [e.id, e]));
       const field =
-        preview.property === "color" ? { color: preview.value } : { lineStyle: preview.value };
+        preview.value === null
+          ? {}
+          : preview.property === "color"
+            ? { color: preview.value }
+            : { lineStyle: preview.value };
       setEdges((current) =>
         current.map((e) =>
           ids.has(e.id) ? { ...e, ...edgePaint({ ...drawn.get(e.id), ...field }) } : e,

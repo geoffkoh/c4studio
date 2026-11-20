@@ -3,13 +3,15 @@ import { useEffect, useRef, useState } from "react";
 import { EDGE_COLOUR, EDGE_LINE_STYLE } from "@c4studio/diagram-core";
 
 import type { GEdge, GNode, GraphData, StyleEditRequest, StyleLocation } from "../types";
+import type { IconPickRequest } from "./IconPicker";
 
 /** A colour shown on the canvas before it is written (PP-231). */
 export interface StylePreview {
   kind: StyleLocation["kind"];
   ids: string[];
   property: string;
-  value: string;
+  /** `null` puts back what the payload drew: the preview is over. */
+  value: string | null;
 }
 
 export type StyleTarget =
@@ -23,6 +25,8 @@ interface StyleEditorProps {
   /** Makes the edit; resolves to what happened, in words. */
   onEdit: (edit: StyleEditRequest) => Promise<string>;
   onPreview: (preview: StylePreview) => void;
+  /** Opens the icon picker in place of the card's body (PP-233). */
+  onPickIcon?: (request: IconPickRequest) => void;
 }
 
 interface Row {
@@ -41,6 +45,30 @@ const DASHES = ["solid", "dashed", "dotted"] as const;
 export function isOwnTag(tag: string, name: string): boolean {
   if (tag === name) return true;
   return tag.startsWith(`${name} `) && /^\d+$/.test(tag.slice(name.length + 1));
+}
+
+/** An icon file named the way a person would say it, as the server's
+    `icon_library.friendly_name` does: `Arch_AWS-Lambda_48.svg` is "Lambda". */
+export function iconName(path: string): string {
+  if (/^(https?|data):/.test(path)) return path.startsWith("data:") ? "embedded image" : path;
+  const parts = path.split("/");
+  let stem = parts[parts.length - 1].replace(/\.[^.]+$/, "");
+  let qualifier = "";
+  const shade = /[_-](light|dark)$/i.exec(stem);
+  if (shade) {
+    qualifier = shade[1].toLowerCase();
+    stem = stem.slice(0, shade.index);
+  }
+  stem = stem
+    .replace(/[_-]\d{2,3}$/, "")
+    .replace(/^(?:Arch-Category|Arch|Res)_/, "")
+    .replace(/^(?:AWS|Amazon)[-_]/, "");
+  const name = stem.replace(/[-_\s]+/g, " ").trim() || parts[parts.length - 1];
+  const folder = (parts[parts.length - 2] ?? "").toLowerCase();
+  if (!qualifier && ["solid", "regular", "brands", "light", "thin", "duotone"].includes(folder)) {
+    qualifier = folder;
+  }
+  return qualifier ? `${name} (${qualifier})` : name;
 }
 
 /** What `<input type="color">` accepts: `#rrggbb`, lower case. */
@@ -63,7 +91,14 @@ function asHex(value: string | null): string {
  * made: every element carrying the tag (with the model-wide count), or
  * this element alone, which gives it a tag of its own.
  */
-export function StyleEditor({ target, payload, locations, onEdit, onPreview }: StyleEditorProps) {
+export function StyleEditor({
+  target,
+  payload,
+  locations,
+  onEdit,
+  onPreview,
+  onPickIcon,
+}: StyleEditorProps) {
   const [scope, setScope] = useState<"tag" | "element">("tag");
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<{ text: string; error: boolean } | null>(null);
@@ -100,6 +135,13 @@ export function StyleEditor({ target, payload, locations, onEdit, onPreview }: S
       },
       { property: "color", label: "Text", value: data.textColor ?? DEFAULT_TEXT, origin: origins.color ?? null },
       { property: "stroke", label: "Border", value: data.stroke ?? null, origin: origins.stroke ?? null },
+      {
+        property: "icon",
+        label: "Icon",
+        // A theme's icon has no path of its own: its origin names it.
+        value: data.iconSource ?? null,
+        origin: origins.icon ?? null,
+      },
     ];
   } else {
     const { edge } = target;
@@ -154,11 +196,28 @@ export function StyleEditor({ target, payload, locations, onEdit, onPreview }: S
       .finally(() => setBusy(false));
   };
 
-  const preview = (property: string, value: string) =>
+  const preview = (property: string, value: string | null) =>
     onPreview({ kind, ids: reach(), property, value });
 
   const count = counts[allTag];
   const what = kind === "element" ? "" : " lines";
+  const scopeLabel =
+    scope === "element" ? "Only this" : `All “${allTag}”${count !== undefined ? ` (${count})` : ""}`;
+
+  const pickIcon = () => {
+    if (kind !== "element" || !onPickIcon) return;
+    onPickIcon({
+      ownerId: target.node.id,
+      title: `Icon · ${scopeLabel}`,
+      current: target.node.data.iconSource,
+      onPreview: (url) => preview("icon", url),
+      onUse: (value) => {
+        preview("icon", null);
+        commit("icon", value);
+      },
+    });
+  };
+
   let note: string;
   if (scope === "element") {
     note = ownTag
@@ -210,7 +269,21 @@ export function StyleEditor({ target, payload, locations, onEdit, onPreview }: S
           return (
             <div className="style-editor__row" key={row.property}>
               <span className="style-editor__label">{row.label}</span>
-              {row.property === "style" ? (
+              {row.property === "icon" ? (
+                <button
+                  className={
+                    "style-editor__icon" + (kind === "element" && target.node.data.icon ? "" : " style-editor__icon--none")
+                  }
+                  aria-label="Icon"
+                  title="Choose an icon"
+                  disabled={busy || !onPickIcon}
+                  onClick={pickIcon}
+                >
+                  {kind === "element" && target.node.data.icon ? (
+                    <img src={target.node.data.icon} alt="" />
+                  ) : null}
+                </button>
+              ) : row.property === "style" ? (
                 <select
                   aria-label={row.label}
                   className="style-editor__dash"
@@ -237,8 +310,19 @@ export function StyleEditor({ target, payload, locations, onEdit, onPreview }: S
                   onCommit={(value) => commit(row.property, value)}
                 />
               )}
-              <span className={"style-editor__origin" + (here ? " style-editor__origin--here" : "")}>
-                {row.property === "style" ? source : `${row.value ?? "none"} · ${source}`}
+              <span
+                className={"style-editor__origin" + (here ? " style-editor__origin--here" : "")}
+                title={row.property === "icon" ? (row.value ?? undefined) : undefined}
+              >
+                {row.property === "style"
+                  ? source
+                  : row.property === "icon"
+                    ? row.value
+                      ? `${iconName(row.value)} · ${source}`
+                      : row.origin?.theme
+                        ? source
+                        : `none · ${source}`
+                    : `${row.value ?? "none"} · ${source}`}
               </span>
               {here ? (
                 <button

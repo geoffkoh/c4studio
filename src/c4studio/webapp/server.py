@@ -22,12 +22,15 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from c4studio import templates
 from c4studio.diagnostics import Diagnostic, Severity
 from c4studio.graph.view_graph import apply_positions, apply_sizes
+from c4studio.icon_library import ICON_FOLDER, IMAGE_SUFFIXES
+from c4studio.icon_library import scan as scan_icons
 from c4studio.impact import analyse as analyse_impact
 from c4studio.impact import family as impact_family
 from c4studio.impact import to_dict as impact_to_dict
@@ -437,6 +440,28 @@ def _safe_resolve(root: Path, rel: str) -> Path:
             detail=f"Unsupported file type: {candidate.suffix or '(none)'}",
         )
     return candidate
+
+
+def _icon_for_rule(root: Path, value: str, rule_file: str) -> str:
+    """An icon the card picked, as the rule's file must spell it (PP-233).
+
+    The picker names files relative to ``root``; the DSL resolves ``icon``
+    against the file the rule is written in, which may be a fragment in
+    another folder. A URL stands as it is.
+
+    Raises:
+        HTTPException: 422 for a path outside ``root``, or one that is not
+            an image file.
+    """
+    if value.startswith(("http://", "https://", "data:")):
+        return value
+    path = (root / value).resolve()
+    if not path.is_relative_to(root):
+        raise HTTPException(status_code=422, detail="The icon is outside the workspace")
+    if path.suffix.lower() not in IMAGE_SUFFIXES or not path.is_file():
+        raise HTTPException(status_code=422, detail=f"No image file {value!r}")
+    rule_dir = (root / rule_file).resolve().parent
+    return Path(os.path.relpath(path, rule_dir)).as_posix()
 
 
 def _safe_resolve_dir(root: Path, rel: str) -> Path:
@@ -1540,15 +1565,16 @@ def create_app(
         assert tag is not None
 
         target = rule_file(tag)
+        value = body.value
+        if body.property == "icon" and value is not None:
+            value = _icon_for_rule(state.root, value, target)
         try:
             before = text_of(target)
             if new_tag:
-                texts[target] = add_rule(
-                    before, body.kind, tag, body.property, body.value
-                )
+                texts[target] = add_rule(before, body.kind, tag, body.property, value)
             else:
                 texts[target] = set_rule_property(
-                    before, body.kind, tag, body.property, body.value
+                    before, body.kind, tag, body.property, value
                 )
         except StyleEditError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -1559,6 +1585,72 @@ def create_app(
             if content != originals[rel]
         ]
         return {"files": files, "tag": tag, "newTag": new_tag}
+
+    @app.get("/api/icons")
+    def list_icons(state: AppState = Depends(_get_state)) -> dict[str, Any]:
+        """The icon library beside the loaded workspace, for the picker (PP-233).
+
+        ``icons/`` next to the workspace file, as downloaded packs are laid
+        out (see ``icon_library``). Paths are relative to the root, as every
+        other path this API takes. ``used`` marks icons a style already
+        names, which the picker offers first. A read, so Viewer serves it.
+        """
+        workspace = _require_workspace(state)
+        if state.current_path is None:
+            raise HTTPException(status_code=409, detail="No workspace loaded")
+        folder = state.current_path.parent / ICON_FOLDER
+        icons, truncated = scan_icons(folder, state.root)
+        # A style's path is relative to its own file, so match on what is
+        # left once the climb out of that file's folder is dropped.
+        used = {
+            Path(style.icon_source).as_posix().lstrip("./")
+            for style in workspace.views.configuration.styles.element_styles
+            if style.icon_source
+            and not style.icon_source.startswith(("http://", "https://", "data:"))
+        }
+        try:
+            shown = folder.relative_to(state.root).as_posix()
+        except ValueError:
+            shown = ICON_FOLDER
+        return {
+            "folder": shown,
+            "exists": folder.is_dir(),
+            "truncated": truncated,
+            "icons": [
+                {
+                    "path": icon.path,
+                    "name": icon.name,
+                    "pack": icon.pack,
+                    "used": any(icon.path.endswith(u) for u in used),
+                }
+                for icon in icons
+            ],
+        }
+
+    @app.get("/api/icons/file")
+    def icon_file(path: str, state: AppState = Depends(_get_state)) -> FileResponse:
+        """One image under the root, for the picker's thumbnails (PP-233).
+
+        Only image types, and an SVG from a downloaded pack can carry
+        script: the sandbox policy keeps it inert even if the URL is
+        opened directly, as ``<img>`` already does.
+        """
+        candidate = (state.root / path).resolve()
+        if not candidate.is_relative_to(state.root):
+            raise HTTPException(
+                status_code=400, detail="Path escapes the root directory"
+            )
+        if candidate.suffix.lower() not in IMAGE_SUFFIXES or not candidate.is_file():
+            raise HTTPException(status_code=404, detail="No such image")
+        return FileResponse(
+            candidate,
+            headers={
+                "Content-Security-Policy": "sandbox; default-src 'none'; "
+                "style-src 'unsafe-inline'",
+                "X-Content-Type-Options": "nosniff",
+                "Cache-Control": "no-cache",
+            },
+        )
 
     @app.get("/api/file")
     def get_file(path: str, state: AppState = Depends(_get_state)) -> dict[str, Any]:

@@ -1,10 +1,11 @@
-import { useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
 import type { Edge, Node } from "reactflow";
 
 import { noteLine } from "@c4studio/diagram-core";
 
 import type { GraphData, ImpactResult, StyleEditRequest, StyleLocation } from "../types";
 import { ElementDetails, KIND_LABELS } from "./ElementDetails";
+import { IconPicker, type IconPickRequest } from "./IconPicker";
 import { StyleEditor, type StylePreview, type StyleTarget } from "./StyleEditor";
 
 interface DiagramDetailsProps {
@@ -55,6 +56,9 @@ export function DiagramDetails({
   impact,
   onClose,
 }: DiagramDetailsProps) {
+  // The icon picker takes the card over while it is open (PP-233).
+  const [picking, setPicking] = useState<IconPickRequest | null>(null);
+
   const editorFor = (target: StyleTarget) =>
     styleEditing ? (
       <StyleEditor
@@ -66,6 +70,7 @@ export function DiagramDetails({
         locations={styleLocations ?? []}
         onEdit={styleEditing.onEdit}
         onPreview={styleEditing.onPreview}
+        onPickIcon={setPicking}
       />
     ) : undefined;
 
@@ -84,6 +89,15 @@ export function DiagramDetails({
     [payload],
   );
   const label = (id: string) => byId.get(id)?.data.label ?? id;
+
+  // A new selection ends the picking, with the canvas put back.
+  const selectedId = count === 1 ? (selectedNodes[0] ?? selectedEdges[0]).id : null;
+  useEffect(() => {
+    if (picking && picking.ownerId !== selectedId) {
+      picking.onPreview(null);
+      setPicking(null);
+    }
+  }, [picking, selectedId]);
 
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.key === "Escape") onClose();
@@ -177,18 +191,25 @@ export function DiagramDetails({
       // Its own scrolling and clicks must not reach the canvas.
       onWheel={(event) => event.stopPropagation()}
     >
-      {body ?? (
-        <>
-          <button className="details__close" title="Close" onClick={onClose}>
-            ×
-          </button>
-          <p className="details__note">
-            {count > 1
-              ? `${count} selected. Select one element or relationship to see its details.`
-              : "Select an element or a relationship to see its details."}
-          </p>
-        </>
-      )}
+      {picking && picking.ownerId === selectedId ? (
+        <IconPicker request={picking} onClose={() => setPicking(null)} />
+      ) : null}
+      {/* Hidden, not unmounted, while picking: the editor keeps its scope
+          and shows how the edit went once the picker closes. */}
+      <div style={{ display: picking && picking.ownerId === selectedId ? "none" : "contents" }}>
+        {body ?? (
+          <>
+            <button className="details__close" title="Close" onClick={onClose}>
+              ×
+            </button>
+            <p className="details__note">
+              {count > 1
+                ? `${count} selected. Select one element or relationship to see its details.`
+                : "Select an element or a relationship to see its details."}
+            </p>
+          </>
+        )}
+      </div>
     </aside>
   );
 }
