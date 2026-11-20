@@ -180,6 +180,11 @@ class ElementStyle:
     font_size: int | None = None
     shape: Shape | None = None
     icon: str = ""
+    #: ``icon`` as the DSL wrote it. A file path is embedded into ``icon``
+    #: as a ``data:`` URI at parse time (PP-232), which is what every
+    #: surface draws; this keeps the path for the details card to show
+    #: and edit. Not exported: upstream's JSON carries the image only.
+    icon_source: str = ""
     border: Border | None = None
     opacity: int | None = None
     metadata: bool | None = None

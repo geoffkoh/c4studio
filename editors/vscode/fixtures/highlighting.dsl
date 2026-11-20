@@ -114,7 +114,7 @@ workspace "Highlighting" "Every highlighted term in one file" {
                 opacity 90
                 metadata true
                 description false
-                icon https://example.com/icon.png
+                icon "https://example.com/icon.png"
                 iconPosition Top
                 width 450
                 height 300

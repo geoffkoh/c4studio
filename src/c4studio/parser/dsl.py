@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from c4studio.diagnostics import Diagnostic, Severity
-from c4studio.icons import file_data_uri
+from c4studio.icons import MAX_ICON_BYTES, file_data_uri
 from c4studio.models import (
     Animation,
     AutomaticLayout,
@@ -2001,6 +2001,61 @@ class _Parser:
         inlined.element_styles.extend(styles.element_styles)
         inlined.relationship_styles.extend(styles.relationship_styles)
 
+    def _style_icon(self, value: str, token: Token) -> str:
+        """An element style's ``icon``, with a file embedded (PP-232).
+
+        As upstream's ``ElementStyleParser.parseIcon``: a URL or ``data:``
+        URI stands as written, and anything else is a file relative to the
+        one the style is written in (an ``!include``-d fragment included),
+        read into a ``data:`` URI so every surface can draw it with no file
+        server. Upstream throws on a missing file; here it is a warning and
+        the box draws without the icon.
+        """
+        if not value or value.startswith(("http://", "https://", "data:")):
+            return value
+        where = {
+            "line": token.line,
+            "column": token.column,
+            "end_column": token.end_column,
+        }
+        if value.lower() in ("http", "https"):
+            # `icon https://…` unquoted: the `//` began a comment, leaving
+            # only the scheme. Upstream reads it whole; here it needs quotes.
+            self._warn(
+                f"icon {value}://… needs quotes here: the // starts a comment",
+                code="icon-not-found",
+                **where,
+            )
+            return ""
+        origin, _ = self._source_map.resolve(token.line)
+        directory = origin.parent if origin is not None else self._dir_for(token.line)
+        if directory is None:
+            self._warn(
+                f"icon file {value!r} needs a file context; parse from a file "
+                "instead of a string",
+                code="icon-not-found",
+                **where,
+            )
+            return ""
+        path = (directory / value).resolve()
+        if not path.is_file():
+            self._warn(
+                f"icon file not found: {value!r} ({path})",
+                code="icon-not-found",
+                **where,
+            )
+            return ""
+        embedded = file_data_uri(path)
+        if embedded is None:
+            self._warn(
+                f"icon file {value!r} is not a supported image (PNG, JPEG, "
+                f"GIF, SVG or WebP, up to {MAX_ICON_BYTES // 1024} KB)",
+                code="icon-not-found",
+                **where,
+            )
+            return ""
+        return embedded
+
     def _parse_branding(self, ws: Workspace) -> None:
         """Parse ``branding { logo <url> font <name> [url] }``."""
         if not self._match(LBRACE):
@@ -2117,7 +2172,8 @@ class _Parser:
             elif prop == "border":
                 style.border = _BORDER_MAP.get(value.lower())
             elif prop == "icon":
-                style.icon = value
+                style.icon_source = value
+                style.icon = self._style_icon(value, prop_token)
             elif prop == "iconposition":
                 style.icon_position = _ICON_POSITION_MAP.get(value.lower())
             elif prop == "fontsize" and value.isdigit():
