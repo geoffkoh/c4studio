@@ -41,134 +41,53 @@ The last run only. Older entries are in the tickets and in git;
 keeping them here turned this file into a changelog, which is not what
 it is for — it is the thing you read *first*, so it has to stay short.
 
-### Layouts from workspace JSON (PP-220)
+### Icons and the workspace logo (PP-231 … PP-237, PP-242, PP-234)
 
-A `.json` that Structurizr laid out is drawn with its own layout in the
-Studio, `c4 render` and `c4 publish`: element x/y, line vertices, and
-Structurizr's 450×300 boxes (or a style's `width`/`height`). Before,
-every JSON view was laid out from scratch: the parser kept only the
-element ids, and nothing read a vertex. Two rules came from
-`structurizr-diagram.js` and the upstream test data. A view with
-`automaticLayout`, or with every element at 0,0, keeps no positions,
-because the Java library writes 0,0 for views nobody arranged and taking
-those literally stacks every box on one spot. Boundaries carry no
-position, so both renderers now fit them around their children
-(`needsAutoLayout` in `layout.ts`) instead of re-running auto-layout.
-Checked against upstream's `spring-petclinic/workspace.json`.
-Unreleased, with an entry in `MIGRATION.md`.
+The details card now edits an element's look as **text edits** to the
+`styles` rules (`style_edit.py`, `POST /api/style`, saved through
+`PUT /api/source`): colours (PP-231) and the icon (PP-233), picked from
+`icons/` beside the workspace (`icon_library.py`). A style's `icon` may
+be a file path, resolved against the file the style is in and embedded
+as a `data:` URI at parse time, as upstream does (PP-232).
 
-**Not done:** sizes from a remote theme are not applied, since the
-parser never fetches. `c4 render` has no way to pick a named layout yet;
-parked on 18 Nov. The options A–D the earlier note pointed to are not
-in PP-220 itself, so they need re-deriving when it is picked up.
+- **Workspace logo (PP-237):** an `element "Workspace:Icon" { icon … }`
+  style, upstream's 2026 replacement for `branding { logo }`. Drawn 28 px
+  tall before every diagram title (both renderers share
+  `diagram-core/logo.ts`), in the top bar and on the published site.
+  `icons.image_size` reads PNG/GIF/JPEG/SVG headers because the headless
+  renderer has no DOM to measure a wordmark.
+- **Icon tint (PP-234):** `"c4studio.iconTint" "true"|"#hex"|"false"`
+  draws a one-colour glyph in the text colour. CSS `mask` in the Studio
+  (html-to-image copies it into exports), an SVG 1.1 flood filter in
+  `svg.ts`. Opt-in because vendors' icons are multi-colour.
+  `samples/icons/outline/` holds one-colour glyphs drawn for the repo.
+- **Title click (PP-242):** React Flow's default `nodeDragThreshold` of 0
+  made a click on the title a zero-length drag, which pinned it in the
+  sidecar and cleared the selection. Now 3 px.
 
-### A key to merged lines (PP-229)
-
-Collapsing a group merges the lines between its members and one other
-element. When their descriptions differ, the line used to read
-"3 relationships" and nothing anywhere said which, least of all an
-exported image. It now reads `3 relationships [1]`, and the legend lists
-each relationship `[1]` stands for. The graph layer
-(`_collapse_group_nodes`) builds `notes`, wording comes from
-`diagram-core/src/notes.ts`, and the details card shows the same list for
-a selected merged line. The key is a section of the legend panel rather
-than chrome of its own: the Studio places chrome before it is drawn, so
-it could not stack a separate box under a legend of unknown height. That
-also means `c4 render --no-legend` leaves the key out. Concatenating the
-descriptions onto the line was considered and rejected: it brings back
-the clutter collapsing removes, and nothing fits in a 160px label.
-
-### Structurizr's text in Structurizr's boxes (PP-228)
-
-The last gap from PP-220: a JSON layout's 450×300 boxes held c4studio's
-10px text and read empty. An element a JSON layout placed now carries
-Structurizr's `fontSize` (24, or its style's), resolved in
-`json_parser.py` beside the box size and kept on `ViewElement.font_size`,
-which is not an upstream field and is never exported. `nodeTypography`
-in `nodeMetrics.ts` turns it into upstream's ratios (name 1.4×, metadata
-0.7×), and both renderers centre the text in the box. A box resized in
-the Studio (PP-224) has a size but no font size, so DSL views keep
-c4studio's type, and `c4 render` output for every DSL sample is
-byte-identical to before. `c4 render` lays those boxes' lines out in CSS
-line boxes. Its old shortcut, tuned at 10 and 13px, put the description
-16px too close to the metadata at 24px.
-
-### Find in the source editor (PP-225)
-
-⌘/Ctrl-F in the editor fell through to the browser's find, which cannot
-see CodeMirror's off-screen lines, so search looked broken. The editor
-now has its own find bar from `@codemirror/search`, a new npm dependency
-the user agreed to. It is themed in `dslLanguage.ts`, and its keymap sits
-before `defaultKeymap`. The bar reads its query on key events, so a test
-must type into it: Playwright's `fill` leaves the query empty.
-
-### Resizable element boxes (PP-224)
-
-A selected element now has resize handles, like a boundary. Its size is
-saved in the sidecar's `views` entry as `[x, y, w, h]`, the shape a
-boundary's always had, so nothing new is threaded through the writers.
-Only boxes with a size of their own are saved; the rest keep growing to
-fit their text. A box cannot be made shorter than its own text at the
-width it is given: each step of a drag is clamped to that width's floor.
-React Flow calls `onResize` *before* applying a step, so the clamp is
-queued in a microtask after it, and a corner dragged in both directions
-at once no longer slips under the floor. A layout save that sends a
-placed element without a size now clears the size in memory too, which
-previously survived until a reload.
-
-### Image parity: `c4 render` against the Studio export
-
-A side-by-side check on hedge_fund found these differences. All are
-fixed:
-
-- The export drew connection handles as black dots (PP-219 and PP-221,
-  fixed).
-- `c4 render` drew two relationships between the same pair on one
-  straight line (PP-222, fixed: both renderers now share
-  `diagram-core/src/edgePath.ts`).
-- `c4 render` drew straight lines whatever the Studio showed, and cut
-  long labels to one line (PP-222, fixed). The toolbar's line style is
-  now saved per view in the sidecar's `lineStyle` section, and the
-  render default is Bezier, matching the Studio.
-- Text in a box wrapped narrower in `c4 render` (PP-223, fixed). The
-  renderer guessed 0.55em per character, 8–26% wide. It now sums widths
-  from `diagram-core/src/glyphWidths.ts`, measured in Chromium by
-  `scripts/measure-glyphs.mjs` at each drawn size, and breaks after
-  hyphens as the browser does. `e2e/text-wrap.spec.ts` checks every box
-  against the canvas, on macOS only: the table is SF Pro.
-- The export carried the Studio's ⊕ drill mark, ＋ expand and
-  − collapse controls (PP-227, fixed). They are marked `export-hidden`,
-  the same marker the properties badge and line handles use, and
-  `e2e/export-node-controls.spec.ts` checks the exported SVG.
-
-### 0.4.0 on PyPI (PP-216)
-
-Everything from PP-182 to PP-215: lint, diff, impact, publish, `workspace
-extends`, text blocks, named layouts, re-routing, the editor panel and
-the `anyio` advisory fix. `MIGRATION.md` has a 0.4.0 entry; nothing needs
-action. The extension stays at 0.3.1. Verified by an isolated
-`uvx --from c4studio==0.4.0` install, tagged `v0.4.0`.
-
-### The project site (PP-217)
-
-`website/` builds a GitHub Pages site: a landing page, guides, a *Beyond
-Structurizr* page for the `c4studio.*` extensions and divergences, the
-`docs/` reference pages, and a live example from `c4 publish` of
-`samples/c4studio`. The point of its design is that it cannot drift. The
-CLI reference is generated from click, the shortcuts come from
-`shortcuts.ts`, code is painted with `highlight.ts`'s vocabulary, and
-`tests/test_website.py` fails when a link or anchor breaks or when a
-command, option, `c4studio.*` key or action input is undocumented. The
-guide pages' DSL is parsed by `test_docs_examples.py`, and the Python API
-examples run. Markdown goes through `c4studio.markdown`, so no
-dependency was added. The screenshots in `website/assets/` were taken
-from clean copies of the samples (no sidecars) and need retaking when
-the Studio's look changes.
+**Licensing, settled 20 Nov:** AWS, Azure and Google Cloud icons may be
+used in diagrams but **not bundled**: their terms grant diagram and
+documentation use, not redistribution. Tabler (MIT) can ship; Simple
+Icons is CC0 artwork of other companies' trademarks, so only a curated,
+checked subset with its disclaimer.
 
 ---
 
 ## Open now
 
+- **The icon queue, in order:** PP-238 (logo selector), PP-239 (bundle
+  Tabler), PP-240 (curated Simple Icons), PP-241 (`c4 icons import` for a
+  downloaded cloud pack), PP-236 (remove `branding`), PP-235
+  (`iconPosition`). PP-238's design was reviewed by ux-reviewer on
+  20 Nov and revised: the empty-selection card's Workspace row is the
+  way in (plus a click on an existing title logo, `nodrag`), a ranked
+  list of *suggested* workspace images rather than a grid of every
+  image (it counted 7,624 under `../structurizr`), its own preview
+  strip, no bundled packs, and a one-line confirmation before "Choose a
+  file…" copies into `brand/`. Match an upload to an existing file by
+  hash first; the browser does not reveal a picked file's path.
+- **PP-220 leftovers (parked 18 Nov):** sizes from a remote theme are
+  not applied, and `c4 render` cannot pick a named layout.
 - **PP-213, waiting on picomatch:** the `@azure/msal-node` advisory
   this was held open for cleared with PP-226. A new one has landed
   since: GHSA-fc5q-39xc-vjpf, a high ReDoS in `picomatch`, reported

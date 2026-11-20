@@ -272,6 +272,11 @@ workspace "NorthWind Logistics" "Parcel network: booking, routing, tracking and 
             }
             element "Message Bus" {
                 shape Pipe
+                // A one-colour glyph, drawn in the box's text colour.
+                icon "icons/outline/Queue.svg"
+                properties {
+                    "c4studio.iconTint" "true"
+                }
             }
             element "Mobile App" {
                 shape MobileDevicePortrait

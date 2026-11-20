@@ -464,6 +464,10 @@ def _apply_styles(workspace: Workspace, nodes: list[GraphNode]) -> None:
         # Which rule set each colour the card edits (PP-231), so it can say
         # "from Database" or "theme", and edit the rule that actually wins.
         origins: dict[str, dict[str, Any]] = {}
+        # `c4studio.iconTint` as the last rule that set it wrote it; read
+        # once every rule has applied, since `true` means the final text
+        # colour (PP-234).
+        icon_tint = ""
         for index, style in enumerate(styles):
             # One scheme is painted, as for lines: a `dark` variant must not
             # win over the colour the rule itself sets.
@@ -494,6 +498,9 @@ def _apply_styles(workspace: Workspace, nodes: list[GraphNode]) -> None:
             badge = style.properties.get(BADGE_COLOUR_PROPERTY, "")
             if HEX_COLOUR.fullmatch(badge):
                 data["badgeColor"] = badge
+            tint = style.properties.get(ICON_TINT_PROPERTY, "").strip()
+            if tint:
+                icon_tint = tint
             if style.background:
                 data["background"] = style.background
             if style.color:
@@ -527,6 +534,9 @@ def _apply_styles(workspace: Workspace, nodes: list[GraphNode]) -> None:
             data["matchedStyles"] = matched
         if origins:
             data["styleOrigins"] = origins
+        tint_colour = _icon_tint_colour(icon_tint, data.get("textColor"))
+        if tint_colour and data.get("icon"):
+            data["iconTint"] = tint_colour
         if not show_metadata:
             data["showMetadata"] = False
             data["technology"] = ""
@@ -754,6 +764,36 @@ LEGEND_LABEL_PROPERTY = "c4studio.legend"
 #: here and reported by ``c4 lint`` (``invalid-badge-colour``).
 BADGE_COLOUR_PROPERTY = "c4studio.badge"
 HEX_COLOUR = re.compile(r"#(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})")
+
+#: Element style property that draws the icon in one colour (PP-234), for
+#: one-colour glyphs (Tabler, Font Awesome) that would otherwise stay
+#: black on a dark box. ``true`` paints it in the element's text colour, a
+#: hex colour in that colour, ``false`` turns a broader rule's tint off.
+#: Opt-in rather than guessed: cloud vendors' icons are multi-colour, and
+#: tinting one would flatten it to a silhouette. Upstream never tints.
+ICON_TINT_PROPERTY = "c4studio.iconTint"
+
+#: Text colour when no style sets one; both renderers draw white.
+DEFAULT_TEXT_COLOUR = "#ffffff"
+
+
+def _icon_tint_colour(value: str, text_colour: str | None) -> str:
+    """The colour a ``c4studio.iconTint`` value paints, or ``""`` for none.
+
+    Anything but ``true``, ``false`` or a hex colour paints nothing here and
+    is reported by ``c4 lint`` (``invalid-icon-tint``).
+    """
+    if value.lower() == "true":
+        return text_colour or DEFAULT_TEXT_COLOUR
+    if HEX_COLOUR.fullmatch(value):
+        return value
+    return ""
+
+
+def icon_tint_is_valid(value: str) -> bool:
+    """Whether ``value`` is a ``c4studio.iconTint`` the renderers understand."""
+    stripped = value.strip()
+    return stripped.lower() in {"true", "false"} or bool(HEX_COLOUR.fullmatch(stripped))
 
 
 #: Style tag prefix that paints an active perspective, upstream

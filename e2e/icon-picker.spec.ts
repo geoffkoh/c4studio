@@ -60,8 +60,10 @@ test("searching previews on the canvas, and Escape puts it back", async ({ page 
 
   const picker = page.getByRole("dialog", { name: "Choose an icon" });
   await expect(picker.getByText("Icon · All “Database” (1)")).toBeVisible();
-  // Not every icon on open; the sizes of one icon count once.
-  await expect(picker.getByText("Type to search 6 icons.")).toBeVisible();
+  // Not every icon on open: only those the workspace already uses (the
+  // Message Bus style's tinted glyph, PP-234).
+  await expect(picker.getByText("In this workspace")).toBeVisible();
+  await expect(picker.getByRole("option")).toHaveCount(1);
   await expect(editor).toBeHidden();
 
   await picker.getByRole("searchbox", { name: "Search icons" }).fill("data");

@@ -10775,7 +10775,8 @@ function paintNode(node) {
 	}
 	const icon = node.data.icon;
 	if (icon && icon.startsWith("data:")) {
-		parts.push(`<image x="${round(centreX - 15)}" y="${round(cursor + 2)}" width="30" height="30" preserveAspectRatio="xMidYMid meet" href="${escapeXml(icon)}"/>`);
+		const tint = node.data.iconTint ? ` filter="url(#${tintFilterId(node.data.iconTint)})"` : "";
+		parts.push(`<image x="${round(centreX - 15)}" y="${round(cursor + 2)}" width="30" height="30" preserveAspectRatio="xMidYMid meet" href="${escapeXml(icon)}"${tint}/>`);
 		cursor += 36;
 	}
 	if (node.data.fontSize) {
@@ -10855,6 +10856,20 @@ function paintBoundary(node) {
 	const type = meta ? `<tspan font-weight="400" font-style="italic" opacity="0.85"> [${escapeXml(meta)}]</tspan>` : "";
 	const markup = `<rect x="${round(node.x)}" y="${round(node.y)}" width="${round(node.width)}" height="${round(node.height)}" rx="${BOUNDARY_RADIUS}" ry="${BOUNDARY_RADIUS}" fill="${BOUNDARY_FILL}" stroke="${BOUNDARY_STROKE}" stroke-width="2" stroke-dasharray="6 4"/><text x="${round(node.x + 12)}" y="${round(node.y + node.height - 9)}" font-family="${FONT}" font-size="${BOUNDARY_LABEL_SIZE}" font-weight="600" fill="${BOUNDARY_LABEL_COLOUR}">${label}${type}</text>`;
 	return fade ? `<g${fade}>${markup}</g>` : markup;
+}
+/** One tint filter per icon colour (PP-234). */
+function tintFilterId(colour) {
+	return `tint-${colour.replace(/[^A-Za-z0-9]/g, "")}`;
+}
+/**
+* Flood the icon's own alpha with the tint: the Studio's CSS mask in SVG
+* 1.1 terms, which every SVG viewer draws, where `mask-type="alpha"` is
+* SVG 2 and not.
+*/
+function tintFilterDefs(nodes) {
+	const colours = /* @__PURE__ */ new Set();
+	for (const node of nodes) if (node.data.iconTint && node.data.icon?.startsWith("data:")) colours.add(node.data.iconTint);
+	return [...colours].map((colour) => `<filter id="${tintFilterId(colour)}" color-interpolation-filters="sRGB"><feFlood flood-color="${escapeXml(colour)}"/><feComposite in2="SourceAlpha" operator="in"/></filter>`).join("");
 }
 /** One arrowhead marker per line colour, so heads match their lines. */
 function arrowMarkerId(colour) {
@@ -11089,7 +11104,7 @@ async function renderSvg(payload, options = {}) {
 	const heading = drawTitle && !draggedTitle ? paintTitle(title, logo, padding, padding) : "";
 	const background = options.background === null ? "" : `<rect width="100%" height="100%" fill="${options.background ?? "#ffffff"}"/>`;
 	const titleTag = title ? `<title>${escapeXml(title)}</title>` : "";
-	return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" font-family="${FONT}">` + titleTag + `<defs>${arrowMarkerDefs(payload.edges)}</defs>` + background + heading + `<g transform="${shift}">${body}</g>` + (legend ? legend.markup : "") + `</svg>\n`;
+	return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" font-family="${FONT}">` + titleTag + `<defs>${arrowMarkerDefs(payload.edges)}${tintFilterDefs(payload.nodes)}</defs>` + background + heading + `<g transform="${shift}">${body}</g>` + (legend ? legend.markup : "") + `</svg>\n`;
 }
 // src/cli.ts
 /**

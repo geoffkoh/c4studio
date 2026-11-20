@@ -12,6 +12,7 @@ c4studio reads the standard Structurizr DSL. This page covers what it adds on to
 | `c4studio.autolayout.<group>` | View property | The same, for a group inside a view. |
 | `c4studio.legend` | Style property | Replaces the legend label for elements or relationships with that style. |
 | `c4studio.badge` | Element style property | Colours the properties badge for elements with that tag. |
+| `c4studio.iconTint` | Element style property | Draws a one-colour icon in the box's text colour, or a colour you name. |
 | Theme files | `theme` with a path | Inlined at parse time, so they work offline. Icons become `data:` URIs. |
 | `c4studio.lint.json` | File beside the workspace | Your model standards, read by `c4 lint`. |
 | `<workspace>.layout.json` | File beside the workspace | Your arrangement of each view: per-user, never committed. |
@@ -96,6 +97,28 @@ styles {
 ```
 
 A value that is not a hex colour is ignored on the diagram, and `c4 lint` reports it as `invalid-badge-colour`.
+
+## Icon tint: `c4studio.iconTint`
+
+A one-colour glyph, the kind in Tabler or Font Awesome, is drawn black whatever the box, which disappears on a dark fill. `c4studio.iconTint` paints the icon in one colour and keeps its shape:
+
+- `true` uses the element's text colour, so the glyph matches the label;
+- a hex colour, such as a brand colour, uses that colour;
+- `false` turns off a tint a broader style set.
+
+```dsl
+// in: views
+styles {
+    element "Message Bus" {
+        icon "icons/outline/Queue.svg"
+        properties {
+            "c4studio.iconTint" "true"
+        }
+    }
+}
+```
+
+It is opt-in because a multi-colour icon, such as a cloud vendor's, would flatten to a silhouette. Exports, `c4 render` and the VS Code preview draw it the same way. Upstream Structurizr ignores the property and draws the icon as it is. Any other value is ignored on the diagram, and `c4 lint` reports it as `invalid-icon-tint`.
 
 ## Theme files that work offline
 
