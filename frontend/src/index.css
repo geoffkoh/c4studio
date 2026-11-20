@@ -2620,6 +2620,215 @@ button {
   cursor: pointer;
 }
 
+.style-editor__icon {
+  width: 36px;
+  height: 22px;
+  padding: 1px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.style-editor__icon img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.style-editor__icon--none {
+  border-style: dashed;
+}
+
+/* The icon picker (PP-233) takes the details card over: the search stays
+   at the top and the caption at the bottom while the grid scrolls. */
+.icon-picker__head,
+.icon-picker__search {
+  position: sticky;
+  z-index: 1;
+  background: var(--panel);
+}
+
+.icon-picker__head {
+  top: -14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.icon-picker__back {
+  font: inherit;
+  font-size: 14px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.icon-picker__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.icon-picker__search {
+  top: 14px;
+  box-sizing: border-box;
+  width: 100%;
+  font: inherit;
+  font-size: 12px;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.icon-picker__packs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.icon-picker__pack {
+  font: inherit;
+  font-size: 11px;
+  padding: 1px 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.icon-picker__pack[aria-pressed="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.icon-picker__section,
+.icon-picker__more {
+  margin: 8px 0 4px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.icon-picker__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 40px);
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.icon-picker__tile {
+  width: 40px;
+  height: 40px;
+  padding: 3px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: var(--bg);
+  cursor: pointer;
+}
+
+.icon-picker__tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.icon-picker__tile:hover {
+  border-color: var(--border);
+}
+
+.icon-picker__tile[aria-selected="true"],
+.icon-picker__tile:focus-visible {
+  border-color: var(--accent);
+  outline: 2px solid var(--accent);
+  outline-offset: 0;
+}
+
+.icon-picker__empty {
+  margin: 10px 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.icon-picker__empty p {
+  margin: 0 0 8px;
+}
+
+.icon-picker__empty--error {
+  color: var(--danger);
+}
+
+.icon-picker__typed {
+  display: flex;
+  gap: 6px;
+}
+
+.icon-picker__typed input {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.icon-picker__foot {
+  position: sticky;
+  bottom: -16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 6px 0 2px;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+}
+
+.icon-picker__caption {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.icon-picker__use,
+.icon-picker__typed button {
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 12px;
+  border: none;
+  border-radius: 4px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+
+.icon-picker__use:disabled,
+.icon-picker__typed button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .style-editor__dash {
   grid-column: 2 / span 1;
   width: 72px;

@@ -297,6 +297,13 @@ interface run; fuller context is in the tickets they name.
 - **`line-style.spec.ts` "a view's saved style outranks this browser's
   default" is flaky**, on a clean `main` too: 2 of 3 repeats failed
   locally on 19 Nov (`Expected: > 0, Received: 0`).
+- **A style rule in a fragment included *inside* `styles { }` is invisible
+  to the card.** `style_locations` and `style_edit._rules` only look inside a
+  `styles` block in the same file, so a fragment holding bare
+  `element "X" { … }` rules is never found: the jump-to-style link misses it,
+  and an edit adds a new rule in the root file (which then wins) instead of
+  editing the fragment. A fragment with its own `styles { }` works. Found
+  writing PP-233's tests; not yet ticketed.
 - **`route-steps.spec.ts` "right-click offers Add step here" is flaky in
   CI**: it failed once on PR #290 ("no uncovered horizontal handle") and
   passed on re-run and locally. Like `merged-notes` before PP-229's fix,

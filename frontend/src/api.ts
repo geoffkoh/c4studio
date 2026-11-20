@@ -10,6 +10,7 @@ import type {
   CheckResult,
   ExplorerLevel,
   GraphData,
+  IconLibrary,
   ImpactResult,
   LayoutResult,
   LoadResult,
@@ -180,6 +181,16 @@ export function planStyleEdit(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ...edit, buffers }),
   });
+}
+
+/** GET /api/icons -> the icon library beside the workspace (PP-233). */
+export function listIcons(): Promise<IconLibrary> {
+  return request<IconLibrary>("/api/icons");
+}
+
+/** Where one library icon is served, for a thumbnail or a preview. */
+export function iconFileUrl(path: string): string {
+  return `/api/icons/file?path=${encodeURIComponent(path)}`;
 }
 
 /** POST /api/folder -> create an empty folder under the root. */
