@@ -458,7 +458,10 @@ export default function App() {
           null;
         try {
           const result = await saveSource(file.path, file.content, fingerprint);
-          if (buffer) sourceRef.current.markSaved(file.path, file.content, result.fingerprint);
+          // Not markSaved: that keeps the buffer's text, which here is the
+          // file before the edit, and would leave it dirty with the old
+          // colour. The buffer was clean, so it takes what was written.
+          if (buffer) sourceRef.current.takeDisk(file.path, file.content, result.fingerprint);
           handleSaved(result);
           outcomes.push(`Saved to ${file.path}`);
         } catch (err: unknown) {

@@ -67,6 +67,13 @@ test("a colour for every element with the tag edits the tag's style", async ({ p
   await expect(
     page.locator(".react-flow__node-element", { hasText: "Shipment Database" }).locator(".node"),
   ).toHaveCSS("background-color", "rgb(255, 0, 0)");
+
+  // A second edit saves too. The editor's copy of the file must take what
+  // was written; left with the old text it reads as unsaved changes, and
+  // every later edit lands there instead of on disk.
+  await editor.getByLabel("Border", { exact: true }).fill("#00ff00");
+  await expect.poll(() => saved.length).toBe(2);
+  await expect(editor.getByRole("status")).toHaveText("Saved to logistics_network.dsl");
 });
 
 test("only this element gets a tag and a style of its own", async ({ page }) => {

@@ -158,6 +158,34 @@ def test_a_generic_tag_one_element_carries_is_not_its_own(
     assert plan["tag"] == "API" and plan["newTag"] is True
 
 
+def test_a_dark_variant_does_not_hide_the_saved_colour(
+    client: TestClient, root: Path
+) -> None:
+    # The viewer paints the light scheme, as it does for lines; a `dark`
+    # variant painted over it would undo the edit at the next reload.
+    text = DSL.replace(
+        "background #438dd5\n",
+        "background #438dd5\n                dark {\n"
+        "                    background #000000\n                }\n",
+    )
+    (root / "w.dsl").write_text(text, encoding="utf-8")
+    assert client.post("/api/load", json={"path": "w.dsl"}).status_code == 200
+    assert _nodes(client)["db"]["background"] == "#438dd5"
+
+    _apply(
+        client,
+        root,
+        {
+            "kind": "element",
+            "property": "background",
+            "value": "#ff0000",
+            "tag": "Database",
+        },
+    )
+    assert "background #000000" in (root / "w.dsl").read_text(encoding="utf-8")
+    assert _nodes(client)["db"]["background"] == "#ff0000"
+
+
 def test_a_reset_removes_the_rule_s_line(client: TestClient, root: Path) -> None:
     _apply(
         client,

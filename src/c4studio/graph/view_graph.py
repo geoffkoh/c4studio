@@ -437,7 +437,9 @@ def _apply_styles(workspace: Workspace, nodes: list[GraphNode]) -> None:
         # "from Database" or "theme", and edit the rule that actually wins.
         origins: dict[str, dict[str, Any]] = {}
         for index, style in enumerate(styles):
-            if style.tag not in tags:
+            # One scheme is painted, as for lines: a `dark` variant must not
+            # win over the colour the rule itself sets.
+            if style.tag not in tags or style.color_scheme == ColorScheme.DARK:
                 continue
             if style.tag not in matched:
                 matched.append(style.tag)
