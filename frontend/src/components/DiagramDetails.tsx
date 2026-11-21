@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import type { Edge, Node } from "reactflow";
 
-import { noteLine } from "@c4studio/diagram-core";
+import { noteLine, type WorkspaceLogo } from "@c4studio/diagram-core";
 
-import type { GraphData, ImpactResult, StyleEditRequest, StyleLocation } from "../types";
+import { listLogos } from "../api";
+import type { GraphData, ImpactResult, LogoLibrary, StyleEditRequest, StyleLocation } from "../types";
 import { ElementDetails, KIND_LABELS } from "./ElementDetails";
 import { IconPicker, type IconPickRequest } from "./IconPicker";
+import { LogoPicker } from "./LogoPicker";
 import { StyleEditor, type StylePreview, type StyleTarget } from "./StyleEditor";
 
 interface DiagramDetailsProps {
@@ -24,6 +26,17 @@ interface DiagramDetailsProps {
   styleEditing?: {
     onEdit: (edit: StyleEditRequest) => Promise<string>;
     onPreview: (preview: StylePreview) => void;
+  };
+  /** The workspace's logo (PP-238), shown with nothing selected. */
+  workspace?: {
+    /** The diagram's title, beside the logo in the picker's preview. */
+    title: string;
+    /** Paint a logo on the title before it is written; `null` ends it. */
+    onPreview: (logo: WorkspaceLogo | null) => void;
+    /** Bumped to open the picker from outside: a click on the title's logo. */
+    pickRequest: number;
+    /** The picker closed: `true` when a logo was written. */
+    onPickClosed?: (used: boolean) => void;
   };
   /** The impact overlay (PP-193); absent where it is not offered. */
   impact?: {
@@ -53,11 +66,15 @@ export function DiagramDetails({
   styleLocations,
   onShowStyle,
   styleEditing,
+  workspace,
   impact,
   onClose,
 }: DiagramDetailsProps) {
   // The icon picker takes the card over while it is open (PP-233).
   const [picking, setPicking] = useState<IconPickRequest | null>(null);
+  // As does the logo picker (PP-238), opened over whatever was selected.
+  const [pickingLogo, setPickingLogo] = useState<{ ownerId: string | null } | null>(null);
+  const [logoStatus, setLogoStatus] = useState<{ text: string; error: boolean } | null>(null);
 
   const editorFor = (target: StyleTarget) =>
     styleEditing ? (
@@ -98,6 +115,43 @@ export function DiagramDetails({
       setPicking(null);
     }
   }, [picking, selectedId]);
+
+  // Read by the request effect: only a new request opens the picker, not
+  // a later change of selection.
+  const selectedRef = useRef(selectedId);
+  selectedRef.current = selectedId;
+
+  const onLogoPreview = workspace?.onPreview;
+  const onLogoClosed = workspace?.onPickClosed;
+  useEffect(() => {
+    if (pickingLogo && pickingLogo.ownerId !== selectedId) {
+      onLogoPreview?.(null);
+      setPickingLogo(null);
+      onLogoClosed?.(false);
+    }
+  }, [pickingLogo, selectedId, onLogoPreview, onLogoClosed]);
+
+  // A click on the title's logo asks for the picker over the selection.
+  const pickRequest = workspace?.pickRequest ?? 0;
+  useEffect(() => {
+    if (pickRequest > 0) setPickingLogo({ ownerId: selectedRef.current });
+  }, [pickRequest]);
+
+  const onEdit = styleEditing?.onEdit;
+  const setLogo = (value: string | null, done: string) => {
+    if (!onEdit) return Promise.resolve(false);
+    setLogoStatus({ text: "Saving…", error: false });
+    return onEdit({ kind: "element", property: "icon", value, tag: WORKSPACE_ICON_TAG })
+      .then((outcome) => {
+        setLogoStatus({ text: `${done}. ${outcome}`, error: false });
+        return true;
+      })
+      .catch((err: unknown) => {
+        onLogoPreview?.(null);
+        setLogoStatus({ text: err instanceof Error ? err.message : "Could not save", error: true });
+        return false;
+      });
+  };
 
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.key === "Escape") onClose();
@@ -183,6 +237,9 @@ export function DiagramDetails({
     ) : null;
   }
 
+  const logoOpen = pickingLogo !== null && pickingLogo.ownerId === selectedId;
+  const covered = (picking !== null && picking.ownerId === selectedId) || logoOpen;
+
   return (
     <aside
       className="diagram-details"
@@ -194,9 +251,29 @@ export function DiagramDetails({
       {picking && picking.ownerId === selectedId ? (
         <IconPicker request={picking} onClose={() => setPicking(null)} />
       ) : null}
+      {workspace && logoOpen ? (
+        <LogoPicker
+          request={{
+            ownerId: pickingLogo.ownerId,
+            title: workspace.title,
+            current: payload?.workspaceIcon,
+            onPreview: workspace.onPreview,
+            onUse: (path) => {
+              void setLogo(path, "Logo set").then((ok) => workspace.onPickClosed?.(ok));
+            },
+          }}
+          onClose={() => setPickingLogo(null)}
+          onCancel={() => workspace.onPickClosed?.(false)}
+        />
+      ) : null}
       {/* Hidden, not unmounted, while picking: the editor keeps its scope
           and shows how the edit went once the picker closes. */}
-      <div style={{ display: picking && picking.ownerId === selectedId ? "none" : "contents" }}>
+      <div style={{ display: covered ? "none" : "contents" }}>
+        {logoStatus?.error && body ? (
+          <p className="style-editor__status style-editor__status--error" role="status">
+            {logoStatus.text}
+          </p>
+        ) : null}
         {body ?? (
           <>
             <button className="details__close" title="Close" onClick={onClose}>
@@ -205,12 +282,153 @@ export function DiagramDetails({
             <p className="details__note">
               {count > 1
                 ? `${count} selected. Select one element or relationship to see its details.`
-                : "Select an element or a relationship to see its details."}
+                : "Select an element or a relationship to see its details, or see the workspace's below."}
             </p>
+            {workspace ? (
+              <WorkspaceSection
+                logo={payload?.workspaceIcon}
+                status={logoStatus}
+                onPick={onEdit ? () => setPickingLogo({ ownerId: selectedId }) : undefined}
+                onSet={onEdit ? setLogo : undefined}
+                onShowRule={onShowStyle ? () => onShowStyle("element", WORKSPACE_ICON_TAG) : undefined}
+              />
+            ) : null}
           </>
         )}
       </div>
     </aside>
+  );
+}
+
+/** The style upstream takes the workspace logo from (PP-237). */
+const WORKSPACE_ICON_TAG = "Workspace:Icon";
+
+function baseName(path: string): string {
+  return path.slice(path.lastIndexOf("/") + 1);
+}
+
+/**
+ * The workspace's own row (PP-238), where the card says what a selection
+ * would show: its logo, the way to change it, and an undoable ×.
+ *
+ * Here rather than in the top bar, which has no room to spare, and only
+ * with nothing selected, so it never pushes an element's details down.
+ */
+function WorkspaceSection({
+  logo,
+  status,
+  onPick,
+  onSet,
+  onShowRule,
+}: {
+  logo?: WorkspaceLogo;
+  status: { text: string; error: boolean } | null;
+  /** Absent in Viewer, which cannot write the rule. */
+  onPick?: () => void;
+  onSet?: (value: string | null, done: string) => Promise<boolean>;
+  onShowRule?: () => void;
+}) {
+  const [library, setLibrary] = useState<LogoLibrary | null>(null);
+  // What × removed, for Undo; cleared by any other edit.
+  const [removed, setRemoved] = useState<string | null>(null);
+  const drawn = logo?.src;
+  useEffect(() => {
+    let live = true;
+    // Re-read after each edit: the reload brings a new logo.
+    listLogos()
+      .then((result) => live && setLibrary(result))
+      .catch(() => live && setLibrary(null));
+    return () => {
+      live = false;
+    };
+  }, [drawn]);
+
+  const current = library?.current ?? null;
+  const name = current ? (current.startsWith("data:") ? "embedded image" : baseName(current)) : null;
+  const remove = () => {
+    if (!onSet || current === null) return;
+    void onSet(null, "Logo removed").then((ok) => ok && setRemoved(current));
+  };
+  const undo = () => {
+    if (!onSet || removed === null) return;
+    void onSet(removed, "Logo put back").then((ok) => ok && setRemoved(null));
+  };
+
+  let label;
+  if (logo) {
+    label = (
+      <>
+        <span className="details__logo-thumb">
+          <img src={logo.src} alt="" />
+        </span>
+        <span className="details__logo-name">
+          {name ?? "Logo"}
+          {library?.fromTheme ? <span className="details__logo-tag"> · theme</span> : null}
+        </span>
+      </>
+    );
+  } else {
+    label = <span className="details__logo-name details__logo-name--none">No logo</span>;
+  }
+
+  return (
+    <section aria-label="Workspace">
+      <h4 className="details__heading">Workspace</h4>
+      <div className="details__logo" role="group" aria-label="Logo">
+        {onPick ? (
+          <button
+            className="details__logo-pick"
+            title={logo ? "Change the workspace logo" : "Choose a workspace logo"}
+            onClick={onPick}
+          >
+            {label}
+            <span className="details__logo-action">{logo ? "Change…" : "Choose…"}</span>
+          </button>
+        ) : (
+          <span className="details__logo-pick details__logo-pick--static">{label}</span>
+        )}
+        {onSet && current !== null ? (
+          <button className="details__logo-remove" title="Remove the logo" aria-label="Remove the logo" onClick={remove}>
+            ×
+          </button>
+        ) : null}
+      </div>
+      {library?.branding && onSet ? (
+        <p className="details__logo-offer">
+          The <code>branding</code> logo is no longer drawn.{" "}
+          <button
+            className="details__inline"
+            onClick={() => void onSet(library.branding as string, "Logo set from branding")}
+          >
+            Use it
+          </button>
+        </p>
+      ) : null}
+      {status ? (
+        <p
+          className={"style-editor__status" + (status.error ? " style-editor__status--error" : "")}
+          role="status"
+        >
+          {status.text}
+          {removed !== null && current === null && !status.error ? (
+            <>
+              {" "}
+              <button className="details__inline" onClick={undo}>
+                Undo
+              </button>
+            </>
+          ) : null}
+          {!status.error && onShowRule && current !== null ? (
+            <>
+              {" "}
+              <button className="details__inline" onClick={onShowRule}>
+                rule ↗
+              </button>
+            </>
+          ) : null}
+        </p>
+      ) : null}
+    </section>
   );
 }
 

@@ -14,6 +14,8 @@ import type {
   ImpactResult,
   LayoutResult,
   LoadResult,
+  LogoCopy,
+  LogoLibrary,
   ModelGraphData,
   SaveConflict,
   SaveSourceResult,
@@ -191,6 +193,29 @@ export function listIcons(): Promise<IconLibrary> {
 /** Where one library icon is served, for a thumbnail or a preview. */
 export function iconFileUrl(path: string): string {
   return `/api/icons/file?path=${encodeURIComponent(path)}`;
+}
+
+/** GET /api/logos -> the workspace's images and its logo (PP-238). */
+export function listLogos(): Promise<LogoLibrary> {
+  return request<LogoLibrary>("/api/logos");
+}
+
+/** GET /api/logos/aspect -> one image's width over height, or null. */
+export async function logoAspect(path: string): Promise<number | null> {
+  const result = await request<{ aspect: number | null }>(
+    `/api/logos/aspect?path=${encodeURIComponent(path)}`,
+  );
+  return result.aspect;
+}
+
+/** POST /api/logos/copy -> copy a picked file into `brand/` (PP-238), or
+    with `dryRun` only say where it would go. */
+export function copyLogo(name: string, content: string, dryRun: boolean): Promise<LogoCopy> {
+  return request<LogoCopy>("/api/logos/copy", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, content, dry_run: dryRun }),
+  });
 }
 
 /** POST /api/folder -> create an empty folder under the root. */

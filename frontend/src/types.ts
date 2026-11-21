@@ -543,6 +543,41 @@ export interface IconLibrary {
   icons: LibraryIcon[];
 }
 
+/** One image the logo picker lists, from GET /api/logos (PP-238). */
+export interface LogoImage {
+  /** Relative to the root, as the API's other paths are. */
+  path: string;
+  /** Bytes: past `LogoLibrary.maxBytes` it is listed but not usable. */
+  size: number;
+  /** In brand/ or named like a logo. */
+  suggested: boolean;
+}
+
+/** Response from GET /api/logos. */
+export interface LogoLibrary {
+  /** The workspace file's folder, root-relative. */
+  folder: string;
+  /** Where a file picked from the machine is copied. */
+  brandFolder: string;
+  maxBytes: number;
+  truncated: boolean;
+  /** The `Workspace:Icon` rule's icon: a root-relative path, or a URL. */
+  current: string | null;
+  /** A theme sets the logo; no rule in the workspace does. */
+  fromTheme: boolean;
+  /** A `branding { logo }` no longer drawn, while nothing else is. */
+  branding: string | null;
+  images: LogoImage[];
+}
+
+/** Response from POST /api/logos/copy. */
+export interface LogoCopy {
+  path: string;
+  /** The workspace already holds this file: it is used where it is. */
+  existing: boolean;
+  written: boolean;
+}
+
 /** Response from POST /api/style: each changed file's new text. */
 export interface StyleEditPlan {
   files: { path: string; content: string }[];

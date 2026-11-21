@@ -75,17 +75,17 @@ checked subset with its disclaimer.
 
 ## Open now
 
-- **The icon queue, in order:** PP-238 (logo selector), PP-239 (bundle
-  Tabler), PP-240 (curated Simple Icons), PP-241 (`c4 icons import` for a
-  downloaded cloud pack), PP-236 (remove `branding`), PP-235
-  (`iconPosition`). PP-238's design was reviewed by ux-reviewer on
-  20 Nov and revised: the empty-selection card's Workspace row is the
-  way in (plus a click on an existing title logo, `nodrag`), a ranked
-  list of *suggested* workspace images rather than a grid of every
-  image (it counted 7,624 under `../structurizr`), its own preview
-  strip, no bundled packs, and a one-line confirmation before "Choose a
-  file…" copies into `brand/`. Match an upload to an existing file by
-  hash first; the browser does not reveal a picked file's path.
+- **The icon queue, in order:** PP-239 (bundle Tabler, element icons
+  only), PP-240 (curated Simple Icons), PP-241 (`c4 icons import` for a
+  downloaded cloud pack), PP-236 (remove `branding`, warning towards
+  `Workspace:Icon` and the logo picker), PP-235 (`iconPosition`).
+  PP-238, the logo picker, landed to the reviewed design: the card's
+  Workspace row and a click on the title's logo open it; `GET
+  /api/logos` ranks the workspace's images (gitignored and build folders
+  left out, via `git check-ignore`); `POST /api/logos/copy` copies a
+  picked file into `brand/` after a dry run the confirmation names, and
+  finds an identical file by hash first. The logo itself is written by
+  the existing `POST /api/style` with `tag: "Workspace:Icon"`.
 - **PP-220 leftovers (parked 18 Nov):** sizes from a remote theme are
   not applied, and `c4 render` cannot pick a named layout.
 - **PP-213, waiting on picomatch:** the `@azure/msal-node` advisory

@@ -47,6 +47,9 @@ export interface ChromeNodeData {
   title?: string;
   /** The workspace logo, drawn before the title (PP-237). */
   logo?: WorkspaceLogo;
+  /** Where the logo can be changed (the Studio): a click on it opens the
+      picker instead of starting a drag (PP-238). */
+  onLogo?: () => void;
   entries?: LegendEntryData[];
   /** The key to merged lines, under the swatches (PP-229). */
   notes?: MergedNote[];
@@ -144,9 +147,18 @@ function ChromeNodeComponent({ data }: NodeProps<ChromeNodeData>) {
       <div className="diagram-title" title={MOVE_HINT}>
         {data.logo ? (
           <img
-            className="diagram-title__logo"
+            className={"diagram-title__logo" + (data.onLogo ? " diagram-title__logo--pick nodrag" : "")}
             src={data.logo.src}
             alt=""
+            title={data.onLogo ? "Change the workspace logo" : undefined}
+            onClick={
+              data.onLogo
+                ? (event) => {
+                    event.stopPropagation();
+                    data.onLogo?.();
+                  }
+                : undefined
+            }
             style={{ width: logoWidth(data.logo), height: LOGO_HEIGHT, marginRight: LOGO_GAP }}
           />
         ) : null}
