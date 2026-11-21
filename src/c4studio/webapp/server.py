@@ -9,6 +9,8 @@ globals.
 
 from __future__ import annotations
 
+import base64
+import binascii
 import dataclasses
 import hashlib
 import importlib.metadata
@@ -28,9 +30,15 @@ from pydantic import BaseModel
 
 from c4studio import templates
 from c4studio.diagnostics import Diagnostic, Severity
-from c4studio.graph.view_graph import apply_positions, apply_sizes, workspace_icon
+from c4studio.graph.view_graph import (
+    WORKSPACE_ICON_TAG,
+    apply_positions,
+    apply_sizes,
+    workspace_icon,
+)
 from c4studio.icon_library import ICON_FOLDER, IMAGE_SUFFIXES
 from c4studio.icon_library import scan as scan_icons
+from c4studio.icons import MAX_ICON_BYTES, file_data_uri, image_size
 from c4studio.impact import analyse as analyse_impact
 from c4studio.impact import family as impact_family
 from c4studio.impact import to_dict as impact_to_dict
@@ -91,7 +99,10 @@ from c4studio.layout_sidecar import (
 from c4studio.layout_sidecar import (
     sidecar_path as _layout_sidecar,
 )
+from c4studio.logo_library import BRAND_FOLDER, LogoCopyError, plan_copy
+from c4studio.logo_library import scan as scan_logos
 from c4studio.models import View, Workspace
+from c4studio.models.enums import ColorScheme
 from c4studio.parser.dsl import ParseError, parse_dsl
 from c4studio.parser.locations import element_locations, style_locations
 from c4studio.style_edit import (
@@ -283,6 +294,18 @@ class StyleEditRequest(BaseModel):
     buffers: dict[str, str] = {}
 
 
+class LogoCopyRequest(BaseModel):
+    """Body for ``POST /api/logos/copy`` (PP-238): a file picked from the machine."""
+
+    # The picked file's name; only its last part is used.
+    name: str
+    # Its bytes, base64: a logo is at most 256 KB, so JSON is no burden and
+    # no multipart parser is needed.
+    content: str
+    # Say where it would go without writing it, for the confirmation.
+    dry_run: bool = False
+
+
 class SaveSourceRequest(BaseModel):
     """Body for ``PUT /api/source``."""
 
@@ -415,6 +438,14 @@ def _require_writable(state: AppState = Depends(_get_state)) -> AppState:
             detail="Server is running in viewer (read-only) mode",
         )
     return state
+
+
+def _relative_or_name(path: Path, root: Path) -> str:
+    """``path`` relative to ``root`` for the client, or its name if outside."""
+    try:
+        return path.relative_to(root).as_posix() or "."
+    except ValueError:
+        return path.name
 
 
 def _safe_resolve(root: Path, rel: str) -> Path:
@@ -1651,6 +1682,136 @@ def create_app(
                 "Cache-Control": "no-cache",
             },
         )
+
+    @app.get("/api/logos")
+    def list_logos(state: AppState = Depends(_get_state)) -> dict[str, Any]:
+        """The images the logo picker offers, and the logo now set (PP-238).
+
+        Every image under the workspace file's folder, suggested ones first
+        (see ``logo_library``). ``current`` is the ``Workspace:Icon`` rule's
+        icon as a root-relative path when it is a file in the workspace, or
+        as written otherwise; ``fromTheme`` says a theme sets the logo and
+        no rule here does. ``branding`` is a ``branding { logo }`` that is
+        no longer drawn, offered only while nothing else sets a logo.
+        A read, so Viewer serves it.
+        """
+        workspace = _require_workspace(state)
+        if state.current_path is None:
+            raise HTTPException(status_code=409, detail="No workspace loaded")
+        folder = state.current_path.parent
+        images, truncated = scan_logos(folder, state.root)
+
+        def as_image(source: str, base: Path) -> str:
+            if source.startswith(("http://", "https://", "data:")):
+                return source
+            path = (base / source).resolve()
+            if path.is_relative_to(state.root):
+                return path.relative_to(state.root).as_posix()
+            return source
+
+        current: str | None = None
+        rules = [
+            style
+            for style in workspace.views.configuration.styles.element_styles
+            if style.tag == WORKSPACE_ICON_TAG
+            and style.icon_source
+            and style.color_scheme != ColorScheme.DARK
+        ]
+        if rules:
+            files = [
+                path
+                for kind, tag, path, _ in style_locations(state.current_path)
+                if kind == "element" and tag == WORKSPACE_ICON_TAG
+            ]
+            base = files[-1].parent if files else folder
+            current = as_image(rules[-1].icon_source, base)
+        drawn = bool(workspace_icon(workspace))
+        branding = workspace.views.configuration.branding
+        stale = branding.logo if branding and branding.logo and not drawn else ""
+        return {
+            "folder": _relative_or_name(folder, state.root),
+            "brandFolder": BRAND_FOLDER,
+            "maxBytes": MAX_ICON_BYTES,
+            "truncated": truncated,
+            "current": current,
+            "fromTheme": drawn and current is None,
+            "branding": as_image(stale, folder) if stale else None,
+            "images": [
+                {"path": image.path, "size": image.size, "suggested": image.suggested}
+                for image in images
+            ],
+        }
+
+    @app.get("/api/logos/aspect")
+    def logo_aspect(path: str, state: AppState = Depends(_get_state)) -> dict[str, Any]:
+        """Width over height of one image, for the picker's preview (PP-238).
+
+        The title draws a logo at its proportions, which the browser cannot
+        read from an SVG with only a ``viewBox``. ``None`` when the image
+        cannot be read, and the title falls back to a square, as it does.
+        """
+        candidate = (state.root / path).resolve()
+        if not candidate.is_relative_to(state.root):
+            raise HTTPException(
+                status_code=400, detail="Path escapes the root directory"
+            )
+        if candidate.suffix.lower() not in IMAGE_SUFFIXES or not candidate.is_file():
+            raise HTTPException(status_code=404, detail="No such image")
+        uri = file_data_uri(candidate)
+        size = image_size(uri) if uri else None
+        return {"aspect": round(size[0] / size[1], 4) if size else None}
+
+    @app.post("/api/logos/copy")
+    def copy_logo(
+        body: LogoCopyRequest, state: AppState = Depends(_require_writable)
+    ) -> dict[str, Any]:
+        """Copy a picked file into the workspace's ``brand/`` folder (PP-238).
+
+        The browser can hand over a file's bytes but never its path, and a
+        logo outside the repository would not travel with it anyway. A file
+        the workspace already holds, by content, is used where it is. With
+        ``dry_run`` nothing is written: the answer is what the confirmation
+        names. The logo itself is set by ``POST /api/style`` afterwards.
+        """
+        _require_workspace(state)
+        if state.current_path is None:
+            raise HTTPException(status_code=409, detail="No workspace loaded")
+        folder = state.current_path.parent
+        try:
+            content = base64.b64decode(body.content, validate=True)
+        except (binascii.Error, ValueError) as exc:
+            raise HTTPException(status_code=422, detail="Not base64") from exc
+        images, _ = scan_logos(folder, state.root)
+        try:
+            target, existing = plan_copy(
+                folder,
+                body.name,
+                content,
+                [state.root / image.path for image in images],
+            )
+        except LogoCopyError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        if not target.resolve().is_relative_to(state.root):
+            raise HTTPException(
+                status_code=400, detail="Path escapes the root directory"
+            )
+        written = False
+        if not existing and not body.dry_run:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            # "x": never over a file that appeared since it was planned.
+            try:
+                with target.open("xb") as handle:
+                    handle.write(content)
+            except FileExistsError as exc:
+                raise HTTPException(
+                    status_code=409, detail=f"{target.name} appeared; try again"
+                ) from exc
+            written = True
+        return {
+            "path": target.relative_to(state.root).as_posix(),
+            "existing": existing,
+            "written": written,
+        }
 
     @app.get("/api/file")
     def get_file(path: str, state: AppState = Depends(_get_state)) -> dict[str, Any]:

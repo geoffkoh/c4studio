@@ -60,6 +60,7 @@ import {
   type Pt,
   type Rect,
   type Side,
+  type WorkspaceLogo,
 } from "@c4studio/diagram-core";
 import { marchingEdgeIds, marchingStyle } from "../marching";
 import { buildTrail, crumbLabel, drillTarget } from "../navigation";
@@ -113,6 +114,8 @@ const ANIMATE_EDGES_STORAGE_KEY = "c4studio.animateEdges";
 const SNAP_TO_GRID_STORAGE_KEY = "c4studio.snapToGrid";
 const INTERACTION_STORAGE_KEY = "c4studio.interaction";
 const DETAILS_STORAGE_KEY = "c4studio.details";
+/** The diagram title's chrome node. */
+const TITLE_NODE_ID = `${CHROME_PREFIX}title`;
 const DETAILS_HINT_STORAGE_KEY = "c4studio.detailsHint";
 
 // Drag snapping step. Matches the Background dot spacing so the dots read
@@ -350,7 +353,7 @@ async function toFlow(
   const title = view.title || view.key;
   if (title) {
     chrome.push({
-      id: `${CHROME_PREFIX}title`,
+      id: TITLE_NODE_ID,
       type: "chrome",
       position: chromePosition("title"),
       data: { kind: "title", title, logo: data.workspaceIcon },
@@ -699,10 +702,52 @@ export function GraphPane({
     },
     [payload, setEdges, setNodes],
   );
+  /** A logo being picked (PP-238), painted on the title before it is
+      written; `null` puts back what the payload drew. */
+  const handleLogoPreview = useCallback(
+    (logo: WorkspaceLogo | null) => {
+      setNodes((current) =>
+        current.map((n) =>
+          n.id === TITLE_NODE_ID
+            ? { ...n, data: { ...n.data, logo: logo ?? payload?.workspaceIcon } }
+            : n,
+        ),
+      );
+    },
+    [payload, setNodes],
+  );
+  // A click on the title's logo opens the picker in the card; a card that
+  // was closed opens for it and closes again after (PP-238).
+  const [logoPickRequest, setLogoPickRequest] = useState(0);
+  const logoOpenedCard = useRef(false);
+  const handleTitleLogo = useCallback(() => {
+    if (!detailsOpen) {
+      logoOpenedCard.current = true;
+      setDetailsOpen(true);
+    }
+    setDetailsHint(false);
+    setLogoPickRequest((n) => n + 1);
+  }, [detailsOpen]);
+  const handleLogoPickClosed = useCallback(() => {
+    if (logoOpenedCard.current) setDetailsOpen(false);
+    logoOpenedCard.current = false;
+  }, []);
+
   const onEditStyle = details?.onEditStyle;
   const styleEditing = useMemo(
     () => (onEditStyle ? { onEdit: onEditStyle, onPreview: handleStylePreview } : undefined),
     [onEditStyle, handleStylePreview],
+  );
+
+  const titleText = nodes.find((n) => n.id === TITLE_NODE_ID)?.data.title ?? "";
+  const workspaceDetails = useMemo(
+    () => ({
+      title: titleText,
+      onPreview: handleLogoPreview,
+      pickRequest: logoPickRequest,
+      onPickClosed: handleLogoPickClosed,
+    }),
+    [titleText, handleLogoPreview, logoPickRequest, handleLogoPickClosed],
   );
 
   const handleInteraction = useCallback((mode: Interaction) => {
@@ -1620,7 +1665,7 @@ export function GraphPane({
     setLiveValues({});
   }, [activePerspective]);
 
-  const styledNodes = useMemo(() => {
+  const restyledNodes = useMemo(() => {
     const animating = isDynamic && animStep !== null;
     if (!animating && overlay === null) return nodes;
     // Upstream fades the boundaries too once anything is faded, so the
@@ -1677,6 +1722,17 @@ export function GraphPane({
     perspectiveLegend,
     shownPerspective,
   ]);
+  // The title's logo opens the logo picker, where the logo can be written.
+  const pickLogo = styleEditing && details ? handleTitleLogo : undefined;
+  const styledNodes = useMemo(
+    () =>
+      pickLogo
+        ? restyledNodes.map((node) =>
+            node.id === TITLE_NODE_ID ? { ...node, data: { ...node.data, onLogo: pickLogo } } : node,
+          )
+        : restyledNodes,
+    [restyledNodes, pickLogo],
+  );
 
   useEffect(() => {
     if (!view || !view.supported) {
@@ -1785,7 +1841,7 @@ export function GraphPane({
           nodesRef.current.filter((n) => !isChromeNode(n.id)),
         );
         const spot =
-          node.id === `${CHROME_PREFIX}title` ? placement.title : placement.legend;
+          node.id === TITLE_NODE_ID ? placement.title : placement.legend;
         setNodes((current) =>
           current.map((n) => (n.id === node.id ? { ...n, position: spot } : n)),
         );
@@ -2074,7 +2130,7 @@ export function GraphPane({
                     "edge-style__option" +
                     (detailsOpen ? " edge-style__option--active" : "")
                   }
-                  title="Details of the selected element or relationship (i)"
+                  title="Details of the selected element or relationship, or of the workspace (i)"
                   aria-pressed={detailsOpen}
                   onClick={handleDetailsToggle}
                 >
@@ -2168,6 +2224,7 @@ export function GraphPane({
               styleLocations={styleLocations}
               onShowStyle={details.onShowStyle}
               styleEditing={styleEditing}
+              workspace={workspaceDetails}
               impact={
                 loadImpact
                   ? {

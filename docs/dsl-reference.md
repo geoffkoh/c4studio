@@ -616,7 +616,8 @@ diagram's title, 28 px tall at its own proportions, in the Studio, exports,
 `c4 render`, `c4 publish` (beside the site's name too) and the VS Code
 preview, and before the workspace's name in the Studio's top bar. A
 `dark { icon … }` variant parses but is not drawn, as for every style.
-`c4 lint` does not report the style as unused.
+`c4 lint` does not report the style as unused. The Studio's logo picker
+(PP-238), in the details card with nothing selected, writes this rule.
 
 ```text
 element "Workspace:Icon" {

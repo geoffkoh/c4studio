@@ -2838,6 +2838,235 @@ button {
   cursor: default;
 }
 
+/* The logo picker (PP-238) shares the icon picker's frame; its body is a
+   list, since a wordmark in a 40px tile is unrecognisable. */
+.logo-picker__strip {
+  display: flex;
+  align-items: center;
+  margin: 2px 0 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.logo-picker__strip img {
+  flex: none;
+  object-fit: contain;
+}
+
+.logo-picker__none {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  color: #6b778c;
+}
+
+.logo-picker__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  font-weight: 600;
+  color: #172b4d;
+}
+
+.logo-picker__list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
+}
+
+.logo-picker__row {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  column-gap: 8px;
+  align-items: center;
+  padding: 4px 6px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.logo-picker__row:hover {
+  border-color: var(--border);
+}
+
+.logo-picker__row[aria-selected="true"],
+.logo-picker__row:focus-visible {
+  border-color: var(--accent);
+  outline: 2px solid var(--accent);
+  outline-offset: 0;
+}
+
+.logo-picker__row[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.logo-picker__thumb {
+  grid-row: 1 / span 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 28px;
+  border-radius: 4px;
+  background: #fff;
+}
+
+.logo-picker__thumb img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.logo-picker__name,
+.logo-picker__where {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.logo-picker__name {
+  font-size: 12px;
+}
+
+.logo-picker__tag,
+.logo-picker__where {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.logo-picker__notice {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.logo-picker__secondary {
+  flex: none;
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.logo-picker__secondary:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* The card's workspace row (PP-238), shown with nothing selected. */
+.details__logo {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.details__logo-pick {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.details__logo-pick--static {
+  cursor: default;
+}
+
+.details__logo-thumb {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 24px;
+  border-radius: 4px;
+  background: #fff;
+}
+
+.details__logo-thumb img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.details__logo-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.details__logo-name--none,
+.details__logo-tag {
+  color: var(--muted);
+}
+
+.details__logo-action {
+  flex: none;
+  color: var(--accent);
+  font-size: 11px;
+}
+
+.details__logo-remove {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.details__logo-remove:hover {
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.details__logo-offer {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.details__inline {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
 .style-editor__dash {
   grid-column: 2 / span 1;
   width: 72px;
@@ -3171,6 +3400,19 @@ button {
 .diagram-title__logo {
   flex: none;
   object-fit: contain;
+}
+
+/* In the Studio the logo opens its picker (PP-238): the title itself takes
+   no pointer events, so the drag stays on React Flow's node wrapper. */
+.diagram-title__logo--pick {
+  pointer-events: auto;
+  cursor: pointer;
+  border-radius: 3px;
+}
+
+.diagram-title__logo--pick:hover {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .legend {
