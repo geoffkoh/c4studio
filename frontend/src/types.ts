@@ -543,6 +543,24 @@ export interface IconLibrary {
   icons: LibraryIcon[];
 }
 
+/** One icon a pack c4studio ships, from GET /api/icons/bundled (PP-239). */
+export interface BundledIcon {
+  /** The file name without `.svg`: "database", "server-2". */
+  name: string;
+  category: string;
+  /** Space-separated, for search. */
+  tags: string;
+}
+
+/** A pack c4studio ships: Tabler, MIT. */
+export interface BundledPack {
+  name: string;
+  version: string;
+  /** Where a picked icon is copied, beside the workspace file. */
+  folder: string;
+  icons: BundledIcon[];
+}
+
 /** One image the logo picker lists, from GET /api/logos (PP-238). */
 export interface LogoImage {
   /** Relative to the root, as the API's other paths are. */

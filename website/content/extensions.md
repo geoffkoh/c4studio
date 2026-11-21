@@ -118,7 +118,7 @@ styles {
 }
 ```
 
-It is opt-in because a multi-colour icon, such as a cloud vendor's, would flatten to a silhouette. Exports, `c4 render` and the VS Code preview draw it the same way. Upstream Structurizr ignores the property and draws the icon as it is. Any other value is ignored on the diagram, and `c4 lint` reports it as `invalid-icon-tint`.
+It is opt-in because a multi-colour icon, such as a cloud vendor's, would flatten to a silhouette. The exception is an SVG that paints only in `currentColor`, as Tabler, Lucide and Feather icons do: that colour means "the colour around me", which an image cannot otherwise get, so such an icon is tinted to the text colour without being asked. `false` still turns it off. Exports, `c4 render` and the VS Code preview draw it the same way. Upstream Structurizr ignores the property and draws the icon as it is. Any other value is ignored on the diagram, and `c4 lint` reports it as `invalid-icon-tint`.
 
 ## Theme files that work offline
 

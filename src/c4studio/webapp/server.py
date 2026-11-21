@@ -24,11 +24,11 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from c4studio import templates
+from c4studio import bundled_icons, templates
 from c4studio.diagnostics import Diagnostic, Severity
 from c4studio.graph.view_graph import (
     WORKSPACE_ICON_TAG,
@@ -304,6 +304,13 @@ class LogoCopyRequest(BaseModel):
     content: str
     # Say where it would go without writing it, for the confirmation.
     dry_run: bool = False
+
+
+class BundledIconCopyRequest(BaseModel):
+    """Body for ``POST /api/icons/bundled/copy`` (PP-239)."""
+
+    pack: str
+    name: str
 
 
 class SaveSourceRequest(BaseModel):
@@ -1617,6 +1624,14 @@ def create_app(
         ]
         return {"files": files, "tag": tag, "newTag": new_tag}
 
+    #: An SVG the Studio serves can carry script; the sandbox keeps it
+    #: inert even when the URL is opened directly, as ``<img>`` already does.
+    image_headers = {
+        "Content-Security-Policy": "sandbox; default-src 'none'; "
+        "style-src 'unsafe-inline'",
+        "X-Content-Type-Options": "nosniff",
+    }
+
     @app.get("/api/icons")
     def list_icons(state: AppState = Depends(_get_state)) -> dict[str, Any]:
         """The icon library beside the loaded workspace, for the picker (PP-233).
@@ -1662,9 +1677,8 @@ def create_app(
     def icon_file(path: str, state: AppState = Depends(_get_state)) -> FileResponse:
         """One image under the root, for the picker's thumbnails (PP-233).
 
-        Only image types, and an SVG from a downloaded pack can carry
-        script: the sandbox policy keeps it inert even if the URL is
-        opened directly, as ``<img>`` already does.
+        Only image types, served under ``image_headers``, since an SVG
+        from a downloaded pack can carry script.
         """
         candidate = (state.root / path).resolve()
         if not candidate.is_relative_to(state.root):
@@ -1674,14 +1688,70 @@ def create_app(
         if candidate.suffix.lower() not in IMAGE_SUFFIXES or not candidate.is_file():
             raise HTTPException(status_code=404, detail="No such image")
         return FileResponse(
-            candidate,
-            headers={
-                "Content-Security-Policy": "sandbox; default-src 'none'; "
-                "style-src 'unsafe-inline'",
-                "X-Content-Type-Options": "nosniff",
-                "Cache-Control": "no-cache",
-            },
+            candidate, headers={**image_headers, "Cache-Control": "no-cache"}
         )
+
+    @app.get("/api/icons/bundled")
+    def list_bundled_icons() -> dict[str, Any]:
+        """The icon packs c4studio ships, for the picker (PP-239).
+
+        Needs no workspace: the packs are the package's. ``tags`` is one
+        string, the picker's search haystack. A read, so Viewer serves it.
+        """
+        packs = []
+        for name in bundled_icons.PACKS:
+            pack = bundled_icons.load(name)
+            packs.append(
+                {
+                    "name": name,
+                    "version": pack.version,
+                    "folder": f"{ICON_FOLDER}/{name}",
+                    "icons": [
+                        {
+                            "name": icon.name,
+                            "category": icon.category,
+                            "tags": " ".join(icon.tags),
+                        }
+                        for icon in bundled_icons.icons(name)
+                    ],
+                }
+            )
+        return {"packs": packs}
+
+    @app.get("/api/icons/bundled/{pack}/{name}.svg")
+    def bundled_icon_file(pack: str, name: str) -> Response:
+        """One bundled icon, for the picker's thumbnails and preview (PP-239)."""
+        try:
+            content = bundled_icons.svg(pack, name)
+        except bundled_icons.BundledIconError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        return Response(
+            content,
+            media_type="image/svg+xml",
+            # The pack changes only with c4studio, which restarts the server.
+            headers={**image_headers, "Cache-Control": "max-age=3600"},
+        )
+
+    @app.post("/api/icons/bundled/copy")
+    def copy_bundled_icon(
+        body: BundledIconCopyRequest, state: AppState = Depends(_require_writable)
+    ) -> dict[str, Any]:
+        """Copy a bundled icon into the workspace's ``icons/<pack>/`` (PP-239).
+
+        With the pack's licence beside it. The style then names the copy,
+        through ``POST /api/style`` as for any other icon, so the DSL never
+        points inside the installed package.
+        """
+        _require_workspace(state)
+        if state.current_path is None:
+            raise HTTPException(status_code=409, detail="No workspace loaded")
+        try:
+            target, written = bundled_icons.copy_into(
+                state.current_path.parent, body.pack, body.name
+            )
+        except bundled_icons.BundledIconError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        return {"path": _relative_or_name(target, state.root), "written": written}
 
     @app.get("/api/logos")
     def list_logos(state: AppState = Depends(_get_state)) -> dict[str, Any]:

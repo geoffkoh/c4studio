@@ -677,7 +677,14 @@ export function GraphPane({
             case "color":
               return { textColor: value ?? was?.textColor };
             case "icon":
-              return { icon: value ?? was?.icon };
+              // A one-colour icon is drawn in the text colour, as the
+              // server paints it once written (PP-239).
+              return value === null
+                ? { icon: was?.icon, iconTint: was?.iconTint }
+                : {
+                    icon: value,
+                    iconTint: preview.tint ? (was?.iconTint ?? was?.textColor ?? "#ffffff") : was?.iconTint,
+                  };
             default:
               return { stroke: value ?? was?.stroke };
           }

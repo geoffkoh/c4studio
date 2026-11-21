@@ -19,6 +19,7 @@ import re
 from collections.abc import Iterable, Mapping
 from typing import Any
 
+from c4studio.icons import paints_in_current_color
 from c4studio.models import (
     AutomaticLayout,
     ColorScheme,
@@ -534,6 +535,10 @@ def _apply_styles(workspace: Workspace, nodes: list[GraphNode]) -> None:
             data["matchedStyles"] = matched
         if origins:
             data["styleOrigins"] = origins
+        # An icon drawn in `currentColor` asks for the colour around it,
+        # which no `<img>` gives it (PP-239); `false` still says no.
+        if not icon_tint and paints_in_current_color(data.get("icon", "")):
+            icon_tint = "true"
         tint_colour = _icon_tint_colour(icon_tint, data.get("textColor"))
         if tint_colour and data.get("icon"):
             data["iconTint"] = tint_colour
@@ -770,7 +775,9 @@ HEX_COLOUR = re.compile(r"#(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})")
 #: black on a dark box. ``true`` paints it in the element's text colour, a
 #: hex colour in that colour, ``false`` turns a broader rule's tint off.
 #: Opt-in rather than guessed: cloud vendors' icons are multi-colour, and
-#: tinting one would flatten it to a silhouette. Upstream never tints.
+#: tinting one would flatten it to a silhouette. Upstream never tints. The
+#: one exception is an SVG that paints only in ``currentColor``, which is
+#: an icon asking to be tinted (PP-239).
 ICON_TINT_PROPERTY = "c4studio.iconTint"
 
 #: Text colour when no style sets one; both renderers draw white.
