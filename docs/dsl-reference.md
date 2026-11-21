@@ -840,7 +840,7 @@ not know. Nothing here changes the grammar.
 | `c4studio.autolayout.<group name>` | In a **view's** `properties` | The same, for a group — groups have no properties of their own, so the hint lives on the view. |
 | `c4studio.legend` | In a style's `properties` | Replaces that style's legend row label with a sentence. |
 | `c4studio.badge` | In an **element** style's `properties` | Colours the Studio's properties badge (the ⓘ on an element that has properties) for elements with that tag: `#rgb` or `#rrggbb`. Without it the badge is the element's text colour. The "i" is drawn black or white, whichever reads on it. Anything but hex is ignored and reported by `c4 lint` (`invalid-badge-colour`). |
-| `c4studio.iconTint` | In an **element** style's `properties` | Draws the style's icon in one colour, keeping its shape (PP-234): `true` for the element's text colour, `#rgb`/`#rrggbb` for that colour, `false` to turn off a broader style's tint. For one-colour glyphs; a multi-colour icon would become a silhouette, so it is never applied unasked. Anything else is ignored and reported by `c4 lint` (`invalid-icon-tint`). |
+| `c4studio.iconTint` | In an **element** style's `properties` | Draws the style's icon in one colour, keeping its shape (PP-234): `true` for the element's text colour, `#rgb`/`#rrggbb` for that colour, `false` to turn off a broader style's tint. For one-colour glyphs; a multi-colour icon would become a silhouette, so it is never applied unasked, except to an SVG that paints only in `currentColor` (Tabler, Lucide, Feather), which is tinted to the text colour unless the property says `false` (PP-239). Anything else is ignored and reported by `c4 lint` (`invalid-icon-tint`). |
 
 ```dsl
 workspace "Extensions" {

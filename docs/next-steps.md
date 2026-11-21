@@ -75,8 +75,8 @@ checked subset with its disclaimer.
 
 ## Open now
 
-- **The icon queue, in order:** PP-239 (bundle Tabler, element icons
-  only), PP-240 (curated Simple Icons), PP-241 (`c4 icons import` for a
+- **The icon queue, in order:** PP-240 (curated Simple Icons, which
+  belongs in `bundled_icons.PACKS` beside Tabler), PP-241 (`c4 icons import` for a
   downloaded cloud pack), PP-236 (remove `branding`, warning towards
   `Workspace:Icon` and the logo picker), PP-235 (`iconPosition`).
   PP-238, the logo picker, landed to the reviewed design: the card's
@@ -86,6 +86,13 @@ checked subset with its disclaimer.
   picked file into `brand/` after a dry run the confirmation names, and
   finds an identical file by hash first. The logo itself is written by
   the existing `POST /api/style` with `tag: "Workspace:Icon"`.
+  PP-239 ships Tabler 3.50.0's outline set (4,825 icons, `brand-*` left
+  out) as `src/c4studio/icon_packs/tabler/icons.json`, about 310 KB in
+  the wheel; the picker lists it as the `tabler` pack and `POST
+  /api/icons/bundled/copy` copies a used one into `icons/tabler/` with
+  the LICENSE. An SVG painting only in `currentColor` is now tinted
+  without `c4studio.iconTint` (`false` still opts out). To bump Tabler,
+  rerun `scripts/vendor_tabler.py` against the new tarball.
 - **PP-220 leftovers (parked 18 Nov):** sizes from a remote theme are
   not applied, and `c4 render` cannot pick a named layout.
 - **PP-213, waiting on picomatch:** the `@azure/msal-node` advisory

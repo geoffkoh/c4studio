@@ -12,6 +12,8 @@ export interface StylePreview {
   property: string;
   /** `null` puts back what the payload drew: the preview is over. */
   value: string | null;
+  /** An icon drawn in `currentColor`, painted in the text colour (PP-239). */
+  tint?: boolean;
 }
 
 export type StyleTarget =
@@ -196,8 +198,8 @@ export function StyleEditor({
       .finally(() => setBusy(false));
   };
 
-  const preview = (property: string, value: string | null) =>
-    onPreview({ kind, ids: reach(), property, value });
+  const preview = (property: string, value: string | null, tint?: boolean) =>
+    onPreview({ kind, ids: reach(), property, value, tint });
 
   const count = counts[allTag];
   const what = kind === "element" ? "" : " lines";
@@ -210,7 +212,7 @@ export function StyleEditor({
       ownerId: target.node.id,
       title: `Icon · ${scopeLabel}`,
       current: target.node.data.iconSource,
-      onPreview: (url) => preview("icon", url),
+      onPreview: (url, tint) => preview("icon", url, tint),
       onUse: (value) => {
         preview("icon", null);
         commit("icon", value);

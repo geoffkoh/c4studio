@@ -6,6 +6,7 @@
 
 import type {
   AssistantResult,
+  BundledPack,
   Capabilities,
   CheckResult,
   ExplorerLevel,
@@ -193,6 +194,34 @@ export function listIcons(): Promise<IconLibrary> {
 /** Where one library icon is served, for a thumbnail or a preview. */
 export function iconFileUrl(path: string): string {
   return `/api/icons/file?path=${encodeURIComponent(path)}`;
+}
+
+let bundled: Promise<BundledPack[]> | null = null;
+
+/** GET /api/icons/bundled -> the packs c4studio ships, read once (PP-239). */
+export function listBundledIcons(): Promise<BundledPack[]> {
+  bundled ??= request<{ packs: BundledPack[] }>("/api/icons/bundled").then(
+    (body) => body.packs,
+    (err: unknown) => {
+      bundled = null;
+      throw err;
+    },
+  );
+  return bundled;
+}
+
+/** Where one bundled icon is served, for a thumbnail or a preview. */
+export function bundledIconUrl(pack: string, name: string): string {
+  return `/api/icons/bundled/${encodeURIComponent(pack)}/${encodeURIComponent(name)}.svg`;
+}
+
+/** POST /api/icons/bundled/copy -> the icon's copy in the workspace, root-relative. */
+export function copyBundledIcon(pack: string, name: string): Promise<{ path: string; written: boolean }> {
+  return request("/api/icons/bundled/copy", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ pack, name }),
+  });
 }
 
 /** GET /api/logos -> the workspace's images and its logo (PP-238). */

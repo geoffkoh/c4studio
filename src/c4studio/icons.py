@@ -194,15 +194,8 @@ def _jpeg_size(data: bytes) -> tuple[float, float] | None:
     return None
 
 
-def image_size(uri: str) -> tuple[float, float] | None:
-    """The intrinsic size of a ``data:`` image, read from its header.
-
-    For the workspace logo (PP-237): the headless renderer has no DOM to
-    measure an image with, and a logo drawn in a square box would shrink
-    a wide wordmark to nothing. PNG, GIF, JPEG and SVG are read; anything
-    else, or a URL not yet embedded, is None and the caller assumes a
-    square.
-    """
+def _decode(uri: str) -> tuple[str, bytes] | None:
+    """A ``data:`` URI's media type and bytes, or None for anything else."""
     if not uri.startswith("data:") or "," not in uri:
         return None
     header, _, payload = uri.partition(",")
@@ -213,7 +206,46 @@ def image_size(uri: str) -> tuple[float, float] | None:
             data = unquote(payload).encode("utf-8")
     except ValueError:
         return None
-    media_type = header[5:].split(";")[0].lower()
+    return header[5:].split(";")[0].lower(), data
+
+
+#: Every colour an SVG paints with, as an attribute or a style declaration.
+_SVG_PAINT = re.compile(
+    r"""(?:fill|stroke|stop-color|color)\s*(?:=\s*["']|:\s*)([^"';>]+)""",
+    re.IGNORECASE,
+)
+
+
+@lru_cache(maxsize=256)
+def paints_in_current_color(uri: str) -> bool:
+    """Whether a ``data:`` SVG paints only in ``currentColor``.
+
+    Such an icon asks to be drawn in the colour around it, which an
+    ``<img>`` cannot give it: drawn as it is, it comes out black. Tabler
+    (PP-239), Lucide and Feather are drawn this way, so an element with one
+    is tinted to its text colour without being asked (``view_graph``).
+    """
+    decoded = _decode(uri)
+    if decoded is None or decoded[0] != "image/svg+xml":
+        return False
+    svg = decoded[1].decode("utf-8", errors="replace")
+    paints = {value.strip().lower() for value in _SVG_PAINT.findall(svg)}
+    return "currentcolor" in paints and paints <= {"currentcolor", "none"}
+
+
+def image_size(uri: str) -> tuple[float, float] | None:
+    """The intrinsic size of a ``data:`` image, read from its header.
+
+    For the workspace logo (PP-237): the headless renderer has no DOM to
+    measure an image with, and a logo drawn in a square box would shrink
+    a wide wordmark to nothing. PNG, GIF, JPEG and SVG are read; anything
+    else, or a URL not yet embedded, is None and the caller assumes a
+    square.
+    """
+    decoded = _decode(uri)
+    if decoded is None:
+        return None
+    media_type, data = decoded
     if media_type == "image/svg+xml":
         return _svg_size(data.decode("utf-8", errors="replace"))
     if data[:8] == b"\x89PNG\r\n\x1a\n" and len(data) >= 24:
