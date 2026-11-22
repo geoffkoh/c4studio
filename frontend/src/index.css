@@ -2702,30 +2702,6 @@ button {
   color: var(--text);
 }
 
-.icon-picker__packs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 6px;
-}
-
-.icon-picker__pack {
-  font: inherit;
-  font-size: 11px;
-  padding: 1px 8px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--bg);
-  color: var(--text);
-  cursor: pointer;
-}
-
-.icon-picker__pack[aria-pressed="true"] {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
-}
-
 .icon-picker__section,
 .icon-picker__more {
   margin: 8px 0 4px;
@@ -2733,27 +2709,229 @@ button {
   color: var(--muted);
 }
 
-.icon-picker__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, 40px);
-  gap: 4px;
+/* The icon browser (PP-244): the card widens while it is open, up to half
+   the canvas, so the box being previewed stays in sight. Its own scroller
+   holds the grid; the head and the preview strip stay put. */
+.diagram-details:has(.icon-picker--browsing) {
+  width: clamp(320px, 50cqw, 560px);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.react-flow__panel.graph-corner:has(.icon-picker--browsing) {
+  height: calc(100% - 190px);
+}
+
+.react-flow:has(.icon-picker--browsing) .react-flow__panel.graph-controls--beside-card {
+  max-width: calc(100cqw - 30px - clamp(320px, 50cqw, 560px) - 8px);
+}
+
+@container (max-width: 640px) {
+  .diagram-details:has(.icon-picker--browsing) {
+    width: calc(100cqw - 30px);
+  }
+
+  .react-flow__panel.graph-corner:has(.icon-picker--browsing) {
+    height: calc(100% - 198px - var(--controls-height, 0px));
+  }
+
+  .react-flow:has(.icon-picker--browsing) .react-flow__panel.graph-controls--beside-card {
+    max-width: calc(100cqw - 30px);
+  }
+}
+
+.icon-picker--browsing {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.icon-picker__link {
+  flex: none;
+  margin-left: auto;
+  padding: 0 2px;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 400;
+  cursor: pointer;
+}
+
+.icon-picker__empty .icon-picker__link {
+  margin: 0 6px 0 0;
+  text-decoration: underline;
+}
+
+.icon-picker__bar {
+  display: flex;
+  gap: 6px;
+}
+
+.icon-picker__bar .icon-picker__search {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.icon-picker__show {
+  flex: 0 1 140px;
+  min-width: 0;
+  font: inherit;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.icon-picker__body {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  gap: 8px;
   margin-top: 8px;
 }
 
+.icon-picker__nav {
+  flex: 0 0 132px;
+  overflow-y: auto;
+  padding-right: 6px;
+  border-right: 1px solid var(--border);
+}
+
+.icon-picker__nav-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 4px;
+  width: 100%;
+  padding: 3px 6px;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.icon-picker__nav-item:hover {
+  background: var(--bg);
+}
+
+.icon-picker__nav-item[aria-current="true"] {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.icon-picker__nav-item--sub {
+  padding-left: 16px;
+  font-size: 11.5px;
+}
+
+.icon-picker__nav-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.icon-picker__nav-count {
+  flex: none;
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 400;
+}
+
+.icon-picker__scroller {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 0 4px;
+}
+
+.icon-picker__hint {
+  margin: 0 0 6px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+/* Windowed: only the rows in view are drawn, each placed at its offset. */
+.icon-picker__grid {
+  position: relative;
+}
+
+.icon-picker--browsing .icon-picker__section {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 26px;
+  margin: 0;
+  line-height: 30px;
+  font-weight: 600;
+}
+
+.icon-picker__row {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  gap: 4px;
+}
+
 .icon-picker__tile {
-  width: 40px;
-  height: 40px;
-  padding: 3px;
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  width: 72px;
+  height: 80px;
+  padding: 9px 3px 4px;
   border: 1px solid transparent;
   border-radius: 6px;
   background: var(--bg);
+  font: inherit;
   cursor: pointer;
 }
 
 .icon-picker__tile img {
-  width: 100%;
-  height: 100%;
+  flex: none;
+  width: 32px;
+  height: 32px;
   object-fit: contain;
+}
+
+/* A built-in icon, copied into the workspace when used. */
+.icon-picker__tile--builtin::after {
+  content: "";
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--muted);
+  opacity: 0.45;
+}
+
+.icon-picker__label {
+  display: -webkit-box;
+  max-width: 100%;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  color: var(--text);
+  font-size: 10.5px;
+  line-height: 1.25;
+  text-align: center;
+  overflow-wrap: anywhere;
 }
 
 .icon-picker__tile:hover {
@@ -2765,6 +2943,36 @@ button {
   border-color: var(--accent);
   outline: 2px solid var(--accent);
   outline-offset: 0;
+}
+
+.icon-picker__strip {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.icon-picker__swatch {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 48px;
+  border-radius: 6px;
+}
+
+.icon-picker__swatch-icon {
+  display: block;
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}
+
+.icon-picker__strip .icon-picker__caption {
+  white-space: normal;
+  line-height: 1.35;
 }
 
 .icon-picker__empty {
