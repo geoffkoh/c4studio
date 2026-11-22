@@ -72,6 +72,33 @@ _ATTRIBUTES = frozenset(
 _NUMERIC = re.compile(r"[-\d.,\s]*")
 
 
+README = """# Tabler Icons, bundled (PP-239)
+
+[Tabler Icons](https://tabler.io/icons) by Paweł Kuna, MIT licensed: see
+`LICENSE`, which is Tabler's own and travels with every icon the Studio
+copies into a workspace (`icons/tabler/LICENSE`).
+
+`icons.json` is the outline style of the npm package `@tabler/icons`,
+{count} icons as `[category, tags, shapes]` each. The `brand-*` icons are
+left out: they are other companies' logos, and brand logos come only from
+the curated Simple Icons subset.
+
+## Source
+
+Nothing here is fetched at run time; this records where the files came
+from, so anyone can download the same tarball and compare.
+
+| | |
+| --- | --- |
+| Package | `@tabler/icons` {version} |
+| Tarball | https://registry.npmjs.org/@tabler/icons/-/icons-{version}.tgz |
+| sha1 | `{sha1}` (the registry's `dist.shasum`) |
+
+Regenerate all three files with `scripts/vendor_tabler.py`; never edit them
+by hand.
+"""
+
+
 class VendorError(Exception):
     """The tarball is not the one expected, or an icon is not plain shapes."""
 
@@ -107,7 +134,7 @@ def shapes(name: str, svg: str) -> str:
 
 
 def vendor(tarball: Path, version: str, sha1: str) -> int:
-    """Write ``icons.json`` and ``LICENSE``; return the number of icons."""
+    """Write ``icons.json``, ``LICENSE`` and ``README.md``; return the icon count."""
     digest = hashlib.sha1(tarball.read_bytes()).hexdigest()  # noqa: S324
     if digest != sha1:
         raise VendorError(f"sha1 {digest}, expected {sha1}")
@@ -138,8 +165,6 @@ def vendor(tarball: Path, version: str, sha1: str) -> int:
     lines = [
         "{",
         f'"version": {json.dumps(version)},',
-        f'"source": "https://registry.npmjs.org/@tabler/icons/-/icons-{version}.tgz",',
-        f'"sha1": {json.dumps(sha1)},',
         '"icons": {',
         ",\n".join(
             f"{json.dumps(name)}: {json.dumps(entry, ensure_ascii=False)}"
@@ -151,6 +176,11 @@ def vendor(tarball: Path, version: str, sha1: str) -> int:
     ]
     (OUT / "icons.json").write_text("\n".join(lines), encoding="utf-8")
     (OUT / "LICENSE").write_text(licence, encoding="utf-8")
+    # Where it came from goes in the README, not the shipped data: nothing
+    # reads it, and a URL in icons.json reads as a reference to follow.
+    (OUT / "README.md").write_text(
+        README.format(version=version, sha1=sha1, count=len(icons)), encoding="utf-8"
+    )
     return len(icons)
 
 
