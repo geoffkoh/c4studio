@@ -212,6 +212,7 @@ export function StyleEditor({
       ownerId: target.node.id,
       title: `Icon · ${scopeLabel}`,
       current: target.node.data.iconSource,
+      box: { background: target.node.data.background, color: target.node.data.textColor },
       onPreview: (url, tint) => preview("icon", url, tint),
       onUse: (value) => {
         preview("icon", null);

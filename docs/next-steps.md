@@ -93,6 +93,15 @@ checked subset with its disclaimer.
   the LICENSE. An SVG painting only in `currentColor` is now tinted
   without `c4studio.iconTint` (`false` still opts out). To bump Tabler,
   rerun `scripts/vendor_tabler.py` against the new tarball.
+  PP-244 turned the picker into a browser, to the ux-reviewer's plan:
+  the card widens to `clamp(320px, 50cqw, 560px)` while picking, a
+  section/category list shows from 480 px of panel width, the grid is
+  windowed by hand, search lives in `frontend/src/iconSearch.ts`.
+  Left for a human to judge: the Suggested list, two-line labels at
+  72 px, and whether the browser should follow a new selection (today
+  it closes, as before). `export-edge-handles` and the `line-style`
+  "saved style outranks" test now fail in **every** full Playwright
+  run and pass alone: order-dependent, not random. Worth a ticket.
 - **PP-220 leftovers (parked 18 Nov):** sizes from a remote theme are
   not applied, and `c4 render` cannot pick a named layout.
 - **PP-213, waiting on picomatch:** the `@azure/msal-node` advisory

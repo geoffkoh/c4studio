@@ -8,7 +8,7 @@ import { expect, test, type Page } from "@playwright/test";
  * would follow is intercepted, so the test reads the text the Studio
  * would have written without touching the sample.
  */
-async function open(page: Page): Promise<string[]> {
+async function open(page: Page, width = 1440): Promise<string[]> {
   const saved: string[] = [];
   await page.route(/\/api\/views\/[^/]+\/(expansion|layout|line-style)$/, async (route) => {
     if (route.request().method() === "GET") return route.fallback();
@@ -32,7 +32,7 @@ async function open(page: Page): Promise<string[]> {
       }),
     });
   });
-  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.setViewportSize({ width, height: 900 });
   await page.goto("/");
   const rail = page.locator(".rail--left");
   if (await rail.isVisible()) await rail.click();
@@ -60,10 +60,11 @@ test("searching previews on the canvas, and Escape puts it back", async ({ page 
 
   const picker = page.getByRole("dialog", { name: "Choose an icon" });
   await expect(picker.getByText("Icon · All “Database” (1)")).toBeVisible();
-  // Not every icon on open: only those the workspace already uses (the
-  // Message Bus style's tinted glyph, PP-234).
-  await expect(picker.getByText("In this workspace")).toBeVisible();
-  await expect(picker.getByRole("option")).toHaveCount(1);
+  // Something to browse before typing (PP-244): what the workspace uses
+  // (the Message Bus style's tinted glyph, PP-234), then suggestions.
+  await expect(picker.getByText("Used in this workspace")).toBeVisible();
+  await expect(picker.getByText("Suggested · Data")).toBeVisible();
+  await expect(picker.getByRole("option", { name: "database", exact: true })).toBeVisible();
   await expect(editor).toBeHidden();
 
   await picker.getByRole("searchbox", { name: "Search icons" }).fill("data");
@@ -71,7 +72,7 @@ test("searching previews on the canvas, and Escape puts it back", async ({ page 
   await expect(picker.getByRole("option").first()).toHaveAttribute("title", "icons/basic/Database_48.svg");
   await expect(picker.getByRole("option", { name: "database", exact: true })).toBeVisible();
   await picker.getByRole("searchbox", { name: "Search icons" }).press("ArrowDown");
-  await expect(picker.getByText("Database — basic/Database_48.svg")).toBeVisible();
+  await expect(picker.getByLabel("Preview")).toContainText("basic/Database_48.svg");
   await expect(database(page).locator("img.node__icon")).toHaveAttribute(
     "src",
     /\/api\/icons\/file\?path=icons%2Fbasic%2FDatabase_48\.svg/,
@@ -138,19 +139,90 @@ test("a built-in icon previews tinted, and is copied into the workspace when use
   await editor.getByRole("button", { name: "Icon", exact: true }).click();
   const picker = page.getByRole("dialog", { name: "Choose an icon" });
   // The pack is offered beside the workspace's own.
-  await expect(picker.getByRole("group", { name: "Packs" })).toContainText(/tabler \d{4}/);
+  await expect(picker.getByRole("navigation", { name: "Sections" })).toContainText(/tabler \(built in\)\s*\d{4}/);
 
   await picker.getByRole("searchbox", { name: "Search icons" }).fill("cloud computing");
   const tile = picker.getByRole("option", { name: "cloud-computing", exact: true });
   await tile.focus();
-  await expect(picker.getByText(/cloud-computing — built in, copied to icons\/tabler\//)).toBeVisible();
+  await expect(picker.getByLabel("Preview")).toContainText(
+    "Built in: Use copies it to icons/tabler/cloud-computing.svg with its LICENSE",
+  );
   // Drawn in currentColor, so previewed in the text colour, not black.
   const preview = database(page).locator(".node__icon--tint");
   await expect(preview).toHaveAttribute("style", /api\/icons\/bundled\/tabler\/cloud-computing\.svg/);
 
-  await picker.getByRole("button", { name: "Use" }).click();
+  await picker.getByRole("button", { name: "Copy & use" }).click();
   await expect(picker).toBeHidden();
   expect(copies).toEqual([{ pack: "tabler", name: "cloud-computing" }]);
   await expect.poll(() => styles.length).toBe(1);
   expect(styles[0]).toMatchObject({ property: "icon", value: "icons/tabler/cloud-computing.svg" });
+});
+
+const card = (page: Page) => page.getByRole("complementary", { name: "Details" });
+
+async function browse(page: Page, width: number) {
+  await open(page, width);
+  await page.getByLabel("Edit style", { exact: true }).getByRole("button", { name: "Icon", exact: true }).click();
+  const picker = page.getByRole("dialog", { name: "Choose an icon" });
+  await expect(picker.getByRole("listbox", { name: "Icons" }).getByRole("option").first()).toBeVisible();
+  return picker;
+}
+
+test("the card widens into a browser, with sections beside the grid", async ({ page }) => {
+  const picker = await browse(page, 1440);
+  // Half the canvas, capped: 560 px of a 1140 px canvas.
+  const box = await card(page).boundingBox();
+  expect(box?.width).toBeGreaterThan(550);
+  expect(box?.width).toBeLessThanOrEqual(562);
+  await expect(picker.getByRole("navigation", { name: "Sections" })).toBeVisible();
+  await expect(picker.getByRole("combobox", { name: "Show" })).toHaveCount(0);
+  // Tiles are labelled, at least four to a row.
+  await picker.getByRole("searchbox", { name: "Search icons" }).fill("user");
+  const tiles = picker.getByRole("option");
+  await expect(tiles.first().locator(".icon-picker__label")).toBeVisible();
+  const first = await tiles.nth(0).boundingBox();
+  const fourth = await tiles.nth(3).boundingBox();
+  expect(fourth?.y).toBe(first?.y);
+});
+
+test("a whole pack scrolls, drawing only the rows in view", async ({ page }) => {
+  const picker = await browse(page, 1440);
+  await picker.getByRole("navigation", { name: "Sections" }).getByRole("button", { name: /tabler \(built in\)/ }).click();
+  await expect(picker.getByText("Arrows", { exact: true }).first()).toBeVisible();
+  // Thousands of icons, a screenful of tiles in the DOM.
+  expect(await picker.getByRole("option").count()).toBeLessThan(200);
+  await picker.getByRole("option").first().focus();
+  await page.keyboard.press("End");
+  // Zodiac is the last category: the end of the pack, hundreds of rows down.
+  const last = picker.locator(".icon-picker__tile:focus");
+  await expect(last).toHaveAttribute("aria-label", /^zodiac-/);
+  await expect(last).toBeInViewport();
+  const name = await last.getAttribute("aria-label");
+  await expect(picker.getByLabel("Preview")).toContainText(name ?? "");
+  // The canvas previews the tile reached.
+  await expect(database(page).locator(".node__icon--tint")).toHaveAttribute(
+    "style",
+    new RegExp(`tabler/${name}\\.svg`),
+  );
+  expect(await picker.getByRole("option").count()).toBeLessThan(200);
+});
+
+test("search knows the words people use, and leaves letters out", async ({ page }) => {
+  const picker = await browse(page, 1440);
+  const search = picker.getByRole("searchbox", { name: "Search icons" });
+  await search.fill("db");
+  const names = async () => picker.getByRole("option").evaluateAll((els) => els.slice(0, 4).map((e) => e.getAttribute("aria-label")));
+  await expect.poll(names).toContain("database");
+  await search.fill("api");
+  await expect(picker.getByRole("option").first()).toHaveAttribute("aria-label", "api");
+  await expect(picker.getByRole("option", { name: "hexagon-letter-a", exact: true })).toHaveCount(0);
+});
+
+test("a narrow card swaps the sections for a dropdown", async ({ page }) => {
+  const picker = await browse(page, 1024);
+  await expect(picker.getByRole("navigation", { name: "Sections" })).toHaveCount(0);
+  const show = picker.getByRole("combobox", { name: "Show" });
+  await expect(show).toBeVisible();
+  await show.selectOption("pack:tabler");
+  await expect(picker.getByText("Arrows", { exact: true }).first()).toBeVisible();
 });
