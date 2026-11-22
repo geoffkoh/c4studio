@@ -229,7 +229,12 @@ def test_the_pack_json_is_one_icon_per_line() -> None:
     lines = path.read_text(encoding="utf-8").splitlines()
     data = json.loads("\n".join(lines))
     assert len(lines) > len(data["icons"])
-    assert data["version"] and data["sha1"]
+    assert set(data) == {"version", "icons"}
+    # Provenance lives in the README; the shipped data names no URL.
+    assert "://" not in path.read_text(encoding="utf-8")
+    readme = (path.parent / "README.md").read_text(encoding="utf-8")
+    assert data["version"] in readme
+    assert re.search(r"sha1 \| `[0-9a-f]{40}`", readme)
 
 
 def test_the_copied_icon_parses_as_an_embedded_image(root: Path) -> None:
