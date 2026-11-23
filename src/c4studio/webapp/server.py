@@ -38,7 +38,12 @@ from c4studio.graph.view_graph import (
 )
 from c4studio.icon_library import ICON_FOLDER, IMAGE_SUFFIXES
 from c4studio.icon_library import scan as scan_icons
-from c4studio.icons import MAX_ICON_BYTES, file_data_uri, image_size
+from c4studio.icons import (
+    MAX_ICON_BYTES,
+    file_data_uri,
+    file_paints_in_current_color,
+    image_size,
+)
 from c4studio.impact import analyse as analyse_impact
 from c4studio.impact import family as impact_family
 from c4studio.impact import to_dict as impact_to_dict
@@ -1639,7 +1644,8 @@ def create_app(
         ``icons/`` next to the workspace file, as downloaded packs are laid
         out (see ``icon_library``). Paths are relative to the root, as every
         other path this API takes. ``used`` marks icons a style already
-        names, which the picker offers first. A read, so Viewer serves it.
+        names, which the picker offers first; ``tint`` that the diagram will
+        paint it in the text colour. A read, so Viewer serves it.
         """
         workspace = _require_workspace(state)
         if state.current_path is None:
@@ -1668,6 +1674,8 @@ def create_app(
                     "name": icon.name,
                     "pack": icon.pack,
                     "used": any(icon.path.endswith(u) for u in used),
+                    # Previewed as the diagram will draw it (PP-246).
+                    "tint": file_paints_in_current_color(state.root / icon.path),
                 }
                 for icon in icons
             ],

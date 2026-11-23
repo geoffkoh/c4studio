@@ -182,6 +182,29 @@ test("a built-in icon previews tinted, and is copied into the workspace when use
   expect(styles[0]).toMatchObject({ property: "icon", value: "icons/tabler/cloud-computing.svg" });
 });
 
+test("a workspace icon previews tinted when the server says the diagram will tint it (PP-246)", async ({
+  page,
+}) => {
+  // The server reads each SVG; here it says outline/ paints in currentColor,
+  // a folder no built-in pack is named after.
+  await page.route("**/api/icons", async (route) => {
+    const response = await route.fetch();
+    const body = (await response.json()) as { icons: { path: string; tint: boolean }[] };
+    for (const icon of body.icons) icon.tint = icon.path.endsWith("outline/Queue.svg");
+    return route.fulfill({ response, json: body });
+  });
+  await open(page);
+  await page.getByLabel("Edit style", { exact: true }).getByRole("button", { name: "Icon", exact: true }).click();
+  const picker = page.getByRole("dialog", { name: "Choose an icon" });
+  await picker.getByRole("searchbox", { name: "Search icons" }).fill("queue");
+
+  await picker.getByRole("option").and(picker.locator('[title="icons/outline/Queue.svg"]')).focus();
+  await expect(database(page).locator(".node__icon--tint")).toHaveAttribute("style", /outline%2FQueue\.svg/);
+  await picker.getByRole("option").and(picker.locator('[title="icons/basic/Queue_48.svg"]')).focus();
+  await expect(database(page).locator("img.node__icon")).toHaveAttribute("src", /basic%2FQueue_48\.svg/);
+  await expect(database(page).locator(".node__icon--tint")).toHaveCount(0);
+});
+
 const card = (page: Page) => page.getByRole("complementary", { name: "Details" });
 
 async function browse(page: Page, width: number) {

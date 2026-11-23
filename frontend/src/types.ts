@@ -533,6 +533,8 @@ export interface LibraryIcon {
   pack: string;
   /** A style already names it. */
   used: boolean;
+  /** Drawn in `currentColor`, so the diagram paints it in the text colour (PP-246). */
+  tint: boolean;
 }
 
 /** Response from GET /api/icons: `icons/` beside the workspace. */

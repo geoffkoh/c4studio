@@ -89,9 +89,58 @@ def test_the_library_lists_one_entry_per_icon(client: TestClient) -> None:
                 "name": "Lambda",
                 "pack": "aws",
                 "used": False,
+                "tint": False,
             }
         ],
     }
+
+
+LINE = (
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" '
+    'stroke="currentColor"><path d="M4 4h16"/></svg>'
+)
+RED = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1" fill="#f00"><rect width="1" height="1"/></svg>'
+PNG = bytes.fromhex(
+    "89504e470d0a1a0a0000000d4948445200000001000000010806000000"
+    "1f15c4890000000d49444154789c6360000002000154a24f5d0000000049454e44ae426082"
+)
+
+
+@pytest.mark.parametrize(
+    ("path", "content"),
+    [
+        # Drawn in currentColor, in a folder that is not a built-in pack's.
+        ("icons/lucide/line.svg", LINE),
+        # A folder named after a built-in pack says nothing of the file.
+        ("icons/tabler/red.svg", RED),
+        ("icons/aws/dot.png", PNG),
+    ],
+    ids=["current-color", "coloured-in-tabler-folder", "png"],
+)
+def test_the_listing_tints_what_the_diagram_tints(
+    root: Path, path: str, content: str | bytes
+) -> None:
+    """The picker previews an icon as the diagram draws it once used (PP-246)."""
+    target = root / path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if isinstance(content, bytes):
+        target.write_bytes(content)
+    else:
+        target.write_text(content, encoding="utf-8")
+    client = TestClient(create_app(root=root))
+    assert client.post("/api/load", json={"path": "w.dsl"}).status_code == 200
+    listed = next(
+        i for i in client.get("/api/icons").json()["icons"] if i["path"] == path
+    )
+
+    _apply(
+        client,
+        root,
+        {"kind": "element", "property": "icon", "value": path, "tag": "Database"},
+    )
+    drawn = "iconTint" in _node(client, "db")
+    assert listed["tint"] is drawn
+    assert drawn is (content is LINE)
 
 
 def test_no_folder_says_so(tmp_path: Path) -> None:
