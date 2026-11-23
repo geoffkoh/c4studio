@@ -352,10 +352,16 @@ export function IconPicker({
     return { rows: result, flat: items, height: top };
   }, [sections, columns]);
 
-  // A new list starts at its top.
+  // A new list starts at its top, with nothing focused: Enter and Use must
+  // not write an icon the list no longer shows (PP-245).
   useEffect(() => {
     setActive(0);
+    if (focused) {
+      setFocused(null);
+      request.onPreview(null);
+    }
     scroller.current?.scrollTo({ top: 0 });
+    // Only a new list lets go; focusing a tile must not.
   }, [query, nav]);
 
   const visible = rows.filter(
