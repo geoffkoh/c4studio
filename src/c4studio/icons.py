@@ -228,7 +228,35 @@ def paints_in_current_color(uri: str) -> bool:
     decoded = _decode(uri)
     if decoded is None or decoded[0] != "image/svg+xml":
         return False
-    svg = decoded[1].decode("utf-8", errors="replace")
+    return _svg_paints_in_current_color(decoded[1])
+
+
+def file_paints_in_current_color(path: Path) -> bool:
+    """:func:`paints_in_current_color` for an SVG file not yet embedded.
+
+    The icon picker previews with it (PP-246), so an icon is shown tinted
+    exactly when the diagram will tint it once it is used.
+    """
+    if path.suffix.lower() != ".svg":
+        return False
+    try:
+        stat = path.stat()
+    except OSError:
+        return False
+    return _file_paints(path, stat.st_mtime_ns, stat.st_size)
+
+
+@lru_cache(maxsize=4096)
+def _file_paints(path: Path, mtime_ns: int, size: int) -> bool:
+    """Read once per version of the file: the key changes when it does."""
+    try:
+        return _svg_paints_in_current_color(path.read_bytes())
+    except OSError:
+        return False
+
+
+def _svg_paints_in_current_color(data: bytes) -> bool:
+    svg = data.decode("utf-8", errors="replace")
     paints = {value.strip().lower() for value in _SVG_PAINT.findall(svg)}
     return "currentcolor" in paints and paints <= {"currentcolor", "none"}
 

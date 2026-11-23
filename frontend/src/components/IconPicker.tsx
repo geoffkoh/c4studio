@@ -164,22 +164,24 @@ export function IconPicker({
     return () => observer.disconnect();
   }, []);
 
-  const own = useMemo<Choice[]>(() => {
-    const builtIn = new Set((shipped ?? []).map((p) => p.name));
-    return (library?.icons ?? []).map((icon) => ({
-      key: icon.path,
-      name: icon.name,
-      tokens: tokenise(`${icon.name} ${icon.path.slice((library?.folder.length ?? 0) + 1)}`),
-      tags: [],
-      category: icon.pack,
-      own: true,
-      pack: icon.pack,
-      src: iconFileUrl(icon.path),
-      used: icon.used,
-      tint: builtIn.has(icon.pack),
-      path: icon.path,
-    }));
-  }, [library, shipped]);
+  const own = useMemo<Choice[]>(
+    () =>
+      (library?.icons ?? []).map((icon) => ({
+        key: icon.path,
+        name: icon.name,
+        tokens: tokenise(`${icon.name} ${icon.path.slice((library?.folder.length ?? 0) + 1)}`),
+        tags: [],
+        category: icon.pack,
+        own: true,
+        pack: icon.pack,
+        src: iconFileUrl(icon.path),
+        used: icon.used,
+        // The server's verdict, not the folder's name (PP-246).
+        tint: icon.tint,
+        path: icon.path,
+      })),
+    [library],
+  );
 
   // A built-in icon already copied in is listed once, as the copy.
   const copiedAt = (pack: string, name: string) => `${library?.folder ?? "icons"}/${pack}/${name}.svg`;
