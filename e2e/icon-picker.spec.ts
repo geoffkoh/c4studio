@@ -104,6 +104,30 @@ test("Enter uses an icon for every element with the tag", async ({ page }) => {
   );
 });
 
+test("a new search lets go of the icon focused in the old one (PP-245)", async ({ page }) => {
+  const saved = await open(page);
+  const editor = page.getByLabel("Edit style", { exact: true });
+  await editor.getByRole("button", { name: "Icon", exact: true }).click();
+  const picker = page.getByRole("dialog", { name: "Choose an icon" });
+  const search = picker.getByRole("searchbox", { name: "Search icons" });
+  await search.fill("func");
+  await expect(picker.getByRole("option", { name: "Function", exact: true })).toBeVisible();
+  await search.press("ArrowDown");
+  await expect(picker.getByLabel("Preview")).toContainText("Function_48.svg");
+
+  // Function is not among these: nothing is focused, nothing previewed.
+  await search.fill("server");
+  await expect(picker.getByRole("option").first()).toHaveAttribute("title", "icons/basic/Server_48.svg");
+  await expect(picker.getByLabel("Preview")).toHaveCount(0);
+  await expect(picker.getByRole("button", { name: "Use", exact: true })).toBeDisabled();
+  await expect(database(page).locator("img.node__icon")).toHaveCount(0);
+
+  // Enter takes the top of what is shown, not the icon left behind.
+  await search.press("Enter");
+  await expect(editor.getByRole("status")).toHaveText("Saved to logistics_network.dsl");
+  expect(saved[0]).toMatch(/icon "icons\/basic\/Server_48\.svg"/);
+});
+
 test("only this element gets the icon, through a tag of its own", async ({ page }) => {
   const saved = await open(page);
   const editor = page.getByLabel("Edit style", { exact: true });
