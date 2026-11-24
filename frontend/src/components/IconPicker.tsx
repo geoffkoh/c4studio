@@ -10,7 +10,16 @@ import {
 } from "react";
 
 import { bundledIconUrl, copyBundledIcon, iconFileUrl, listBundledIcons, listIcons } from "../api";
-import { SUGGESTED, queryWords, score, tokenise, variantRank, type Searchable } from "../iconSearch";
+import {
+  SUGGESTED,
+  groupVariants,
+  queryWords,
+  score,
+  tokenise,
+  variantRank,
+  variantSuffixes,
+  type Searchable,
+} from "../iconSearch";
 import type { BundledPack, IconLibrary } from "../types";
 
 /** What the style editor hands the card when its Icon row is opened. */
@@ -45,6 +54,8 @@ interface Choice extends Searchable {
   path?: string;
   /** A built-in icon, not yet in the workspace. */
   bundled?: { pack: string; name: string };
+  /** Not an icon: the tile that shows `count` variants of `of` (PP-247). */
+  more?: { head: string; of: string; count: number };
 }
 
 /** Where the browser is looking: the left-hand list. */
@@ -125,6 +136,8 @@ export function IconPicker({
   const [typed, setTyped] = useState("");
   const [copying, setCopying] = useState(false);
   const [recent] = useState(readRecent);
+  // Search results whose variants are shown, by the base icon's key.
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const [width, setWidth] = useState(0);
   const [view, setView] = useState({ top: 0, height: 400, width: 300 });
   const root = useRef<HTMLDivElement>(null);
@@ -247,27 +260,50 @@ export function IconPicker({
 
   const words = useMemo(() => queryWords(query), [query]);
   const phrase = query.trim().toLowerCase();
-  const matched = useMemo(() => {
+  const ranked = useMemo(() => {
     if (words.length === 0) return null;
-    const scored: { choice: Choice; score: number }[] = [];
-    for (const choice of all) {
-      const s = score(choice, words, phrase);
-      if (s !== null) scored.push({ choice, score: s });
+    const scored: { item: Choice; score: number }[] = [];
+    for (const item of all) {
+      const s = score(item, words, phrase);
+      if (s !== null) scored.push({ item, score: s });
     }
     scored.sort(
       (a, b) =>
         a.score - b.score ||
-        variantRank(a.choice) - variantRank(b.choice) ||
-        a.choice.name.length - b.choice.name.length ||
-        a.choice.name.localeCompare(b.choice.name),
+        variantRank(a.item) - variantRank(b.item) ||
+        a.item.name.length - b.item.name.length ||
+        a.item.name.localeCompare(b.item.name),
     );
-    return scored.map((s) => s.choice);
+    return scored;
   }, [all, words, phrase]);
+  // Every match, for the counts: folding variants changes what is drawn,
+  // not how many icons match.
+  const matched = useMemo(() => ranked?.map((r) => r.item) ?? null, [ranked]);
+
+  // A built-in pack's names and variant suffixes, for folding its variants.
+  const families = useMemo(
+    () =>
+      new Map(
+        (shipped ?? []).map((p) => {
+          const names = new Set(p.icons.map((icon) => icon.name));
+          return [p.name, { key: p.name, names, suffixes: variantSuffixes(names) }];
+        }),
+      ),
+    [shipped],
+  );
 
   const sections = useMemo<Section[]>(() => {
-    if (matched !== null) {
-      const items = matched.filter((choice) => inNav(choice, nav));
-      return [{ title: `${items.length} ${items.length === 1 ? "match" : "matches"}`, items }];
+    if (ranked !== null) {
+      const here = ranked.filter((r) => inNav(r.item, nav));
+      const items: Choice[] = [];
+      const groups = groupVariants(here, (c) => (c.bundled ? (families.get(c.pack) ?? null) : null));
+      for (const { item, variants } of groups) {
+        items.push(item);
+        if (variants.length === 0) continue;
+        if (expanded.has(item.key)) items.push(...variants);
+        else items.push(moreTile(item, variants.length));
+      }
+      return [{ title: `${here.length} ${here.length === 1 ? "match" : "matches"}`, items }];
     }
     switch (nav.kind) {
       case "home": {
@@ -306,7 +342,7 @@ export function IconPicker({
       case "category":
         return [{ title: `${nav.pack} · ${nav.category}`, items: all.filter((c) => inNav(c, nav)) }];
     }
-  }, [matched, nav, own, all, recent, shippedNames]);
+  }, [ranked, families, expanded, nav, own, all, recent, shippedNames]);
 
   // The left-hand list, with counts for what the search leaves.
   const navEntries = useMemo(() => {
@@ -370,6 +406,7 @@ export function IconPicker({
   // not write an icon the list no longer shows (PP-245).
   useEffect(() => {
     setActive(0);
+    setExpanded(new Set());
     if (focused) {
       setFocused(null);
       request.onPreview(null);
@@ -418,6 +455,14 @@ export function IconPicker({
       onClose();
       return;
     }
+    if (choice.more) {
+      // The variants take the tile's place; focus stays at its index,
+      // which is now the first of them.
+      const head = choice.more.head;
+      setExpanded((was) => new Set(was).add(head));
+      pendingFocus.current = true;
+      return;
+    }
     remember(choice.key);
     if (choice.path !== undefined) {
       request.onUse(choice.path);
@@ -437,8 +482,16 @@ export function IconPicker({
       });
   };
   const focus = (choice: Choice, index: number) => {
-    setFocused(choice);
     setActive(index);
+    if (choice.more) {
+      // Nothing to preview on a "+N" tile.
+      if (focused) {
+        setFocused(null);
+        request.onPreview(null);
+      }
+      return;
+    }
+    setFocused(choice);
     request.onPreview(choice.src, choice.tint);
   };
 
@@ -674,6 +727,27 @@ export function IconPicker({
                   <div key={`r${row.top}`} className="icon-picker__row" style={{ top: row.top }} role="presentation">
                     {row.items.map((choice, i) => {
                       const index = row.first + i;
+                      if (choice.more) {
+                        const label = `${choice.more.count} more like ${choice.more.of}`;
+                        return (
+                          <button
+                            key={choice.key}
+                            data-index={index}
+                            role="option"
+                            aria-selected={false}
+                            aria-label={label}
+                            title={`${label}: show them`}
+                            className="icon-picker__tile icon-picker__tile--more"
+                            tabIndex={index === active ? 0 : -1}
+                            onFocus={() => focus(choice, index)}
+                            onClick={() => use(choice)}
+                            onKeyDown={(event) => onTileKey(event, index)}
+                          >
+                            <span className="icon-picker__more-count">+{choice.more.count}</span>
+                            <span className="icon-picker__label">variants</span>
+                          </button>
+                        );
+                      }
                       return (
                         <button
                           key={choice.key}
@@ -724,6 +798,23 @@ export function IconPicker({
       </div>
     </div>
   );
+}
+
+/** The tile after a base icon that stands for its folded variants. */
+function moreTile(head: Choice, count: number): Choice {
+  return {
+    key: `more:${head.key}`,
+    name: `+${count}`,
+    tokens: [],
+    tags: [],
+    category: "",
+    own: false,
+    pack: head.pack,
+    src: "",
+    used: false,
+    tint: false,
+    more: { head: head.key, of: head.name, count },
+  };
 }
 
 /** The focused icon on the box's own paint, at the size a diagram draws it. */

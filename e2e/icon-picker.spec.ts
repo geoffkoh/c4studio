@@ -291,6 +291,8 @@ test("names and sections are read whole, and shared names say their pack (PP-248
   expect(clipped).toEqual([]);
 
   // A variant's name is shown whole: its suffix is what tells it apart.
+  // Variants are folded under their base icon until asked for (PP-247).
+  await picker.getByRole("option", { name: /^\d+ more like message$/ }).click();
   const label = picker.getByRole("option", { name: "message-2-x", exact: true }).locator(".icon-picker__label");
   await label.scrollIntoViewIfNeeded();
   expect(await label.evaluate((e) => e.scrollHeight <= e.clientHeight)).toBe(true);
@@ -320,4 +322,40 @@ test("the narrow card's menu shows its choice whole (PP-248)", async ({ page }) 
     return text <= select.clientWidth - 20;
   });
   expect(fits).toBe(true);
+});
+
+test("a search folds variants under their icon until asked for (PP-247)", async ({ page }) => {
+  const picker = await browse(page, 1440);
+  const search = picker.getByRole("searchbox", { name: "Search icons" });
+  await search.fill("queue");
+  const grid = picker.getByRole("listbox", { name: "Icons" });
+  // The count is of every match; the grid draws one tile per icon.
+  await expect(picker.getByText(/^\d+ matches$/)).toHaveText(/^1[0-9]{2} matches$/);
+  const message = grid.getByRole("option", { name: "message", exact: true });
+  await expect(message).toBeVisible();
+  await expect(grid.getByRole("option", { name: "message-x", exact: true })).toHaveCount(0);
+  const more = grid.getByRole("option", { name: /^\d+ more like message$/ });
+  await expect(more).toBeVisible();
+  const count = Number((await more.getAttribute("aria-label"))?.split(" ")[0]);
+
+  // By keyboard: Enter on the tile shows them, focus on the first.
+  await more.focus();
+  await page.keyboard.press("Enter");
+  await expect(more).toHaveCount(0);
+  await expect(grid.getByRole("option", { name: "message-x", exact: true })).toBeVisible();
+  const focused = picker.locator(".icon-picker__tile:focus");
+  await expect(focused).toHaveAttribute("aria-label", /^message-/);
+  await expect(picker.getByLabel("Preview")).toContainText("message-");
+  // They open in the tile's place, straight after their icon (the grid is
+  // windowed, so only the rows in view are there to read).
+  const labels = await grid.getByRole("option").evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")));
+  const at = labels.indexOf("message");
+  const after = labels.slice(at + 1, at + 1 + Math.min(count, 8));
+  expect(after.length).toBeGreaterThan(0);
+  for (const name of after) expect(name).toMatch(/^message-/);
+
+  // A new search folds them again.
+  await search.fill("queues");
+  await search.fill("queue");
+  await expect(grid.getByRole("option", { name: /^\d+ more like message$/ })).toBeVisible();
 });
