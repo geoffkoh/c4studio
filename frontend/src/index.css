@@ -2778,8 +2778,9 @@ button {
 }
 
 .icon-picker__show {
-  flex: 0 1 140px;
-  min-width: 0;
+  /* Its own width, so "Everything (162)" is read whole (PP-248). */
+  flex: 0 0 auto;
+  max-width: 50%;
   font: inherit;
   font-size: 12px;
   border: 1px solid var(--border);
@@ -2797,7 +2798,8 @@ button {
 }
 
 .icon-picker__nav {
-  flex: 0 0 132px;
+  /* Room for "tabler (built in)" and "Communication" with their counts. */
+  flex: 0 0 160px;
   overflow-y: auto;
   padding-right: 6px;
   border-right: 1px solid var(--border);
@@ -2908,12 +2910,11 @@ button {
   object-fit: contain;
 }
 
-/* A built-in icon, copied into the workspace when used. */
-.icon-picker__tile--builtin::after {
+/* A built-in icon, copied into the workspace when used; the pack's entry
+   in the section list carries the same dot as its key. */
+.icon-picker__tile--builtin::after,
+.icon-picker__builtin-dot {
   content: "";
-  position: absolute;
-  top: 5px;
-  right: 5px;
   width: 5px;
   height: 5px;
   border-radius: 50%;
@@ -2921,6 +2922,20 @@ button {
   opacity: 0.45;
 }
 
+.icon-picker__tile--builtin::after {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+}
+
+.icon-picker__builtin-dot {
+  display: inline-block;
+  margin: 0 5px 1px 0;
+  vertical-align: middle;
+}
+
+/* Two lines, so a variant's suffix (message-2-x, message-off) stays in
+   view: an ellipsis cut exactly the part that tells variants apart. */
 .icon-picker__label {
   display: -webkit-box;
   max-width: 100%;
@@ -2932,6 +2947,24 @@ button {
   line-height: 1.25;
   text-align: center;
   overflow-wrap: anywhere;
+}
+
+/* The pack, under a name another tile shares (PP-248); the name gives up
+   its second line for it. */
+.icon-picker__label:has(+ .icon-picker__sublabel) {
+  -webkit-line-clamp: 1;
+}
+
+.icon-picker__sublabel {
+  max-width: 100%;
+  margin-top: -4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 9.5px;
+  line-height: 1.25;
+  text-align: center;
 }
 
 .icon-picker__tile:hover {
