@@ -82,15 +82,25 @@ export function tokenise(text: string): string[] {
     .filter(Boolean);
 }
 
-/** The query as words, each with the words it stands for. */
+/**
+ * What a synonym's match costs over the word typed (PP-247): enough that
+ * an icon matching only through a synonym ranks below every icon matching
+ * the word itself, even by category (3). "queue" matched 160 stack-* and
+ * message-* icons ahead of what it said.
+ */
+const SYNONYM_PENALTY = 2.5;
+
+/** The query as words, each with the words it stands for; the word itself first. */
 export function queryWords(query: string): string[][] {
   return tokenise(query).map((word) => [word, ...(SYNONYMS[word] ?? []).flatMap(tokenise)]);
 }
 
 /**
  * Lower is better; `null` does not match. Every word must start a name
- * token (1), a tag (2) or the category (3); the icon ranks by its worst
- * word, and an exact name beats everything.
+ * token (1), a tag (2) or the category (3), plus `SYNONYM_PENALTY` when
+ * only a synonym does; the icon ranks by its worst word, and an exact
+ * name beats everything. A synonym that is a whole name ("db" is
+ * "database") ranks just after an exact name.
  */
 export function score(item: Searchable, words: string[][], phrase: string): number | null {
   if (words.length === 0) return null;
@@ -99,10 +109,11 @@ export function score(item: Searchable, words: string[][], phrase: string): numb
   let worst = 0;
   for (const alternatives of words) {
     let best = Infinity;
-    for (const word of alternatives) {
-      if (item.tokens.some((token) => token.startsWith(word))) best = Math.min(best, 1);
-      else if (item.tags.some((tag) => tag.startsWith(word))) best = Math.min(best, 2);
-      else if (item.category.toLowerCase().startsWith(word)) best = Math.min(best, 3);
+    for (const [i, word] of alternatives.entries()) {
+      const cost = i === 0 ? 0 : SYNONYM_PENALTY;
+      if (item.tokens.some((token) => token.startsWith(word))) best = Math.min(best, 1 + cost);
+      else if (item.tags.some((tag) => tag.startsWith(word))) best = Math.min(best, 2 + cost);
+      else if (item.category.toLowerCase().startsWith(word)) best = Math.min(best, 3 + cost);
       // A synonym that is a whole name, as "db" is "database".
       if (alternatives.length > 1 && word === name) best = Math.min(best, 0.5);
     }
@@ -119,4 +130,81 @@ export function score(item: Searchable, words: string[][], phrase: string): numb
 export function variantRank(item: Searchable): number {
   const name = item.name.toLowerCase();
   return (item.own ? 0 : 10) + (/-off$/.test(name) ? 2 : 0) + (/-\d+$/.test(name) ? 1 : 0);
+}
+
+/**
+ * A pack's variant suffixes: a last name segment used on at least `min`
+ * icons whose name without it is also an icon (`off`, `2`, `plus`, `x`,
+ * `check`...). Read from the names, so a pack's own conventions decide,
+ * and rare endings (`stack-push`, `file-database`) are names, not variants.
+ */
+export function variantSuffixes(names: Iterable<string>, min = 20): Set<string> {
+  const all = new Set(names);
+  const counts = new Map<string, number>();
+  for (const name of all) {
+    const cut = name.lastIndexOf("-");
+    if (cut > 0 && all.has(name.slice(0, cut))) {
+      const suffix = name.slice(cut + 1);
+      counts.set(suffix, (counts.get(suffix) ?? 0) + 1);
+    }
+  }
+  return new Set([...counts].filter(([, n]) => n >= min).map(([suffix]) => suffix));
+}
+
+/** The icon `name` is a variant of, or `null`: `message-2-x` -> `message-2`. */
+export function variantOf(name: string, names: ReadonlySet<string>, suffixes: ReadonlySet<string>): string | null {
+  const cut = name.lastIndexOf("-");
+  if (cut <= 0 || !suffixes.has(name.slice(cut + 1))) return null;
+  const base = name.slice(0, cut);
+  return names.has(base) ? base : null;
+}
+
+export interface Grouped<T> {
+  item: T;
+  /** Its variants in the results, in result order; empty for most. */
+  variants: T[];
+}
+
+/**
+ * Ranked results with each variant folded under the furthest ancestor
+ * also in them (`message-2-x` under `message`), so a search shows one tile
+ * per icon rather than a screen of `-x`, `-plus` and `-off` (PP-247). A
+ * variant that ranks better than that ancestor stays where it ranks:
+ * searching "cloud computing" must not hide `cloud-computing` under
+ * `cloud`. Only icons for which `family` gives one (a pack's names and
+ * suffixes) are folded; the rest pass through as they are.
+ */
+export function groupVariants<T extends { name: string }>(
+  ranked: { item: T; score: number }[],
+  family: (item: T) => { names: ReadonlySet<string>; suffixes: ReadonlySet<string>; key: string } | null,
+): Grouped<T>[] {
+  const present = new Map<string, { item: T; score: number }>();
+  for (const entry of ranked) {
+    const f = family(entry.item);
+    if (f) present.set(`${f.key}:${entry.item.name}`, entry);
+  }
+  const headOf = new Map<T, T>();
+  for (const entry of ranked) {
+    const f = family(entry.item);
+    if (!f) continue;
+    let head: { item: T; score: number } | null = null;
+    for (let up = variantOf(entry.item.name, f.names, f.suffixes); up; up = variantOf(up, f.names, f.suffixes)) {
+      head = present.get(`${f.key}:${up}`) ?? head;
+    }
+    if (head && head.score <= entry.score) headOf.set(entry.item, head.item);
+  }
+  const groups = new Map<T, Grouped<T>>();
+  const result: Grouped<T>[] = [];
+  for (const { item } of ranked) {
+    const head = headOf.get(item);
+    if (head) continue;
+    const group = { item, variants: [] };
+    groups.set(item, group);
+    result.push(group);
+  }
+  for (const { item } of ranked) {
+    const head = headOf.get(item);
+    if (head) groups.get(head)?.variants.push(item);
+  }
+  return result;
 }

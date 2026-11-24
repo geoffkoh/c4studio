@@ -2967,6 +2967,21 @@ button {
   text-align: center;
 }
 
+/* "+12 variants": a base icon's -x, -plus and -off, folded (PP-247). */
+.icon-picker__tile--more {
+  justify-content: center;
+  border-style: dashed;
+  border-color: var(--border);
+  background: none;
+}
+
+.icon-picker__more-count {
+  color: var(--accent);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 32px;
+}
+
 .icon-picker__tile:hover {
   border-color: var(--border);
 }
