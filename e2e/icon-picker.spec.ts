@@ -273,3 +273,51 @@ test("a narrow card swaps the sections for a dropdown", async ({ page }) => {
   await show.selectOption("pack:tabler");
   await expect(picker.getByText("Arrows", { exact: true }).first()).toBeVisible();
 });
+
+test("names and sections are read whole, and shared names say their pack (PP-248)", async ({ page }) => {
+  const picker = await browse(page, 1440);
+  // One way back, not two.
+  await expect(picker.getByRole("button", { name: "Back to the style" })).toBeVisible();
+  await expect(picker.getByRole("button", { name: "Change scope" })).toHaveCount(0);
+  // The built-in pack's entry carries the tiles' dot, as their key.
+  const nav = picker.getByRole("navigation", { name: "Sections" });
+  await expect(nav.getByRole("button", { name: /tabler \(built in\)/ }).locator(".icon-picker__builtin-dot")).toHaveCount(1);
+
+  await picker.getByRole("searchbox", { name: "Search icons" }).fill("queue");
+  await expect(nav.getByRole("button", { name: /Communication/ })).toBeVisible();
+  const clipped = await nav
+    .locator(".icon-picker__nav-label")
+    .evaluateAll((els) => els.filter((e) => e.scrollWidth > e.clientWidth).map((e) => e.textContent));
+  expect(clipped).toEqual([]);
+
+  // A variant's name is shown whole: its suffix is what tells it apart.
+  const label = picker.getByRole("option", { name: "message-2-x", exact: true }).locator(".icon-picker__label");
+  await label.scrollIntoViewIfNeeded();
+  expect(await label.evaluate((e) => e.scrollHeight <= e.clientHeight)).toBe(true);
+
+  // Two tiles called Queue say which pack each is from.
+  const queues = picker.getByRole("option", { name: "Queue", exact: true });
+  await expect(queues).toHaveCount(2);
+  await expect(queues.locator(".icon-picker__sublabel")).toHaveText(["basic", "outline"]);
+  // A name nothing else shares has no second line.
+  await expect(picker.getByRole("option", { name: "stack", exact: true }).locator(".icon-picker__sublabel")).toHaveCount(0);
+});
+
+test("the narrow card's menu shows its choice whole (PP-248)", async ({ page }) => {
+  const picker = await browse(page, 1024);
+  await picker.getByRole("searchbox", { name: "Search icons" }).fill("queue");
+  const show = picker.getByRole("combobox", { name: "Show" });
+  await expect(show).toHaveValue("home");
+  // The chosen option's text against the room the menu gives it, arrow aside.
+  const fits = await show.evaluate((select: HTMLSelectElement) => {
+    const probe = document.createElement("span");
+    probe.style.font = getComputedStyle(select).font;
+    probe.style.whiteSpace = "pre";
+    probe.textContent = select.selectedOptions[0].textContent;
+    document.body.append(probe);
+    const text = probe.getBoundingClientRect().width;
+    probe.remove();
+    return text <= select.clientWidth - 20;
+  });
+  expect(fits).toBe(true);
+});

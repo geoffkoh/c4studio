@@ -208,6 +208,18 @@ export function IconPicker({
     [shipped, ownByPath],
   );
   const all = useMemo(() => [...own, ...builtIn], [own, builtIn]);
+  // Names two tiles share ("Queue" in basic/ and outline/): those tiles say
+  // which pack they are from, or they cannot be told apart (PP-248).
+  const shared = useMemo(() => {
+    const seen = new Set<string>();
+    const twice = new Set<string>();
+    for (const c of all) {
+      const name = c.name.toLowerCase();
+      if (seen.has(name)) twice.add(name);
+      seen.add(name);
+    }
+    return twice;
+  }, [all]);
   const byKey = useMemo(() => new Map(all.map((c) => [c.key, c])), [all]);
   // A built-in key, or the copy it became.
   const lookup = (key: string): Choice | undefined => {
@@ -570,7 +582,13 @@ export function IconPicker({
           aria-current={navKey(entry.nav) === current ? "true" : undefined}
           onClick={() => setNav(entry.nav)}
         >
-          <span className="icon-picker__nav-label">{entry.label}</span>
+          <span className="icon-picker__nav-label">
+            {entry.nav.kind === "pack" && shippedNames.has(entry.nav.pack) ? (
+              // The same dot as the pack's tiles: this is its key.
+              <span className="icon-picker__builtin-dot" aria-hidden="true" />
+            ) : null}
+            {entry.label}
+          </span>
           {entry.count !== undefined ? <span className="icon-picker__nav-count">{entry.count}</span> : null}
         </button>
       ))}
@@ -588,13 +606,15 @@ export function IconPicker({
       ref={root}
     >
       <div className="icon-picker__head">
-        <button className="icon-picker__back" onClick={cancel} title="Back to the style (Esc)">
+        <button
+          className="icon-picker__back"
+          onClick={cancel}
+          aria-label="Back to the style"
+          title="Back to the style, where the scope is chosen (Esc)"
+        >
           ←
         </button>
         <span className="icon-picker__title">{request.title}</span>
-        <button className="icon-picker__link" onClick={cancel}>
-          Change scope
-        </button>
       </div>
       <div className="icon-picker__bar">
         <input
@@ -670,6 +690,9 @@ export function IconPicker({
                         >
                           <img src={choice.src} alt="" loading="lazy" />
                           <span className="icon-picker__label">{choice.name}</span>
+                          {shared.has(choice.name.toLowerCase()) ? (
+                            <span className="icon-picker__sublabel">{choice.pack || "icons/"}</span>
+                          ) : null}
                         </button>
                       );
                     })}
