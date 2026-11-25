@@ -710,19 +710,15 @@ export function GraphPane({
     [payload, setEdges, setNodes],
   );
   /** A logo being picked (PP-238), painted on the title before it is
-      written; `null` puts back what the payload drew. */
-  const handleLogoPreview = useCallback(
-    (logo: WorkspaceLogo | null) => {
-      setNodes((current) =>
-        current.map((n) =>
-          n.id === TITLE_NODE_ID
-            ? { ...n, data: { ...n.data, logo: logo ?? payload?.workspaceIcon } }
-            : n,
-        ),
-      );
-    },
-    [payload, setNodes],
-  );
+      written; `null` puts back what the payload drew. Held apart from the
+      nodes and laid over the title as they are drawn, so a rebuild of the
+      nodes while picking cannot wipe it (PP-252). */
+  const [logoPreview, setLogoPreview] = useState<WorkspaceLogo | null>(null);
+  const handleLogoPreview = useCallback((logo: WorkspaceLogo | null) => setLogoPreview(logo), []);
+  // A logo written arrives as a new payload logo, which ends the preview;
+  // a reload that leaves the logo as it was does not.
+  const payloadLogo = payload?.workspaceIcon;
+  useEffect(() => setLogoPreview(null), [payloadLogo, view?.key]);
   // A click on the title's logo opens the picker in the card; a card that
   // was closed opens for it and closes again after (PP-238).
   const [logoPickRequest, setLogoPickRequest] = useState(0);
@@ -1733,12 +1729,21 @@ export function GraphPane({
   const pickLogo = styleEditing && details ? handleTitleLogo : undefined;
   const styledNodes = useMemo(
     () =>
-      pickLogo
+      pickLogo || logoPreview
         ? restyledNodes.map((node) =>
-            node.id === TITLE_NODE_ID ? { ...node, data: { ...node.data, onLogo: pickLogo } } : node,
+            node.id === TITLE_NODE_ID
+              ? {
+                  ...node,
+                  data: {
+                    ...node.data,
+                    ...(pickLogo ? { onLogo: pickLogo } : {}),
+                    ...(logoPreview ? { logo: logoPreview } : {}),
+                  },
+                }
+              : node,
           )
         : restyledNodes,
-    [restyledNodes, pickLogo],
+    [restyledNodes, pickLogo, logoPreview],
   );
 
   useEffect(() => {

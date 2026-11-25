@@ -149,3 +149,27 @@ test("a file too large to embed is refused before it is sent", async ({ page }) 
   await expect(picker(page).getByRole("status")).toContainText("at most 256 KB");
   expect(recorded.copies).toEqual([]);
 });
+
+test("Esc before an image's proportions arrive leaves the title as it was (PP-252)", async ({ page }) => {
+  // The proportions are asked for after a row is focused; hold them back
+  // until the picker has closed.
+  let answered = 0;
+  await page.route("**/api/logos/aspect?**", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+    await route.fallback();
+    answered += 1;
+  });
+  await open(page, "open");
+  const row = card(page).getByRole("group", { name: "Logo" });
+  await row.getByRole("button", { name: /northwind-logo\.svg/ }).click();
+  const images = picker(page).getByRole("listbox", { name: "Images" });
+  await picker(page).getByRole("searchbox", { name: "Search images" }).fill("queue");
+  await images.getByRole("option", { name: "Queue.svg" }).first().focus();
+  await expect(titleLogo(page)).toHaveAttribute("src", /\/api\/icons\/file\?path=icons%2F/);
+
+  await page.keyboard.press("Escape");
+  await expect(picker(page)).toHaveCount(0);
+  await expect.poll(() => answered, { timeout: 5_000 }).toBeGreaterThan(0);
+  await page.waitForTimeout(200);
+  await expect(titleLogo(page)).toHaveAttribute("src", /^data:image\/svg\+xml/);
+});

@@ -98,6 +98,9 @@ export function LogoPicker({
     search.current?.focus();
     return () => {
       live = false;
+      // However the picker closes, an aspect still on its way must not
+      // paint its image back on the title (PP-252).
+      previewing.current = null;
     };
   }, []);
 
@@ -364,6 +367,7 @@ export function LogoPicker({
             onClick={() => {
               setPending(null);
               setStrip(request.current);
+              previewing.current = null;
               request.onPreview(null);
             }}
           >
