@@ -359,3 +359,70 @@ test("a search folds variants under their icon until asked for (PP-247)", async 
   await search.fill("queue");
   await expect(grid.getByRole("option", { name: /^\d+ more like message$/ })).toBeVisible();
 });
+
+/** Pan the canvas by dragging an empty spot of it, in Pan mode. */
+async function pan(page: Page, dx: number, dy: number) {
+  const area = await page.locator(".react-flow").boundingBox();
+  if (!area) throw new Error("no canvas");
+  // An empty spot near the canvas's bottom-left, clear of the zoom buttons.
+  const spot = await page.evaluate(
+    ({ x0, y0, w, h }) => {
+      for (let y = y0 + h - 60; y > y0 + h / 2; y -= 20) {
+        for (let x = x0 + 80; x < x0 + w / 3; x += 20) {
+          if (document.elementFromPoint(x, y)?.classList.contains("react-flow__pane")) return { x, y };
+        }
+      }
+      return null;
+    },
+    { x0: area.x, y0: area.y, w: area.width, h: area.height },
+  );
+  if (!spot) throw new Error("no empty spot on the canvas");
+  await page.mouse.move(spot.x, spot.y);
+  await page.mouse.down();
+  await page.mouse.move(spot.x + dx, spot.y + dy, { steps: 8 });
+  await page.mouse.up();
+}
+
+const transform = (page: Page) => page.locator(".react-flow__viewport").getAttribute("style");
+
+test("the box being given an icon is panned clear of the browser, and back (PP-249)", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await open(page, 1440);
+  // Put the box where the widened card will be: right of the canvas.
+  const area = (await page.locator(".react-flow").boundingBox())!;
+  const at = (await database(page).boundingBox())!;
+  await pan(page, area.x + area.width - 200 - (at.x + at.width / 2), 0);
+  const was = await transform(page);
+
+  await page.getByLabel("Edit style", { exact: true }).getByRole("button", { name: "Icon", exact: true }).click();
+  const picker = page.getByRole("dialog", { name: "Choose an icon" });
+  await expect(picker).toBeVisible();
+  const cover = (await card(page).boundingBox())!;
+  await expect.poll(async () => (await database(page).boundingBox())!.x + (await database(page).boundingBox())!.width).toBeLessThan(cover.x);
+  // Whole, give or take a sub-pixel of rounding.
+  await expect(database(page)).toBeInViewport({ ratio: 0.99 });
+
+  // Closed untouched, the canvas goes back to where it was.
+  await page.keyboard.press("Escape");
+  await expect(picker).toBeHidden();
+  await expect.poll(() => transform(page)).toBe(was);
+});
+
+test("a canvas moved while browsing stays where it was moved (PP-249)", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await open(page, 1440);
+  const area = (await page.locator(".react-flow").boundingBox())!;
+  const at = (await database(page).boundingBox())!;
+  await pan(page, area.x + area.width - 200 - (at.x + at.width / 2), 0);
+
+  await page.getByLabel("Edit style", { exact: true }).getByRole("button", { name: "Icon", exact: true }).click();
+  const picker = page.getByRole("dialog", { name: "Choose an icon" });
+  await expect(picker).toBeVisible();
+  await expect.poll(async () => (await database(page).boundingBox())!.x).toBeLessThan(area.x + area.width / 2);
+  await pan(page, 0, -40);
+  const moved = await transform(page);
+  await picker.getByRole("button", { name: "Back to the style" }).click();
+  await expect(picker).toBeHidden();
+  await page.waitForTimeout(300);
+  expect(await transform(page)).toBe(moved);
+});
