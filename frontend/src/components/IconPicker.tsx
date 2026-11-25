@@ -134,6 +134,8 @@ export function IconPicker({
   const [focused, setFocused] = useState<Choice | null>(null);
   const [active, setActive] = useState(0);
   const [typed, setTyped] = useState("");
+  // The footer's path-or-URL field, opened from its link (PP-250).
+  const [typing, setTyping] = useState(false);
   const [copying, setCopying] = useState(false);
   const [recent] = useState(readRecent);
   // Search results whose variants are shown, by the base icon's key.
@@ -555,7 +557,7 @@ export function IconPicker({
     }
   };
 
-  const typedForm = (
+  const typedField = (inFooter: boolean) => (
     <form
       className="icon-picker__typed"
       onSubmit={(event) => {
@@ -565,19 +567,34 @@ export function IconPicker({
     >
       <input
         aria-label="Icon path or URL"
-        placeholder="Or a path or an https:// URL"
+        placeholder={inFooter ? "A path or an https:// URL" : "Or a path or an https:// URL"}
         value={typed}
+        autoFocus={inFooter}
         onChange={(event) => setTyped(event.target.value)}
+        onKeyDown={(event) => {
+          // In the footer, Escape closes the field; the next goes back.
+          if (inFooter && event.key === "Escape") {
+            event.stopPropagation();
+            setTyping(false);
+          }
+        }}
       />
       <button type="submit" disabled={!typed.trim()}>
         Use
       </button>
     </form>
   );
+  const typedForm = typedField(false);
+  // Where the list offers the field itself, the footer does not repeat it:
+  // when nothing could be listed, and on Suggested for a workspace with no
+  // icons of its own.
+  const typedAtEnd = nav.kind === "home" && matched === null && own.length === 0 && library !== null;
+  let typedInList = typedAtEnd;
 
   const loading = library === null && failed === null;
   let note: ReactNode = null;
   if (failed && library === null) {
+    typedInList = true;
     note = (
       <div className="icon-picker__empty icon-picker__empty--error">
         <p>{failed}</p>
@@ -613,6 +630,7 @@ export function IconPicker({
       </div>
     );
   } else if (all.length === 0) {
+    typedInList = true;
     note = (
       <div className="icon-picker__empty">
         <p>
@@ -775,7 +793,7 @@ export function IconPicker({
               )}
             </div>
           ) : null}
-          {nav.kind === "home" && matched === null && own.length === 0 && library !== null ? typedForm : null}
+          {typedAtEnd ? typedForm : null}
         </div>
       </div>
       {library?.truncated ? (
@@ -787,14 +805,26 @@ export function IconPicker({
         </p>
       ) : null}
       <div className="icon-picker__foot">
-        {strip ?? <span className="icon-picker__caption">Arrows to preview · Enter to use · Esc to go back</span>}
-        <button
-          className="icon-picker__use"
-          disabled={focused === null || copying}
-          onClick={() => focused && use(focused)}
-        >
-          {copying ? "Copying…" : focused?.bundled ? "Copy & use" : "Use"}
-        </button>
+        {typing && !typedInList ? (
+          typedField(true)
+        ) : (
+          <>
+            {strip ?? <span className="icon-picker__caption">Arrows to preview · Enter to use · Esc to go back</span>}
+            {!typedInList ? (
+              // An image outside icons/, or a URL, from any state (PP-250).
+              <button className="icon-picker__link" onClick={() => setTyping(true)}>
+                Path or URL…
+              </button>
+            ) : null}
+            <button
+              className="icon-picker__use"
+              disabled={focused === null || copying}
+              onClick={() => focused && use(focused)}
+            >
+              {copying ? "Copying…" : focused?.bundled ? "Copy & use" : "Use"}
+            </button>
+          </>
+        )}
       </div>
     </div>
   );

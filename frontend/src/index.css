@@ -3042,6 +3042,10 @@ button {
   gap: 6px;
 }
 
+.icon-picker__foot .icon-picker__typed {
+  flex: 1 1 auto;
+}
+
 .icon-picker__typed input {
   flex: 1 1 auto;
   min-width: 0;

@@ -426,3 +426,37 @@ test("a canvas moved while browsing stays where it was moved (PP-249)", async ({
   await page.waitForTimeout(300);
   expect(await transform(page)).toBe(moved);
 });
+
+test("a path or URL can be typed in a workspace with icons of its own (PP-250)", async ({ page }) => {
+  const saved = await open(page);
+  const editor = page.getByLabel("Edit style", { exact: true });
+  await editor.getByRole("button", { name: "Icon", exact: true }).click();
+  const picker = page.getByRole("dialog", { name: "Choose an icon" });
+  await expect(picker.getByText("Used in this workspace")).toBeVisible();
+
+  // Escape closes the field first, then the picker.
+  await picker.getByRole("button", { name: "Path or URL…" }).click();
+  const field = picker.getByRole("textbox", { name: "Icon path or URL" });
+  await expect(field).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(field).toHaveCount(0);
+  await expect(picker).toBeVisible();
+
+  await picker.getByRole("button", { name: "Path or URL…" }).click();
+  await field.fill("https://example.com/queue.svg");
+  await field.press("Enter");
+  await expect(editor.getByRole("status")).toHaveText("Saved to logistics_network.dsl");
+  expect(saved[0]).toMatch(/icon "https:\/\/example\.com\/queue\.svg"/);
+});
+
+test("a workspace without icons keeps the field in the list, once (PP-250)", async ({ page }) => {
+  await page.route("**/api/icons", (route) =>
+    route.fulfill({ json: { folder: "icons", exists: false, truncated: false, icons: [] } }),
+  );
+  await open(page);
+  await page.getByLabel("Edit style", { exact: true }).getByRole("button", { name: "Icon", exact: true }).click();
+  const picker = page.getByRole("dialog", { name: "Choose an icon" });
+  await expect(picker.getByText("Suggested · Data")).toBeVisible();
+  await expect(picker.getByRole("textbox", { name: "Icon path or URL" })).toHaveCount(1);
+  await expect(picker.getByRole("button", { name: "Path or URL…" })).toHaveCount(0);
+});
