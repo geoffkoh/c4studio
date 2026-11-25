@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import type { Edge, Node } from "reactflow";
+import { useReactFlow, type Edge, type Node, type Viewport } from "reactflow";
 
 import { noteLine, type WorkspaceLogo } from "@c4studio/diagram-core";
 
 import { listLogos } from "../api";
+import { panToReveal } from "../keepInView";
 import type { GraphData, ImpactResult, LogoLibrary, StyleEditRequest, StyleLocation } from "../types";
 import { ElementDetails, KIND_LABELS } from "./ElementDetails";
 import { IconPicker, type IconPickRequest } from "./IconPicker";
@@ -115,6 +116,48 @@ export function DiagramDetails({
       setPicking(null);
     }
   }, [picking, selectedId]);
+
+  // The icon browser widens the card over the canvas, and the box it
+  // previews on can end up under it: pan the box into the part left
+  // uncovered, and back on close unless the canvas was moved in between
+  // (PP-249). Only the viewport moves; nothing is saved.
+  const flow = useReactFlow();
+  const card = useRef<HTMLElement>(null);
+  const browsingFor = picking !== null && picking.ownerId === selectedId ? picking.ownerId : null;
+  useEffect(() => {
+    if (browsingFor === null) return;
+    let restore: (() => void) | null = null;
+    // A frame on, the card has its browsing width.
+    const frame = requestAnimationFrame(() => {
+      const aside = card.current;
+      const canvas = aside?.closest(".react-flow");
+      const node = flow.getNode(browsingFor);
+      if (!aside || !canvas || !node?.width || !node.height) return;
+      const before = flow.getViewport();
+      const area = canvas.getBoundingClientRect();
+      const cover = aside.getBoundingClientRect();
+      const at = node.positionAbsolute ?? node.position;
+      const left = at.x * before.zoom + before.x;
+      const top = at.y * before.zoom + before.y;
+      const pan = panToReveal(
+        { left, top, right: left + node.width * before.zoom, bottom: top + node.height * before.zoom },
+        { left: 0, top: 0, right: cover.left - area.left, bottom: area.height },
+      );
+      if (!pan) return;
+      const after: Viewport = { x: before.x + pan.dx, y: before.y + pan.dy, zoom: before.zoom };
+      const duration = motion();
+      flow.setViewport(after, { duration });
+      restore = () => {
+        const now = flow.getViewport();
+        const untouched = Math.abs(now.x - after.x) < 1 && Math.abs(now.y - after.y) < 1 && now.zoom === after.zoom;
+        if (untouched) flow.setViewport(before, { duration: motion() });
+      };
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      restore?.();
+    };
+  }, [browsingFor, flow]);
 
   // Read by the request effect: only a new request opens the picker, not
   // a later change of selection.
@@ -242,6 +285,7 @@ export function DiagramDetails({
 
   return (
     <aside
+      ref={card}
       className="diagram-details"
       aria-label="Details"
       onKeyDown={onKeyDown}
@@ -560,4 +604,9 @@ function ImpactSection({
       </button>
     </>
   );
+}
+
+/** A pan's duration: none for someone who asked for less motion. */
+function motion(): number {
+  return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? 0 : 200;
 }
