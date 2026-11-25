@@ -20,6 +20,7 @@ import re
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
 from c4studio.icon_library import ICON_FOLDER
 
@@ -91,6 +92,28 @@ def icons(pack: str) -> list[BundledIcon]:
         BundledIcon(pack=pack, name=name, category=category, tags=tags)
         for name, (category, tags, _) in sorted(load(pack).icons.items())
     ]
+
+
+@lru_cache(maxsize=len(PACKS))
+def summary(pack: str) -> dict[str, Any]:
+    """A pack as ``GET /api/icons/bundled`` lists it, built once per process.
+
+    ``tags`` is one string, the picker's search haystack. Cached because
+    the pack cannot change while c4studio runs, and listing 4,800 icons
+    on every picker opening was the route's whole cost (PP-251).
+
+    Raises:
+        BundledIconError: for a pack c4studio does not ship.
+    """
+    return {
+        "name": pack,
+        "version": load(pack).version,
+        "folder": f"{ICON_FOLDER}/{pack}",
+        "icons": [
+            {"name": icon.name, "category": icon.category, "tags": " ".join(icon.tags)}
+            for icon in icons(pack)
+        ],
+    }
 
 
 def svg(pack: str, name: str) -> str:
