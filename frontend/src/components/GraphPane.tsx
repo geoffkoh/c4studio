@@ -116,6 +116,27 @@ const INTERACTION_STORAGE_KEY = "c4studio.interaction";
 const DETAILS_STORAGE_KEY = "c4studio.details";
 /** The diagram title's chrome node. */
 const TITLE_NODE_ID = `${CHROME_PREFIX}title`;
+
+/** The node fields a box's style preview paints (PP-231, PP-239). */
+function previewFields(
+  property: string,
+  value: string,
+  tint: boolean | undefined,
+  was: { iconTint?: string; textColor?: string } | undefined,
+): Record<string, unknown> {
+  switch (property) {
+    case "background":
+      return { color: value, background: value };
+    case "color":
+      return { textColor: value };
+    case "icon":
+      // A one-colour icon is drawn in the text colour, as the server
+      // paints it once written (PP-239).
+      return { icon: value, iconTint: tint ? (was?.iconTint ?? was?.textColor ?? "#ffffff") : was?.iconTint };
+    default:
+      return { stroke: value };
+  }
+}
 const DETAILS_HINT_STORAGE_KEY = "c4studio.detailsHint";
 
 // Drag snapping step. Matches the Background dot spacing so the dots read
@@ -659,39 +680,23 @@ export function GraphPane({
 
   /** A colour being picked in the card, painted before it is written
       (PP-231). The reload that follows the edit replaces it with what the
-      DSL now says; an edit left unsaved in the editor keeps it until then. */
+      DSL now says; an edit left unsaved in the editor keeps it until then.
+      A box's preview is held apart from the nodes, one per property, and
+      laid over them as they are drawn: written into the nodes, the next
+      frame of an expand tween or any rebuild of them wiped it. */
+  const [boxPreviews, setBoxPreviews] = useState<ReadonlyMap<string, StylePreview>>(new Map());
+  useEffect(() => setBoxPreviews(new Map()), [payload]);
   const handleStylePreview = useCallback(
     (preview: StylePreview) => {
       const ids = new Set(preview.ids);
       if (preview.kind === "element") {
-        const drawn = new Map((payload?.nodes ?? []).map((n) => [n.id, n.data]));
         // `null` ends a preview: each box gets back what the payload drew.
-        const fields = (id: string) => {
-          const value = preview.value;
-          const was = drawn.get(id);
-          switch (preview.property) {
-            case "background":
-              return value === null
-                ? { color: was?.color, background: was?.background }
-                : { color: value, background: value };
-            case "color":
-              return { textColor: value ?? was?.textColor };
-            case "icon":
-              // A one-colour icon is drawn in the text colour, as the
-              // server paints it once written (PP-239).
-              return value === null
-                ? { icon: was?.icon, iconTint: was?.iconTint }
-                : {
-                    icon: value,
-                    iconTint: preview.tint ? (was?.iconTint ?? was?.textColor ?? "#ffffff") : was?.iconTint,
-                  };
-            default:
-              return { stroke: value ?? was?.stroke };
-          }
-        };
-        setNodes((current) =>
-          current.map((n) => (ids.has(n.id) ? { ...n, data: { ...n.data, ...fields(n.id) } } : n)),
-        );
+        setBoxPreviews((was) => {
+          const next = new Map(was);
+          if (preview.value === null) next.delete(preview.property);
+          else next.set(preview.property, preview);
+          return next;
+        });
         return;
       }
       const drawn = new Map((payload?.edges ?? []).map((e) => [e.id, e]));
@@ -707,7 +712,7 @@ export function GraphPane({
         ),
       );
     },
-    [payload, setEdges, setNodes],
+    [payload, setEdges],
   );
   /** A logo being picked (PP-238), painted on the title before it is
       written; `null` puts back what the payload drew. Held apart from the
@@ -879,8 +884,22 @@ export function GraphPane({
       const step = (now: number) => {
         const t = Math.min(1, (now - start) / TWEEN_MS);
         const k = easeInOutCubic(t);
-        setNodes(
-          prepared.map((n) => {
+        // Each frame keeps what the canvas holds of a node: the size React
+        // Flow measured (handed over without it, a node is hidden, lines
+        // and all, until measured again: the tween blinked on every other
+        // frame) and whether it is selected (a click during the tween was
+        // otherwise undone by the next frame).
+        setNodes((current) => {
+          const shown = new Map(current.map((n) => [n.id, n]));
+          return prepared.map((fresh) => {
+            const was = shown.get(fresh.id);
+            const n = was
+              ? {
+                  ...fresh,
+                  selected: was.selected,
+                  ...(was.width && was.height ? { width: was.width, height: was.height } : {}),
+                }
+              : fresh;
             const tween = tweens.get(n.id);
             if (!tween) return n;
             const frame: Node = {
@@ -905,8 +924,8 @@ export function GraphPane({
               };
             }
             return frame;
-          }),
-        );
+          });
+        });
         if (t < 1) {
           animationRef.current = requestAnimationFrame(step);
         }
@@ -1727,10 +1746,23 @@ export function GraphPane({
   ]);
   // The title's logo opens the logo picker, where the logo can be written.
   const pickLogo = styleEditing && details ? handleTitleLogo : undefined;
+  // The card's previews on boxes, laid over what the payload drew.
+  const previewedNodes = useMemo(() => {
+    if (boxPreviews.size === 0) return restyledNodes;
+    const drawn = new Map((payload?.nodes ?? []).map((n) => [n.id, n.data]));
+    return restyledNodes.map((node) => {
+      let data = node.data;
+      for (const preview of boxPreviews.values()) {
+        if (!preview.ids.includes(node.id) || preview.value === null) continue;
+        data = { ...data, ...previewFields(preview.property, preview.value, preview.tint, drawn.get(node.id)) };
+      }
+      return data === node.data ? node : { ...node, data };
+    });
+  }, [restyledNodes, boxPreviews, payload]);
   const styledNodes = useMemo(
     () =>
       pickLogo || logoPreview
-        ? restyledNodes.map((node) =>
+        ? previewedNodes.map((node) =>
             node.id === TITLE_NODE_ID
               ? {
                   ...node,
@@ -1742,8 +1774,8 @@ export function GraphPane({
                 }
               : node,
           )
-        : restyledNodes,
-    [restyledNodes, pickLogo, logoPreview],
+        : previewedNodes,
+    [previewedNodes, pickLogo, logoPreview],
   );
 
   useEffect(() => {
