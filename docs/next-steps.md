@@ -31,7 +31,7 @@ folded into Diagrams as an editor panel (PP-214).
 | `main` | Green. Four CI jobs: Python gate, bundle + layout, VS Code extension packaging, and the `render` dogfood |
 | Open PRs | **None** |
 | Next release | **0.5.0, the icon release**: Tabler, the logo picker and the icon browser (PP-231 … PP-252). **Not to be cut until the user has tried the features and said so** |
-| Open `PP` tickets | PP-253 (style previews and a reload), the icon queue (PP-240, PP-241, PP-236, PP-235), PP-192 (drive the `.vsix` for a day — needs a human), PP-213 (picomatch, no fix published), PP-211 (parked) — see *Open now* |
+| Open `PP` tickets | PP-253 (line previews and a reload; the box half landed with PP-254), the icon queue (PP-240, PP-241, PP-236, PP-235), PP-192 (drive the `.vsix` for a day — needs a human), PP-213 (picomatch, no fix published), PP-211 (parked) — see *Open now* |
 | Site | **[geoffkoh.github.io/c4studio](https://geoffkoh.github.io/c4studio/)**, built by `website/build.py`, deployed by `pages.yml` on merge (PP-217) |
 | Frontend runtime | React **19**, TypeScript **7**, Vite **8**, marked **18**. `reactflow` stays on **11** — see below |
 
@@ -115,9 +115,10 @@ checked subset with its disclaimer.
   Left for a human to judge: the Suggested list, and whether the
   browser should follow a new selection (today it closes, as before).
   Single-line labels were tried and dropped: the ellipsis cut the
-  suffix that tells variants apart. `export-edge-handles` and the `line-style`
-  "saved style outranks" test now fail in **every** full Playwright
-  run and pass alone: order-dependent, not random. Worth a ticket.
+  suffix that tells variants apart. `export-edge-handles` and the `line-style` "saved style outranks" test,
+  which failed in every full Playwright run for weeks, pass since PP-254:
+  the expand tween hid nodes on alternate frames, so whatever ran during
+  one waited or missed. The full run went from 3.9 to 1.5 minutes.
 - **PP-220 leftovers (parked 18 Nov):** sizes from a remote theme are
   not applied, and `c4 render` cannot pick a named layout.
 - **PP-213, waiting on picomatch:** the `@azure/msal-node` advisory
