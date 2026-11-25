@@ -399,7 +399,8 @@ test("the box being given an icon is panned clear of the browser, and back (PP-2
   await expect(picker).toBeVisible();
   const cover = (await card(page).boundingBox())!;
   await expect.poll(async () => (await database(page).boundingBox())!.x + (await database(page).boundingBox())!.width).toBeLessThan(cover.x);
-  await expect(database(page)).toBeInViewport({ ratio: 1 });
+  // Whole, give or take a sub-pixel of rounding.
+  await expect(database(page)).toBeInViewport({ ratio: 0.99 });
 
   // Closed untouched, the canvas goes back to where it was.
   await page.keyboard.press("Escape");
