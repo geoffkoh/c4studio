@@ -8,7 +8,8 @@ open right now, and what to do next.
 **Keep it current.** It is only worth reading if it is true, so update it
 when you finish a run of work, not when you remember.
 
-Last updated: **18 November 2026**, after control-free exports (PP-227),
+Last updated: **25 November 2026**, after the icon browser review run
+(PP-245 … PP-252); before that **18 November 2026**, after control-free exports (PP-227),
 Structurizr's text size in JSON layouts (PP-228), a key to merged lines
 (PP-229) and the picomatch advisory on PP-213; before that **9 November 2026**,
 after the 0.4.0 release (PP-216), the project site (PP-217), handle-free
@@ -29,7 +30,8 @@ folded into Diagrams as an editor panel (PP-214).
 | VS Code extension | **0.3.1**, packaged as `.vsix` only. Not on the Marketplace, and versioned independently of the Python package |
 | `main` | Green. Four CI jobs: Python gate, bundle + layout, VS Code extension packaging, and the `render` dogfood |
 | Open PRs | **None** |
-| Open `PP` tickets | PP-192 (drive the `.vsix` for a day — needs a human), PP-213 (picomatch, no fix published), PP-211 (parked) — see *Open now* |
+| Next release | **0.5.0, the icon release**: Tabler, the logo picker and the icon browser (PP-231 … PP-252). **Not to be cut until the user has tried the features and said so** |
+| Open `PP` tickets | PP-253 (style previews and a reload), the icon queue (PP-240, PP-241, PP-236, PP-235), PP-192 (drive the `.vsix` for a day — needs a human), PP-213 (picomatch, no fix published), PP-211 (parked) — see *Open now* |
 | Site | **[geoffkoh.github.io/c4studio](https://geoffkoh.github.io/c4studio/)**, built by `website/build.py`, deployed by `pages.yml` on merge (PP-217) |
 | Frontend runtime | React **19**, TypeScript **7**, Vite **8**, marked **18**. `reactflow` stays on **11** — see below |
 
@@ -97,9 +99,23 @@ checked subset with its disclaimer.
   the card widens to `clamp(320px, 50cqw, 560px)` while picking, a
   section/category list shows from 480 px of panel width, the grid is
   windowed by hand, search lives in `frontend/src/iconSearch.ts`.
-  Left for a human to judge: the Suggested list, two-line labels at
-  72 px, and whether the browser should follow a new selection (today
-  it closes, as before). `export-edge-handles` and the `line-style`
+  A code and UI review of it (25 Nov) landed as PP-245 … PP-252, each
+  with a test that failed first: a new search drops the old focus
+  (PP-245); the preview's tint comes from the server's own currentColor
+  check, not the folder name (PP-246, `GET /api/icons` `tint`); synonym
+  matches rank below the word typed and a search folds variants behind
+  a "+N variants" tile, suffixes read from the pack (PP-247); wider
+  sections, pack under shared names, one back control (PP-248); the box
+  is panned clear of the widened card and back (PP-249,
+  `keepInView.ts`); "Path or URL…" in every state (PP-250); cleanups
+  (PP-251). PP-252 fixed two races that left the wrong logo on the
+  title — it was the logo picker's intermittent e2e failure. PP-253
+  holds the same fix for box and line previews, split out as it touches
+  the edge pipeline.
+  Left for a human to judge: the Suggested list, and whether the
+  browser should follow a new selection (today it closes, as before).
+  Single-line labels were tried and dropped: the ellipsis cut the
+  suffix that tells variants apart. `export-edge-handles` and the `line-style`
   "saved style outranks" test now fail in **every** full Playwright
   run and pass alone: order-dependent, not random. Worth a ticket.
 - **PP-220 leftovers (parked 18 Nov):** sizes from a remote theme are
