@@ -460,3 +460,43 @@ test("a workspace without icons keeps the field in the list, once (PP-250)", asy
   await expect(picker.getByRole("textbox", { name: "Icon path or URL" })).toHaveCount(1);
   await expect(picker.getByRole("button", { name: "Path or URL…" })).toHaveCount(0);
 });
+
+test("an icon used is recently used; one whose copy failed is not (PP-251)", async ({ page }) => {
+  await open(page);
+  await page.route("**/api/icons/bundled/copy", (route) =>
+    route.fulfill({ status: 500, json: { detail: "disk full" } }),
+  );
+  const editor = page.getByLabel("Edit style", { exact: true });
+  const picker = page.getByRole("dialog", { name: "Choose an icon" });
+  const search = picker.getByRole("searchbox", { name: "Search icons" });
+
+  // A built-in icon whose copy fails.
+  await editor.getByRole("button", { name: "Icon", exact: true }).click();
+  await search.fill("cloud computing");
+  await picker.getByRole("option", { name: "cloud-computing", exact: true }).focus();
+  await picker.getByRole("button", { name: "Copy & use" }).click();
+  await expect(picker.getByRole("status")).toContainText("disk full");
+  await picker.getByRole("button", { name: "Back to the style" }).click();
+
+  // A workspace icon, used.
+  await editor.getByRole("button", { name: "Icon", exact: true }).click();
+  await search.fill("server");
+  await picker.getByRole("option").and(picker.locator('[title="icons/basic/Server_48.svg"]')).focus();
+  await picker.getByRole("button", { name: "Use", exact: true }).click();
+  await expect(editor.getByRole("status")).toHaveText("Saved to logistics_network.dsl");
+
+  await editor.getByRole("button", { name: "Icon", exact: true }).click();
+  const recent = picker.getByRole("group", { name: "Recently used" });
+  await expect(recent.getByRole("option")).toHaveCount(1);
+  await expect(recent.getByRole("option")).toHaveAttribute("title", "icons/basic/Server_48.svg");
+  await expect(picker.getByRole("navigation", { name: "Sections" }).getByRole("button", { name: /Recently used\s*1$/ })).toBeVisible();
+});
+
+test("each row of tiles is a group named after its section (PP-251)", async ({ page }) => {
+  const picker = await browse(page, 1440);
+  await expect(
+    picker.getByRole("group", { name: "Suggested · Data" }).getByRole("option", { name: "database", exact: true }),
+  ).toBeVisible();
+  await picker.getByRole("searchbox", { name: "Search icons" }).fill("queue");
+  await expect(picker.getByRole("group", { name: /^\d+ matches$/ }).first()).toBeVisible();
+});

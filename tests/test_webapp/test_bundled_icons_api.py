@@ -94,6 +94,10 @@ class TestPack:
 
 
 class TestRoutes:
+    def test_the_listing_is_built_once(self) -> None:
+        # The pack cannot change while c4studio runs (PP-251).
+        assert bundled_icons.summary("tabler") is bundled_icons.summary("tabler")
+
     def test_listing_needs_no_workspace(self, tmp_path: Path) -> None:
         body = TestClient(create_app(root=tmp_path)).get("/api/icons/bundled").json()
         (pack,) = body["packs"]

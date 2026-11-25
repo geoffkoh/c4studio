@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -73,7 +74,8 @@ interface Section {
 
 type Row =
   | { kind: "header"; title: string; top: number }
-  | { kind: "tiles"; top: number; first: number; items: Choice[] };
+  // `section` labels the row for a screen reader, which skips the header.
+  | { kind: "tiles"; top: number; first: number; items: Choice[]; section: string };
 
 const TILE_WIDTH = 72;
 const GAP = 4;
@@ -199,7 +201,8 @@ export function IconPicker({
   );
 
   // A built-in icon already copied in is listed once, as the copy.
-  const copiedAt = (pack: string, name: string) => `${library?.folder ?? "icons"}/${pack}/${name}.svg`;
+  const folder = library?.folder ?? "icons";
+  const copiedAt = useCallback((pack: string, name: string) => `${folder}/${pack}/${name}.svg`, [folder]);
   const ownByPath = useMemo(() => new Map(own.map((c) => [c.key, c])), [own]);
   const builtIn = useMemo<Choice[]>(
     () =>
@@ -220,7 +223,7 @@ export function IconPicker({
             bundled: { pack: p.name, name: icon.name },
           })),
       ),
-    [shipped, ownByPath],
+    [shipped, ownByPath, copiedAt],
   );
   const all = useMemo(() => [...own, ...builtIn], [own, builtIn]);
   // Names two tiles share ("Queue" in basic/ and outline/): those tiles say
@@ -237,28 +240,40 @@ export function IconPicker({
   }, [all]);
   const byKey = useMemo(() => new Map(all.map((c) => [c.key, c])), [all]);
   // A built-in key, or the copy it became.
-  const lookup = (key: string): Choice | undefined => {
-    const hit = byKey.get(key);
-    if (hit) return hit;
-    const [pack, name] = key.split(":");
-    return name ? ownByPath.get(copiedAt(pack, name)) : undefined;
-  };
+  const lookup = useCallback(
+    (key: string): Choice | undefined => {
+      const hit = byKey.get(key);
+      if (hit) return hit;
+      const [pack, name] = key.split(":");
+      return name ? ownByPath.get(copiedAt(pack, name)) : undefined;
+    },
+    [byKey, ownByPath, copiedAt],
+  );
+  // Worked out once, not per icon per keystroke (PP-251).
+  const recentChoices = useMemo(
+    () => recent.map(lookup).filter((c): c is Choice => c !== undefined),
+    [recent, lookup],
+  );
+  const recentKeys = useMemo(() => new Set(recentChoices.map((c) => c.key)), [recentChoices]);
 
   const shippedNames = useMemo(() => new Set((shipped ?? []).map((p) => p.name)), [shipped]);
-  const inNav = (choice: Choice, where: Nav): boolean => {
-    switch (where.kind) {
-      case "home":
-        return true;
-      case "workspace":
-        return choice.own;
-      case "recent":
-        return recent.some((key) => lookup(key)?.key === choice.key);
-      case "pack":
-        return choice.pack === where.pack;
-      case "category":
-        return !choice.own && choice.pack === where.pack && choice.category === where.category;
-    }
-  };
+  const inNav = useCallback(
+    (choice: Choice, where: Nav): boolean => {
+      switch (where.kind) {
+        case "home":
+          return true;
+        case "workspace":
+          return choice.own;
+        case "recent":
+          return recentKeys.has(choice.key);
+        case "pack":
+          return choice.pack === where.pack;
+        case "category":
+          return !choice.own && choice.pack === where.pack && choice.category === where.category;
+      }
+    },
+    [recentKeys],
+  );
 
   const words = useMemo(() => queryWords(query), [query]);
   const phrase = query.trim().toLowerCase();
@@ -312,8 +327,7 @@ export function IconPicker({
         const result: Section[] = [];
         const used = own.filter((c) => c.used);
         if (used.length) result.push({ title: "Used in this workspace", items: used });
-        const seen = recent.map(lookup).filter((c): c is Choice => c !== undefined);
-        if (seen.length) result.push({ title: "Recently used", items: seen });
+        if (recentChoices.length) result.push({ title: "Recently used", items: recentChoices });
         if (shippedNames.has("tabler")) {
           for (const { group, names } of SUGGESTED) {
             const items = names.map((name) => lookup(`tabler:${name}`)).filter((c): c is Choice => c !== undefined);
@@ -328,7 +342,7 @@ export function IconPicker({
         return [...packs.entries()].map(([pack, items]) => ({ title: pack || "icons/", items }));
       }
       case "recent":
-        return [{ title: "Recently used", items: recent.map(lookup).filter((c): c is Choice => c !== undefined) }];
+        return [{ title: "Recently used", items: recentChoices }];
       case "pack": {
         const items = all.filter((c) => c.pack === nav.pack);
         if (!shippedNames.has(nav.pack)) return [{ title: nav.pack, items }];
@@ -344,25 +358,37 @@ export function IconPicker({
       case "category":
         return [{ title: `${nav.pack} · ${nav.category}`, items: all.filter((c) => inNav(c, nav)) }];
     }
-  }, [ranked, families, expanded, nav, own, all, recent, shippedNames]);
+  }, [ranked, families, expanded, nav, own, all, recentChoices, shippedNames, inNav, lookup]);
 
   // The left-hand list, with counts for what the search leaves.
   const navEntries = useMemo(() => {
     const pool = matched ?? all;
-    const count = (where: Nav) => pool.filter((c) => inNav(c, where)).length;
+    // Every count in one pass over the pool (PP-251).
+    let ownCount = 0;
+    let recentCount = 0;
+    const byPack = new Map<string, number>();
+    const byCategory = new Map<string, Map<string, number>>();
+    for (const c of pool) {
+      if (c.own) ownCount += 1;
+      if (recentKeys.has(c.key)) recentCount += 1;
+      byPack.set(c.pack, (byPack.get(c.pack) ?? 0) + 1);
+      if (!c.own) {
+        const categories = byCategory.get(c.pack) ?? new Map<string, number>();
+        categories.set(c.category, (categories.get(c.category) ?? 0) + 1);
+        byCategory.set(c.pack, categories);
+      }
+    }
     const entries: { nav: Nav; label: string; count?: number; depth: number }[] = [
       { nav: { kind: "home" }, label: matched ? "Everything" : "Suggested", count: matched?.length, depth: 0 },
     ];
-    const ownCount = count({ kind: "workspace" });
     if (ownCount) entries.push({ nav: { kind: "workspace" }, label: "In this workspace", count: ownCount, depth: 0 });
-    const recentCount = count({ kind: "recent" });
     if (recentCount) entries.push({ nav: { kind: "recent" }, label: "Recently used", count: recentCount, depth: 0 });
     const packNames = [...new Set(all.map((c) => c.pack))].filter(Boolean).sort((a, b) => {
       // The workspace's packs first, then the built-in ones.
       return Number(shippedNames.has(a)) - Number(shippedNames.has(b)) || a.localeCompare(b);
     });
     for (const pack of packNames) {
-      const n = count({ kind: "pack", pack });
+      const n = byPack.get(pack) ?? 0;
       if (matched && n === 0) continue;
       entries.push({
         nav: { kind: "pack", pack },
@@ -373,16 +399,13 @@ export function IconPicker({
       if (!shippedNames.has(pack)) continue;
       const open = (nav.kind === "pack" || nav.kind === "category") && nav.pack === pack;
       if (!open && !matched) continue;
-      const categories = new Map<string, number>();
-      for (const c of pool) {
-        if (!c.own && c.pack === pack) categories.set(c.category, (categories.get(c.category) ?? 0) + 1);
-      }
+      const categories = byCategory.get(pack) ?? new Map<string, number>();
       for (const [category, n2] of [...categories.entries()].sort(([a], [b]) => a.localeCompare(b))) {
         entries.push({ nav: { kind: "category", pack, category }, label: category || "Other", count: n2, depth: 1 });
       }
     }
     return entries;
-  }, [matched, all, nav, recent, shippedNames]);
+  }, [matched, all, nav, recentKeys, shippedNames]);
 
   // Sections flattened into rows for the windowed grid.
   const columns = Math.max(1, Math.floor((view.width - 8 + GAP) / (TILE_WIDTH + GAP)));
@@ -396,7 +419,7 @@ export function IconPicker({
       top += HEADER_ROW;
       for (let i = 0; i < section.items.length; i += columns) {
         const slice = section.items.slice(i, i + columns);
-        result.push({ kind: "tiles", top, first: items.length, items: slice });
+        result.push({ kind: "tiles", top, first: items.length, items: slice, section: section.title });
         items.push(...slice);
         top += TILE_ROW;
       }
@@ -465,8 +488,8 @@ export function IconPicker({
       pendingFocus.current = true;
       return;
     }
-    remember(choice.key);
     if (choice.path !== undefined) {
+      remember(choice.key);
       request.onUse(choice.path);
       onClose();
       return;
@@ -475,6 +498,8 @@ export function IconPicker({
     setCopying(true);
     copyBundledIcon(pack, name)
       .then((copy) => {
+        // Only an icon that made it into the workspace is recent (PP-251).
+        remember(choice.key);
         request.onUse(copy.path);
         onClose();
       })
@@ -738,11 +763,24 @@ export function IconPicker({
             <div className="icon-picker__grid" role="listbox" aria-label="Icons" style={{ height }}>
               {visible.map((row) =>
                 row.kind === "header" ? (
-                  <div key={`h${row.top}`} className="icon-picker__section" style={{ top: row.top }} role="presentation">
+                  <div
+                    key={`h${row.top}`}
+                    className="icon-picker__section"
+                    style={{ top: row.top }}
+                    aria-hidden="true"
+                  >
                     {row.title}
                   </div>
                 ) : (
-                  <div key={`r${row.top}`} className="icon-picker__row" style={{ top: row.top }} role="presentation">
+                  <div
+                    key={`r${row.top}`}
+                    className="icon-picker__row"
+                    style={{ top: row.top }}
+                    // Its section, which a screen reader cannot get from the
+                    // header drawn above it (PP-251).
+                    role="group"
+                    aria-label={row.section}
+                  >
                     {row.items.map((choice, i) => {
                       const index = row.first + i;
                       if (choice.more) {

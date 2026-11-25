@@ -255,10 +255,26 @@ def _file_paints(path: Path, mtime_ns: int, size: int) -> bool:
         return False
 
 
+#: A shape that is filled unless told otherwise, and the root tag.
+_SVG_FILLED_SHAPE = re.compile(
+    r"<(?:path|circle|rect|ellipse|polygon|polyline)\b[^>]*>", re.IGNORECASE
+)
+_SVG_ROOT = re.compile(r"<svg\b[^>]*>", re.IGNORECASE)
+_SVG_FILL = re.compile(r"\bfill\s*[=:]", re.IGNORECASE)
+
+
 def _svg_paints_in_current_color(data: bytes) -> bool:
     svg = data.decode("utf-8", errors="replace")
     paints = {value.strip().lower() for value in _SVG_PAINT.findall(svg)}
-    return "currentcolor" in paints and paints <= {"currentcolor", "none"}
+    if "currentcolor" not in paints or not paints <= {"currentcolor", "none"}:
+        return False
+    # A shape no fill reaches is painted black (PP-251). The root's fill
+    # reaches every shape; otherwise each must name its own. A ``<g>``'s
+    # fill is not followed: such an icon is drawn as it is, untinted.
+    root = _SVG_ROOT.search(svg)
+    if root and _SVG_FILL.search(root.group(0)):
+        return True
+    return all(_SVG_FILL.search(tag) for tag in _SVG_FILLED_SHAPE.findall(svg))
 
 
 def image_size(uri: str) -> tuple[float, float] | None:

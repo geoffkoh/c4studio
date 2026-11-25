@@ -115,3 +115,51 @@ class TestInlineIcons:
         assert inline_icons(payload) == 1
         assert "icon" not in payload["nodes"][0]["data"]
         assert payload["nodes"][1]["data"]["icon"].startswith("data:")
+
+
+_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"{root}>{body}</svg>'
+
+
+@pytest.mark.parametrize(
+    ("root", "body", "tinted"),
+    [
+        # Tabler, Lucide, Feather: the root says no fill, strokes follow.
+        (' fill="none" stroke="currentColor"', '<path d="M4 4h16"/>', True),
+        # Phosphor, Heroicons solid: the root fills in currentColor.
+        (' fill="currentColor"', '<path d="M4 4h16v4z"/>', True),
+        # Every shape says its own fill.
+        ("", '<path fill="currentColor" d="M4 4h16v4z"/>', True),
+        (
+            "",
+            '<rect style="fill:none;stroke:currentColor" width="4" height="4"/>',
+            True,
+        ),
+        # A shape with no fill anywhere is painted black, whatever else
+        # says currentColor (PP-251).
+        ("", '<path stroke="currentColor" d="M4 4h16"/><circle r="2"/>', False),
+        (' stroke="currentColor"', '<path d="M4 4h16v4z"/>', False),
+        # Anything but currentColor is a colour of its own.
+        (' fill="none" stroke="#000"', '<path d="M4 4h16"/>', False),
+        # No paint at all is black, not currentColor.
+        ("", '<path d="M4 4h16v4z"/>', False),
+    ],
+    ids=[
+        "root-none-stroke",
+        "root-fill",
+        "own-fill",
+        "own-style",
+        "unfilled-circle",
+        "stroke-only-root",
+        "black-stroke",
+        "no-paint",
+    ],
+)
+def test_only_a_wholly_current_color_svg_is_tinted(
+    tmp_path: Path, root: str, body: str, tinted: bool
+) -> None:
+    svg = _SVG.format(root=root, body=body)
+    uri = "data:image/svg+xml;base64," + base64.b64encode(svg.encode()).decode()
+    assert icons.paints_in_current_color(uri) is tinted
+    file = tmp_path / "icon.svg"
+    file.write_text(svg, encoding="utf-8")
+    assert icons.file_paints_in_current_color(file) is tinted

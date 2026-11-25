@@ -1703,28 +1703,10 @@ def create_app(
     def list_bundled_icons() -> dict[str, Any]:
         """The icon packs c4studio ships, for the picker (PP-239).
 
-        Needs no workspace: the packs are the package's. ``tags`` is one
-        string, the picker's search haystack. A read, so Viewer serves it.
+        Needs no workspace: the packs are the package's. A read, so Viewer
+        serves it.
         """
-        packs = []
-        for name in bundled_icons.PACKS:
-            pack = bundled_icons.load(name)
-            packs.append(
-                {
-                    "name": name,
-                    "version": pack.version,
-                    "folder": f"{ICON_FOLDER}/{name}",
-                    "icons": [
-                        {
-                            "name": icon.name,
-                            "category": icon.category,
-                            "tags": " ".join(icon.tags),
-                        }
-                        for icon in bundled_icons.icons(name)
-                    ],
-                }
-            )
-        return {"packs": packs}
+        return {"packs": [bundled_icons.summary(name) for name in bundled_icons.PACKS]}
 
     @app.get("/api/icons/bundled/{pack}/{name}.svg")
     def bundled_icon_file(pack: str, name: str) -> Response:
