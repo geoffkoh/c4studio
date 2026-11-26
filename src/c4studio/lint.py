@@ -320,6 +320,22 @@ class UnusedStyle:
                 for component in container.components:
                     element_tags.update(component.tags)
                     element_tags.add("Component")
+        # Deployment elements carry their kind's tag as well (PP-256).
+        nodes = list(workspace.model.deployment_nodes)
+        while nodes:
+            node = nodes.pop()
+            element_tags.update(node.tags)
+            element_tags.add("Deployment Node")
+            for infrastructure in node.infrastructure_nodes:
+                element_tags.update(infrastructure.tags)
+                element_tags.add("Infrastructure Node")
+            for system_instance in node.software_system_instances:
+                element_tags.update(system_instance.tags)
+                element_tags.add("Software System Instance")
+            for container_instance in node.container_instances:
+                element_tags.update(container_instance.tags)
+                element_tags.add("Container Instance")
+            nodes.extend(node.children)
 
         relationship_tags: set[str] = {"Relationship"}
         for relationship in workspace.relationships:
