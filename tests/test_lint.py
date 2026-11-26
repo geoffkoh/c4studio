@@ -158,6 +158,46 @@ class TestRules:
         )
         assert "unused-style" not in _codes(workspace)
 
+    @pytest.mark.parametrize(
+        "tag",
+        [
+            "Deployment Node",
+            "Infrastructure Node",
+            "Container Instance",
+            "Software System Instance",
+            "Edge",
+            "Balancer",
+            "Primary",
+        ],
+    )
+    def test_a_style_on_a_deployment_element_is_used(self, tag: str) -> None:
+        """Deployment elements carry tags too, written and implicit (PP-256)."""
+        workspace = parse_dsl(f"""workspace {{
+    model {{
+        s = softwareSystem "S" "Does things" {{
+            c = container "C" "Holds things" "Go"
+        }}
+        live = deploymentEnvironment "Live" {{
+            region = deploymentNode "Region" "" "AWS" "Edge" {{
+                lb = infrastructureNode "LB" "Balances" "ALB" "Balancer"
+                k8s = deploymentNode "K8s" "" "EKS" {{
+                    containerInstance c "" "Primary"
+                }}
+                softwareSystemInstance s
+            }}
+        }}
+    }}
+    views {{
+        styles {{
+            element "{tag}" {{
+                background #ffffff
+            }}
+        }}
+    }}
+}}
+""")
+        assert "unused-style" not in _codes(workspace)
+
     def test_a_perspective_style_is_never_unused(self) -> None:
         """It matches by perspective name, not by any tag an element has."""
         workspace = parse_dsl(
