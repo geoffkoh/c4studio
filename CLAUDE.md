@@ -245,7 +245,12 @@ Tests alone are not sufficient for webapp or parser changes. Before opening a PR
    `c4studio/workspace.dsl` models this codebase itself, down to component
    level — the fastest way to check a change against a model you can verify
    by reading the source next to it, and the only sample with component
-   views for more than one container.
+   views for more than one container. `shapes_gallery.dsl`,
+   `line_styles.dsl`, `icons_and_groups.dsl` and `deployment_flow.dsl`
+   each stress one area where `c4 render` and the Studio could draw
+   differently (PP-255): every shape, every relationship style, icons and
+   groups, deployment and dynamic views. Render one and put it beside the
+   Studio when touching `svg.ts`, `nodeMetrics.ts` or a node component.
 3. For frontend changes, rebuild the bundle and commit it — a stale
    `src/c4studio/webapp/static/` ships a broken UI.
 

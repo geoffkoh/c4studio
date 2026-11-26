@@ -77,6 +77,32 @@ checked subset with its disclaimer.
 
 ## Open now
 
+- **Studio vs `c4 render`, compared on the PP-255 samples**
+  (`shapes_gallery`, `line_styles`, `icons_and_groups`,
+  `deployment_flow`). Positions match exactly; icons, the logo, tints,
+  groups, line colours, dashes and thickness match. What differs, none
+  of it ticketed yet, waiting on the user's choice:
+  - **Box height.** `c4 render` draws `nodeHeight()` (a 110 px floor,
+    150 for a person); the Studio's `.node` shrinks to its text (73 to
+    100 px) inside the slot dagre reserved for 110. Every diagram has it.
+  - **Shapes only the Studio draws:** `WebBrowser`/`Window` (title bar),
+    `MobileDevicePortrait`/`Landscape` (device frame), `Folder` (tab),
+    `Pipe` (a horizontal pill; the render draws a cylinder).
+  - **`Diamond`** is a plain box in the Studio, and a diamond in the
+    render that clips the name ("iscount Rul").
+  - **A deployment node's technology** shows in the Studio's boundary
+    label (`[Deployment Node: Pod]`), not in the render's.
+  - **`routing Orthogonal`** takes a different route: the render's
+    passes through a box (FIX Engine in `line_styles`).
+  - **An `opacity` relationship style** fades the label in the render,
+    not in the Studio.
+  - **Edge labels under boxes** in the render: a dynamic view's step
+    number can be covered ("3." in `OrderLifecycle`).
+  - Not fidelity, seen on the way: container instances are drawn with
+    the `Container Instance` default, not the container's own style,
+    where upstream inherits the container's tags; and dotted
+    identifiers (`shop.api`) fail because `!identifiers hierarchical`
+    is ignored.
 - **The icon queue, in order:** PP-240 (curated Simple Icons, which
   belongs in `bundled_icons.PACKS` beside Tabler), PP-241 (`c4 icons import` for a
   downloaded cloud pack), PP-236 (remove `branding`, warning towards
